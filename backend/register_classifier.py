@@ -1,127 +1,122 @@
-"""
-地声/裏声の分類
-HNR + スペクトル平坦度 + 倍音比で判定
-"""
 import numpy as np
 import librosa
 
 
-class RegisterClassifier:
-    def __init__(self, sr: int = 22050, frame_length: int = 2048, hop_length: int = 512):
-        self.sr = sr
-        self.frame_length = frame_length
-        self.hop_length = hop_length
+def classify_register(y: np.ndarray, sr: int, f0: float, median_freq: float = 0) -> str:
+    """
+    地声 (chest) / ミックス (mix) / 裏声 (falsetto)
+    """
+    if f0 <= 0 or len(y) < 512:
+        return "unknown"
 
-    def classify_frames(
-        self,
-        y: np.ndarray,
-        f0: np.ndarray,
-        voiced_flag: np.ndarray,
-        sr: int,
-    ) -> list[str]:
-        """全フレームを地声/裏声に分類して返す"""
+    chest_score = 0.0
+    falsetto_score = 0.0
 
-        # --- 特徴量を一括計算 ---
-        y_harmonic = librosa.effects.harmonic(y)
-        y_residual = y - y_harmonic
+    # === 1. 倍音比率（重み3.0）===
+    fft = np.abs(np.fft.rfft(y))
+    freqs = np.fft.rfftfreq(len(y), 1.0 / sr)
+    window = max(1, int(40 * len(freqs) / (sr / 2)))
 
-        rms_h = librosa.feature.rms(
-            y=y_harmonic, frame_length=self.frame_length,
-            hop_length=self.hop_length
-        )[0]
-        rms_n = librosa.feature.rms(
-            y=y_residual, frame_length=self.frame_length,
-            hop_length=self.hop_length
-        )[0]
-        hnr = 10 * np.log10(rms_h / (rms_n + 1e-10))
+    def get_energy(target_freq):
+        if target_freq > sr / 2:
+            return 0
+        idx = np.argmin(np.abs(freqs - target_freq))
+        s = max(0, idx - window)
+        e = min(len(fft), idx + window)
+        return np.sum(fft[s:e] ** 2)
 
-        flatness = librosa.feature.spectral_flatness(
-            y=y, hop_length=self.hop_length
-        )[0]
+    fundamental = get_energy(f0) + 1e-10
+    h2 = get_energy(f0 * 2)
+    h3 = get_energy(f0 * 3)
+    h4 = get_energy(f0 * 4)
 
-        S = np.abs(librosa.stft(y, n_fft=self.frame_length, hop_length=self.hop_length))
-        freqs = librosa.fft_frequencies(sr=sr, n_fft=self.frame_length)
-        low_e = np.sum(S[freqs < 2000, :] ** 2, axis=0)
-        high_e = np.sum(S[freqs >= 2000, :] ** 2, axis=0)
-        h_ratio = low_e / (high_e + 1e-10)
+    harmonic_ratio = (h2 + h3 + h4) / (fundamental * 3)
 
-        # --- フレームごとに分類 ---
-        n = min(len(f0), len(hnr), len(flatness), len(h_ratio))
-        labels = []
-        for i in range(n):
-            if not voiced_flag[i] or np.isnan(f0[i]):
-                labels.append("unvoiced")
-                continue
-            labels.append(self._classify_one(
-                hnr=float(hnr[i]),
-                flatness=float(flatness[i]),
-                h_ratio=float(h_ratio[i]),
-                f0=float(f0[i]),
-            ))
+    if harmonic_ratio > 0.5:
+        chest_score += 3.0
+    elif harmonic_ratio > 0.25:
+        chest_score += 1.0
+    elif harmonic_ratio > 0.1:
+        falsetto_score += 1.5
+    else:
+        falsetto_score += 3.0
 
-        # スムージング（5フレーム多数決）
-        labels = self._smooth(labels, window=5)
+    # === 2. HNR（重み2.0）===
+    harmonic, percussive = librosa.effects.hpss(y)
+    h_energy = np.mean(harmonic ** 2) + 1e-10
+    p_energy = np.mean(percussive ** 2) + 1e-10
+    hnr = 10 * np.log10(h_energy / p_energy)
 
-        # f0 の長さに合わせる
-        while len(labels) < len(f0):
-            labels.append("unvoiced")
+    if hnr > 12:
+        chest_score += 2.0
+    elif hnr > 6:
+        chest_score += 0.5
+    elif hnr > 2:
+        falsetto_score += 1.0
+    else:
+        falsetto_score += 2.0
 
-        return labels
+    # === 3. スペクトル重心比（重み1.5）===
+    centroid = np.mean(librosa.feature.spectral_centroid(y=y, sr=sr))
+    centroid_ratio = centroid / f0
 
-    def _classify_one(self, hnr: float, flatness: float,
-                      h_ratio: float, f0: float) -> str:
-        chest = 0.0
-        falsetto = 0.0
+    if centroid_ratio > 3.5:
+        chest_score += 1.5
+    elif centroid_ratio > 2.5:
+        chest_score += 0.3
+    elif centroid_ratio > 1.8:
+        falsetto_score += 0.5
+    else:
+        falsetto_score += 1.5
 
-        # HNR
-        if hnr > 15:
-            chest += 3.0
-        elif hnr > 10:
-            chest += 1.5
-            falsetto += 0.5
-        elif hnr > 5:
-            falsetto += 1.5
-            chest += 0.5
+    # === 4. スペクトルフラットネス（重み1.5）===
+    flatness = np.mean(librosa.feature.spectral_flatness(y=y))
+
+    if flatness < 0.02:
+        chest_score += 1.5
+    elif flatness < 0.05:
+        chest_score += 0.3
+    elif flatness < 0.08:
+        falsetto_score += 0.5
+    else:
+        falsetto_score += 1.5
+
+    # === 5. 相対ピッチ判定（重み3.0 ← 最重要）===
+    if median_freq > 0:
+        midi_diff = librosa.hz_to_midi(f0) - librosa.hz_to_midi(median_freq)
+        # 中央値より5半音以上高い → ほぼ裏声
+        if midi_diff > 6:
+            falsetto_score += 3.0
+        elif midi_diff > 4:
+            falsetto_score += 2.0
+        elif midi_diff > 2:
+            falsetto_score += 1.0
+        elif midi_diff < -2:
+            chest_score += 1.5
         else:
-            falsetto += 3.0
+            chest_score += 0.3
 
-        # スペクトル平坦度
-        if flatness < 0.01:
-            chest += 2.0
-        elif flatness < 0.03:
-            chest += 1.0
-        elif flatness < 0.06:
-            falsetto += 1.0
-        else:
-            falsetto += 2.0
+    # === 6. スペクトルロールオフ比（重み1.0）===
+    rolloff = np.mean(librosa.feature.spectral_rolloff(y=y, sr=sr, roll_percent=0.85))
+    rolloff_ratio = rolloff / f0
 
-        # 倍音比
-        if h_ratio > 8:
-            chest += 2.0
-        elif h_ratio > 4:
-            chest += 1.0
-        elif h_ratio > 2:
-            falsetto += 1.0
-        else:
-            falsetto += 2.0
+    if rolloff_ratio > 5.0:
+        chest_score += 1.0
+    elif rolloff_ratio > 3.0:
+        chest_score += 0.3
+    else:
+        falsetto_score += 1.0
 
-        # 高音域補正
-        if f0 > 400 and hnr > 10:
-            chest += 0.5
-        if f0 > 500 and hnr <= 8:
-            falsetto += 1.5
+    # === 判定（裏声寄りに閾値調整）===
+    total = chest_score + falsetto_score
+    if total == 0:
+        return "chest"
 
-        return "chest" if chest >= falsetto else "falsetto"
+    falsetto_ratio = falsetto_score / total
 
-    def _smooth(self, labels: list[str], window: int = 5) -> list[str]:
-        """多数決フィルタ"""
-        result = labels.copy()
-        half = window // 2
-        for i in range(half, len(labels) - half):
-            local = labels[i - half: i + half + 1]
-            voiced = [l for l in local if l != "unvoiced"]
-            if not voiced:
-                continue
-            chest_count = sum(1 for l in voiced if l == "chest")
-            result[i] = "chest" if chest_count > len(voiced) // 2 else "falsetto"
-        return result
+    if falsetto_ratio > 0.50:
+        return "falsetto"
+    elif falsetto_ratio > 0.35:
+        return "mix"
+    else:
+        return "chest"
