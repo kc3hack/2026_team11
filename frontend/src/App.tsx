@@ -1,48 +1,56 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import Recorder from "./components/Recorder";
+import KaraokeUploader from "./components/KaraokeUploader";
 import ResultView from "./components/ResultView";
+import "./App.css";
 
-export default function App() {
+const App: React.FC = () => {
+  const [mode, setMode] = useState<"mic" | "karaoke">("mic");
   const [result, setResult] = useState<any>(null);
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      background: "#0f0f23",
-      color: "#e0e0e0",
-      fontFamily: "'Segoe UI', sans-serif",
-      padding: "2rem",
-    }}>
-      <h1 style={{ textAlign: "center", marginBottom: "0.5rem" }}>
-        🎤 VoiceMatch
-      </h1>
-      <p style={{ textAlign: "center", color: "#888", marginBottom: "2rem" }}>
-        声を出すだけで、あなたの音域がわかる
-      </p>
+    <div style={{ padding: 20, maxWidth: 600, margin: "0 auto" }}>
+      <h1>🎵 音域測定アプリ</h1>
 
-      <Recorder onResult={setResult} />
+      <div style={{ marginBottom: 20 }}>
+        <button
+          onClick={() => { setMode("mic"); setResult(null); }}
+          style={{
+            padding: "10px 20px",
+            marginRight: 10,
+            background: mode === "mic" ? "#4CAF50" : "#ddd",
+            color: mode === "mic" ? "white" : "black",
+            border: "none",
+            borderRadius: 5,
+            cursor: "pointer",
+          }}
+        >
+          🎙️ マイクで録音
+        </button>
+        <button
+          onClick={() => { setMode("karaoke"); setResult(null); }}
+          style={{
+            padding: "10px 20px",
+            background: mode === "karaoke" ? "#2196F3" : "#ddd",
+            color: mode === "karaoke" ? "white" : "black",
+            border: "none",
+            borderRadius: 5,
+            cursor: "pointer",
+          }}
+        >
+          🎤 カラオケ音源
+        </button>
+      </div>
 
-      {result && (
-        <div style={{ marginTop: "2rem" }}>
-          <ResultView result={result} />
-
-          <div style={{ textAlign: "center", marginTop: "2rem" }}>
-            <button
-              onClick={() => setResult(null)}
-              style={{
-                padding: "0.8rem 2rem",
-                borderRadius: "50px",
-                border: "1px solid #444",
-                background: "transparent",
-                color: "#888",
-                cursor: "pointer",
-              }}
-            >
-              もう一度測定する
-            </button>
-          </div>
-        </div>
+      {mode === "mic" ? (
+        <Recorder onResult={setResult} />
+      ) : (
+        <KaraokeUploader />
       )}
+
+      {result && <ResultView result={result} />}
     </div>
   );
-}
+};
+
+export default App;
