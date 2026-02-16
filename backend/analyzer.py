@@ -1,112 +1,217 @@
-"""
-音声解析のメインモジュール
-ピッチ検出 → 地声/裏声分類 → 音域算出
-"""
 import numpy as np
 import librosa
-from register_classifier import RegisterClassifier
-
-NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-
-KARAOKE_NAMES = {
-    "C3": "mid1C", "C#3": "mid1C#", "D3": "mid1D", "D#3": "mid1D#",
-    "E3": "mid1E", "F3": "mid1F", "F#3": "mid1F#", "G3": "mid1G",
-    "G#3": "mid1G#", "A3": "mid1A", "A#3": "mid1A#", "B3": "mid1B",
-    "C4": "mid2C", "C#4": "mid2C#", "D4": "mid2D", "D#4": "mid2D#",
-    "E4": "mid2E", "F4": "mid2F", "F#4": "mid2F#", "G4": "mid2G",
-    "G#4": "mid2G#", "A4": "hiA", "A#4": "hiA#", "B4": "hiB",
-    "C5": "hiC", "C#5": "hiC#", "D5": "hiD", "D#5": "hiD#",
-    "E5": "hiE", "F5": "hiF", "F#5": "hiF#", "G5": "hiG",
-    "G#5": "hiG#", "A5": "hihiA", "A#5": "hihiA#", "B5": "hihiB",
-    "C6": "hihiC",
-}
+import soundfile as sf
+import os
+from register_classifier import classify_register
+from note_converter import to_japanese_notation
 
 
-class VoiceAnalyzer:
-    def __init__(self, sr: int = 22050):
-        self.sr = sr
-        self.classifier = RegisterClassifier(sr=sr)
+def hz_to_nearest_note_hz(hz: float) -> tuple:
+    if hz <= 0:
+        return hz, "unknown"
+    midi = librosa.hz_to_midi(hz)
+    rounded_midi = round(midi)
+    corrected_hz = float(librosa.midi_to_hz(rounded_midi))
+    note = librosa.midi_to_note(rounded_midi)
+    return corrected_hz, note
 
-    def analyze(self, audio_path: str) -> dict:
-        y, sr = librosa.load(audio_path, sr=self.sr)
 
-        # 無音除去
-        y, _ = librosa.effects.trim(y, top_db=20)
+def load_audio_safe(file_path: str):
+    data, sr = sf.read(file_path)
+    print(f"[DEBUG] load_audio_safe: SR={sr}, shape={data.shape}, dtype={data.dtype}")
+    if len(data.shape) > 1:
+        data = np.mean(data, axis=1)
+    y = data.astype(np.float32)
+    return y, sr
 
-        if len(y) < sr * 0.5:
-            return {"error": "録音が短すぎます（0.5秒以上必要）"}
 
-        # ピッチ検出
-        f0, voiced_flag, voiced_probs = librosa.pyin(
-            y,
-            fmin=librosa.note_to_hz('C2'),
-            fmax=librosa.note_to_hz('C7'),
+def analyze(file_path: str, already_separated: bool = False) -> dict:
+    # === 音声読み込み ===
+    y, sr = load_audio_safe(file_path)
+    print(f"[DEBUG] Loaded: SR={sr}, duration={len(y)/sr:.2f}s, max={np.max(np.abs(y)):.4f}")
+
+    # === ノイズ除去（軽め・音を消しすぎない）===
+    try:
+        import noisereduce as nr
+        y_denoised = nr.reduce_noise(
+            y=y,
             sr=sr,
+            prop_decrease=0.5,   # 0.8→0.5 に緩和（音を消しすぎない）
+            n_fft=2048,
+            hop_length=512,
         )
-        times = librosa.times_like(f0, sr=sr)
+        # 無音カットは top_db を緩めに
+        intervals = librosa.effects.split(y_denoised, top_db=40)  # 30→40 に緩和
+        if len(intervals) > 0:
+            y_clean = np.concatenate([y_denoised[start:end] for start, end in intervals])
+            # カット後が短すぎたら元の音声を使う
+            if len(y_clean) >= sr * 0.3:
+                y = y_clean
+            else:
+                y = y_denoised
+        else:
+            y = y_denoised
+    except Exception as e:
+        print(f"[DEBUG] Noise reduction failed: {e}")
 
-        # 地声/裏声を分類
-        frame_labels = self.classifier.classify_frames(y, f0, voiced_flag, sr)
+    print(f"[DEBUG] After denoise: duration={len(y)/sr:.2f}s")
 
-        # 有声フレームだけ抽出
-        frames = []
-        for i in range(len(f0)):
-            if voiced_flag[i] and not np.isnan(f0[i]):
-                frames.append({
-                    "time": float(times[i]),
-                    "f0": float(f0[i]),
-                    "register": frame_labels[i],
-                })
+    if len(y) < sr * 0.3:
+        return {"error": "録音が短すぎます。3秒以上録音してください。"}
 
-        if not frames:
-            return {"error": "声が検出されませんでした"}
+    # === ピッチ検出 ===
+    # 短い音声でも動くように frame_length を調整
+    audio_length = len(y)
+    if audio_length < 4096:
+        fl = 2048
+    else:
+        fl = 4096
 
-        # 音域を集計
-        chest_pitches = [f["f0"] for f in frames if f["register"] == "chest"]
-        falsetto_pitches = [f["f0"] for f in frames if f["register"] == "falsetto"]
+    f0_pyin, voiced_flag, voiced_prob = librosa.pyin(
+        y,
+        fmin=librosa.note_to_hz("C2"),
+        fmax=librosa.note_to_hz("C7"),
+        sr=sr,
+        frame_length=fl,
+        hop_length=512,
+        fill_na=np.nan,
+    )
 
-        result = {
-            "total_frames": len(frames),
-            "chest_ratio": round(len(chest_pitches) / len(frames) * 100, 1),
-            "falsetto_ratio": round(len(falsetto_pitches) / len(frames) * 100, 1),
-            "timeline": frames,
-        }
+    f0_yin = librosa.yin(
+        y,
+        fmin=librosa.note_to_hz("C2"),
+        fmax=librosa.note_to_hz("C7"),
+        sr=sr,
+        frame_length=fl,
+        hop_length=512,
+    )
 
-        if chest_pitches:
-            lo, hi = self._stable_range(chest_pitches)
-            result["chest"] = {
-                "lowest": self._note_info(lo),
-                "highest": self._note_info(hi),
-            }
+    # 統合
+    f0 = np.copy(f0_pyin)
+    for i in range(min(len(f0_pyin), len(f0_yin))):
+        if np.isnan(f0_pyin[i]):
+            if 80 < f0_yin[i] < 1500:
+                f0[i] = f0_yin[i]
+            continue
+        pyin_midi = librosa.hz_to_midi(f0_pyin[i])
+        yin_midi = librosa.hz_to_midi(f0_yin[i])
+        if abs(pyin_midi - yin_midi) < 1.0:
+            f0[i] = (f0_pyin[i] + f0_yin[i]) / 2.0
 
-        if falsetto_pitches:
-            lo, hi = self._stable_range(falsetto_pitches)
-            result["falsetto"] = {
-                "lowest": self._note_info(lo),
-                "highest": self._note_info(hi),
-            }
+    valid = f0[~np.isnan(f0)]
+    if len(valid) == 0:
+        return {"error": "音声が検出できませんでした。もう少し大きな声で録音してください。"}
 
-        return result
+    print(f"[DEBUG] Pitch range: {np.min(valid):.1f}Hz ~ {np.max(valid):.1f}Hz")
+    print(f"[DEBUG] Pitch median: {np.median(valid):.1f}Hz, frames: {len(valid)}")
 
-    def _stable_range(self, pitches: list[float]) -> tuple[float, float]:
-        """外れ値を除外して安定した音域を返す"""
-        arr = np.array(pitches)
-        lo = float(np.percentile(arr, 3))
-        hi = float(np.percentile(arr, 97))
-        return lo, hi
+    # === 外れ値除去 ===
+    lower = np.percentile(valid, 3)
+    upper = np.percentile(valid, 97)
+    valid_filtered = valid[(valid >= lower) & (valid <= upper)]
+    if len(valid_filtered) < 3:
+        valid_filtered = valid
 
-    def _note_info(self, hz: float) -> dict:
-        note = self._hz_to_note(hz)
-        return {
-            "hz": round(hz, 1),
-            "note": note,
-            "karaoke": KARAOKE_NAMES.get(note, note),
-        }
+    median_freq = np.median(valid_filtered)
 
-    def _hz_to_note(self, freq: float) -> str:
-        if freq <= 0:
-            return "N/A"
-        midi = int(round(12 * np.log2(freq / 440.0) + 69))
-        octave = (midi // 12) - 1
-        note = NOTE_NAMES[midi % 12]
-        return f"{note}{octave}"
+    # === フレームごとに判定 ===
+    hop_length = 512
+    chest_notes = []
+    mix_notes = []
+    falsetto_notes = []
+
+    for i, freq in enumerate(f0):
+        if np.isnan(freq):
+            continue
+        if freq < lower or freq > upper:
+            continue
+        if voiced_prob is not None and i < len(voiced_prob) and voiced_prob[i] < 0.1:
+            continue
+
+        start = i * hop_length
+        end = start + fl
+        if end > len(y):
+            end = len(y)
+        frame = y[start:end]
+
+        # 短いフレームでも判定する（512以上あればOK）
+        if len(frame) < 512:
+            # 最低限の周波数ベース判定
+            midi_diff = librosa.hz_to_midi(freq) - librosa.hz_to_midi(median_freq)
+            if midi_diff > 5:
+                falsetto_notes.append(freq)
+            elif midi_diff > 2:
+                mix_notes.append(freq)
+            else:
+                chest_notes.append(freq)
+            continue
+
+        try:
+            register = classify_register(frame, sr, freq, median_freq)
+            if register == "chest":
+                chest_notes.append(freq)
+            elif register == "mix":
+                mix_notes.append(freq)
+            elif register == "falsetto":
+                falsetto_notes.append(freq)
+        except Exception:
+            continue
+
+    print(f"[DEBUG] chest={len(chest_notes)}, mix={len(mix_notes)}, falsetto={len(falsetto_notes)}")
+
+    # === もし全部空なら、周波数だけで簡易判定 ===
+    if len(chest_notes) == 0 and len(mix_notes) == 0 and len(falsetto_notes) == 0:
+        print("[DEBUG] All empty, fallback to frequency-only classification")
+        for freq in valid_filtered:
+            midi_diff = librosa.hz_to_midi(freq) - librosa.hz_to_midi(median_freq)
+            if midi_diff > 5:
+                falsetto_notes.append(freq)
+            elif midi_diff > 2:
+                mix_notes.append(freq)
+            else:
+                chest_notes.append(freq)
+
+    # === 結果構築 ===
+    def hz_to_jp(hz):
+        corrected_hz, note = hz_to_nearest_note_hz(hz)
+        return to_japanese_notation(note), round(corrected_hz, 1)
+
+    min_note, min_hz = hz_to_jp(np.min(valid_filtered))
+    max_note, max_hz = hz_to_jp(np.max(valid_filtered))
+
+    result = {
+        "overall_min": min_note,
+        "overall_max": max_note,
+        "overall_min_hz": min_hz,
+        "overall_max_hz": max_hz,
+    }
+
+    def add_range(notes, prefix):
+        if not notes:
+            return
+        arr = np.array(notes)
+        if len(arr) >= 10:
+            lo = np.percentile(arr, 3)
+            hi = np.percentile(arr, 97)
+            arr = arr[(arr >= lo) & (arr <= hi)]
+        if len(arr) == 0:
+            return
+        lo_note, lo_hz = hz_to_jp(np.min(arr))
+        hi_note, hi_hz = hz_to_jp(np.max(arr))
+        result[f"{prefix}_min"] = lo_note
+        result[f"{prefix}_max"] = hi_note
+        result[f"{prefix}_min_hz"] = lo_hz
+        result[f"{prefix}_max_hz"] = hi_hz
+        result[f"{prefix}_count"] = len(arr)
+
+    add_range(chest_notes, "chest")
+    add_range(mix_notes, "mix")
+    add_range(falsetto_notes, "falsetto")
+
+    total = len(chest_notes) + len(mix_notes) + len(falsetto_notes)
+    if total > 0:
+        result["chest_ratio"] = round(len(chest_notes) / total * 100, 1)
+        result["mix_ratio"] = round(len(mix_notes) / total * 100, 1)
+        result["falsetto_ratio"] = round(len(falsetto_notes) / total * 100, 1)
+
+    return result
