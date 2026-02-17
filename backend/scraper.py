@@ -14,7 +14,6 @@ from bs4 import BeautifulSoup
 from database import init_db, get_connection, DB_PATH
 
 ARTIST_LIST_URL = "https://voice-key.news/artist-key/"
-BASE_URL = "https://voice-key.news"
 REQUEST_INTERVAL = 1.5  # 秒
 
 
@@ -41,7 +40,10 @@ def fetch_artist_links(client: httpx.Client) -> list[dict]:
             else:
                 name = text
                 song_count = 0
-            slug = re.search(r"/([a-z0-9\-]+)-key/$", href).group(1)
+            m = re.search(r"/([a-z0-9\-]+)-key/$", href)
+            if not m:
+                continue
+            slug = m.group(1)
             artists.append({
                 "name": name,
                 "slug": slug,
@@ -73,7 +75,7 @@ def fetch_artist_songs(client: httpx.Client, url: str) -> list[dict]:
         title = cells[0].get_text(strip=True)
         lowest = cells[1].get_text(strip=True)
         highest = cells[2].get_text(strip=True)
-        falsetto = cells[3].get_text(strip=True) if len(cells) > 3 else ""
+        falsetto = cells[3].get_text(strip=True)
         note = cells[4].get_text(strip=True) if len(cells) > 4 else ""
 
         if not title:
@@ -89,8 +91,8 @@ def fetch_artist_songs(client: httpx.Client, url: str) -> list[dict]:
     return songs
 
 
-def save_to_db(conn: sqlite3.Connection, artist: dict, songs: list[dict]) -> bool:
-    """アーティストと楽曲データをDBに保存。既に存在する場合はスキップしてFalseを返す"""
+def save_to_db(conn: sqlite3.Connection, artist: dict, songs: list[dict]) -> int:
+    """アーティストと楽曲データをDBに保存。新規挿入された曲数を返す"""
     conn.execute(
         "INSERT OR IGNORE INTO artists (name, slug, song_count) VALUES (?, ?, ?)",
         (artist["name"], artist["slug"], artist["song_count"]),
@@ -99,25 +101,22 @@ def save_to_db(conn: sqlite3.Connection, artist: dict, songs: list[dict]) -> boo
         "SELECT id FROM artists WHERE slug = ?", (artist["slug"],)
     ).fetchone()
     if not row:
-        return False
+        return 0
     artist_id = row["id"]
 
-    # 既にこのアーティストの曲がDBにあればスキップ（重複防止）
-    existing = conn.execute(
-        "SELECT COUNT(*) FROM songs WHERE artist_id = ?", (artist_id,)
-    ).fetchone()[0]
-    if existing > 0:
-        return False
-
+    inserted = 0
     for song in songs:
-        conn.execute(
-            """INSERT INTO songs (title, artist_id, lowest_note, highest_note, falsetto_note, note)
-               VALUES (?, ?, ?, ?, ?, ?)""",
+        cursor = conn.execute(
+            """INSERT OR IGNORE INTO songs
+               (title, artist_id, lowest_note, highest_note, falsetto_note, note, source)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (song["title"], artist_id, song["lowest_note"],
-             song["highest_note"], song["falsetto_note"], song["note"]),
+             song["highest_note"], song["falsetto_note"], song["note"],
+             "voice-key.news"),
         )
+        inserted += cursor.rowcount
     conn.commit()
-    return True
+    return inserted
 
 
 def main():
@@ -138,10 +137,10 @@ def main():
 
             try:
                 songs = fetch_artist_songs(client, artist["url"])
-                saved = save_to_db(conn, artist, songs)
-                if saved:
-                    total_songs += len(songs)
-                    print(f"✓ {len(songs)}曲保存")
+                inserted = save_to_db(conn, artist, songs)
+                if inserted > 0:
+                    total_songs += inserted
+                    print(f"✓ {inserted}曲保存")
                 else:
                     print("⏭ スキップ（既存）")
             except httpx.HTTPStatusError as e:
