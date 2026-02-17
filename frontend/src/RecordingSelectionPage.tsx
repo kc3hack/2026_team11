@@ -1,7 +1,14 @@
 import React from 'react';
 import { MicrophoneIcon, MusicalNoteIcon, CloudArrowUpIcon } from '@heroicons/react/24/solid';
 
-const RecordingSelectionPage: React.FC = () => {
+// Propsの定義を追加
+interface Props {
+    onNormalClick: () => void;
+    onKaraokeClick: () => void;
+    onUploadClick: () => void;
+}
+
+const RecordingSelectionPage: React.FC<Props> = ({ onNormalClick, onKaraokeClick, onUploadClick }) => {
     return (
         <div className="min-h-screen bg-slate-50 font-sans text-slate-700">
             {/* Header */}
@@ -48,7 +55,7 @@ const RecordingSelectionPage: React.FC = () => {
                 {/* Normal Mode Card */}
                 <button
                     type="button"
-                    onClick={() => console.log('Normal recording clicked')}
+                    onClick={onNormalClick} // ハンドラを適用
                     className="group relative w-full max-w-sm h-[28rem] bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 cursor-pointer flex flex-col items-center justify-center border border-slate-100 overflow-hidden"
                 >
                     <div className="absolute inset-0 bg-blue-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
@@ -68,7 +75,7 @@ const RecordingSelectionPage: React.FC = () => {
                 {/* Karaoke Mode Card */}
                 <button
                     type="button"
-                    onClick={() => console.log('Karaoke recording clicked')}
+                    onClick={onKaraokeClick} // ハンドラを適用
                     className="group relative w-full max-w-sm h-[28rem] bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 cursor-pointer flex flex-col items-center justify-center border border-slate-100 overflow-hidden"
                 >
                     <div className="absolute inset-0 bg-indigo-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
@@ -88,7 +95,7 @@ const RecordingSelectionPage: React.FC = () => {
                 {/* Upload Mode Card */}
                 <button
                     type="button"
-                    onClick={() => console.log('Upload clicked')}
+                    onClick={onUploadClick} // ハンドラを適用
                     className="group relative w-full max-w-sm h-[28rem] bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 cursor-pointer flex flex-col items-center justify-center border border-slate-100 overflow-hidden"
                 >
                     <div className="absolute inset-0 bg-emerald-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
