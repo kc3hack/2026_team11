@@ -263,7 +263,9 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
   };
 
   const stopRecording = () => {
+    if (mediaRecorder.current && mediaRecorder.current.state !== "inactive") {
     mediaRecorder.current?.stop();
+    }
     setRecording(false);
   };
 
