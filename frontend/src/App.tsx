@@ -4,36 +4,41 @@ import Recorder from "./components/Recorder";
 import KaraokeUploader from "./components/KaraokeUploader";
 import ResultView from "./components/ResultView";
 
+// 画面の状態を定義
 type ViewState = "menu" | "recorder" | "uploader" | "result";
 
 export default function App() {
   const [view, setView] = useState<ViewState>("menu");
-  const [recorderMode, setRecorderMode] = useState<{ useDemucs: boolean }>({ useDemucs: false });
-  const [result, setResult] = useState<any>(null);
+  const [isKaraokeMode, setIsKaraokeMode] = useState(false); // Recorderに渡すモード
+  const [result, setResult] = useState<any>(null); // 解析結果
 
-  // メニューからの操作ハンドラ
-  const handleSelectNormalRecord = () => {
-    setRecorderMode({ useDemucs: false });
+  // --- イベントハンドラ ---
+
+  // マイク録音（通常）へ
+  const handleNormalRecording = () => {
+    setIsKaraokeMode(false);
     setView("recorder");
   };
 
-  const handleSelectKaraokeRecord = () => {
-    setRecorderMode({ useDemucs: true });
+  // マイク録音（カラオケモード）へ
+  const handleKaraokeRecording = () => {
+    setIsKaraokeMode(true);
     setView("recorder");
   };
 
-  const handleSelectUpload = () => {
+  // ファイルアップロード画面へ
+  const handleUpload = () => {
     setView("uploader");
   };
 
-  // 解析完了時のハンドラ
+  // 解析完了時（結果画面へ）
   const handleResult = (data: any) => {
     setResult(data);
     setView("result");
   };
 
-  // 「戻る」操作
-  const handleBack = () => {
+  // 戻るボタン（メニューへ）
+  const handleBackToMenu = () => {
     setResult(null);
     setView("menu");
   };
@@ -43,45 +48,66 @@ export default function App() {
       {/* メニュー画面 */}
       {view === "menu" && (
         <RecordingSelectionPage
-          onSelectNormal={handleSelectNormalRecord}
-          onSelectKaraoke={handleSelectKaraokeRecord}
-          onSelectUpload={handleSelectUpload}
+          onNormalClick={handleNormalRecording}
+          onKaraokeClick={handleKaraokeRecording}
+          onUploadClick={handleUpload}
         />
       )}
 
       {/* 録音画面 (Recorder) */}
       {view === "recorder" && (
-        <div className="container mx-auto p-6">
-          <button onClick={handleBack} className="mb-4 text-gray-600 hover:text-gray-900">
-            ← 戻る
+        <div className="min-h-screen bg-slate-50 p-8">
+          <button 
+            onClick={handleBackToMenu}
+            className="mb-6 text-slate-500 hover:text-blue-600 font-bold flex items-center gap-2 transition-colors"
+          >
+            ← メニューに戻る
           </button>
-          <h2 className="text-2xl font-bold mb-4">
-            {recorderMode.useDemucs ? "🎤 カラオケで録音 (BGM除去)" : "🎙️ マイクで録音"}
-          </h2>
-          <Recorder
-            onResult={handleResult}
-            initialUseDemucs={recorderMode.useDemucs}
-          />
+          
+          <div className="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-lg">
+            <h2 className="text-2xl font-bold text-slate-800 mb-6 text-center">
+              {isKaraokeMode ? "🎤 カラオケで録音 (BGM除去)" : "🎙️ マイクで録音"}
+            </h2>
+            <Recorder
+              onResult={handleResult}
+              initialUseDemucs={isKaraokeMode}
+            />
+          </div>
         </div>
       )}
 
-      {/* ファイルアップロード画面 (KaraokeUploader) */}
+      {/* アップロード画面 (KaraokeUploader) */}
       {view === "uploader" && (
-        <div className="container mx-auto p-6">
-          <button onClick={handleBack} className="mb-4 text-gray-600 hover:text-gray-900">
-            ← 戻る
+        <div className="min-h-screen bg-slate-50 p-8">
+          <button 
+            onClick={handleBackToMenu}
+            className="mb-6 text-slate-500 hover:text-blue-600 font-bold flex items-center gap-2 transition-colors"
+          >
+            ← メニューに戻る
           </button>
-          <KaraokeUploader />
+
+          <div className="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-lg">
+            <KaraokeUploader />
+            {/* Note: KaraokeUploader内で結果表示まで行う実装になっている場合はそのままでOKですが、
+                ResultViewを共通化したい場合はKaraokeUploaderにもonResultを追加する必要があります。
+                今回は元の実装を尊重してそのまま表示します。 */}
+          </div>
         </div>
       )}
 
       {/* 結果表示画面 (ResultView) */}
       {view === "result" && (
-        <div className="container mx-auto p-6">
-          <button onClick={handleBack} className="mb-4 text-gray-600 hover:text-gray-900">
+        <div className="min-h-screen bg-slate-50 p-8">
+          <button 
+            onClick={handleBackToMenu}
+            className="mb-6 text-slate-500 hover:text-blue-600 font-bold flex items-center gap-2 transition-colors"
+          >
             ← トップへ戻る
           </button>
-          <ResultView result={result} />
+
+          <div className="max-w-3xl mx-auto bg-white p-8 rounded-2xl shadow-lg">
+            <ResultView result={result} />
+          </div>
         </div>
       )}
     </div>
