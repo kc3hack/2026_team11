@@ -1,6 +1,13 @@
 import React from 'react';
 
-const RecordingSelectionPage: React.FC = () => {
+// Propsの型定義
+interface Props {
+    onSelectNormal: () => void;
+    onSelectKaraoke: () => void;
+    onSelectUpload: () => void;
+}
+
+const RecordingSelectionPage: React.FC<Props> = ({ onSelectNormal, onSelectKaraoke, onSelectUpload }) => {
     return (
         <div className="min-h-screen bg-white font-sans text-gray-800">
             {/* Header */}
@@ -16,8 +23,12 @@ const RecordingSelectionPage: React.FC = () => {
                 {/* Navigation */}
                 <nav className="hidden md:flex gap-6 text-sm font-medium text-gray-600">
                     <a href="#" className="hover:text-gray-900 transition-colors">使い方ガイド</a>
-                    <a href="#" className="hover:text-gray-900 transition-colors font-bold text-gray-900">録音</a>
-                    <a href="#" className="hover:text-gray-900 transition-colors">分析結果</a>
+                    {/* 録音ボタンはアクティブ表示 */}
+                    <span className="text-gray-900 font-bold border-b-2 border-gray-900 cursor-default">録音</span>
+                    {/* アップロード機能へのリンクを追加 */}
+                    <button onClick={onSelectUpload} className="hover:text-gray-900 transition-colors text-left">
+                        ファイル解析
+                    </button>
                     <a href="#" className="hover:text-gray-900 transition-colors">履歴</a>
                 </nav>
 
@@ -44,8 +55,11 @@ const RecordingSelectionPage: React.FC = () => {
             {/* Main Area */}
             <main className="flex flex-col md:flex-row items-center justify-center min-h-[calc(100vh-80px)] p-6 gap-8">
 
-                {/* Normal Mode Card */}
-                <div className="group relative w-full max-w-md h-96 bg-gray-50 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer flex flex-col items-center justify-center border border-gray-200 overflow-hidden">
+                {/* Normal Mode Card (マイクで録音) */}
+                <div 
+                    onClick={onSelectNormal}
+                    className="group relative w-full max-w-md h-96 bg-gray-50 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer flex flex-col items-center justify-center border border-gray-200 overflow-hidden"
+                >
                     <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-white opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     <div className="z-10 text-center p-6 space-y-8">
                         <h2 className="text-2xl font-bold text-gray-800">マイクで録音</h2>
@@ -55,8 +69,11 @@ const RecordingSelectionPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Karaoke Mode Card */}
-                <div className="group relative w-full max-w-md h-96 bg-gray-50 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer flex flex-col items-center justify-center border border-gray-200 overflow-hidden">
+                {/* Karaoke Mode Card (カラオケで録音 - BGM除去) */}
+                <div 
+                    onClick={onSelectKaraoke}
+                    className="group relative w-full max-w-md h-96 bg-gray-50 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer flex flex-col items-center justify-center border border-gray-200 overflow-hidden"
+                >
                     <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-white opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     <div className="z-10 text-center p-6 space-y-8">
                         <h2 className="text-2xl font-bold text-gray-800">

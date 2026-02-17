@@ -3,6 +3,7 @@ import { analyzeVoice, analyzeKaraoke } from "../api";
 
 interface Props {
   onResult: (data: any) => void;
+  initialUseDemucs?: boolean; // 追加: 初期モード指定
 }
 
 const STEPS = [
@@ -13,15 +14,21 @@ const STEPS = [
   { progress: 90, label: "音域を解析中..." },
 ];
 
-const Recorder: React.FC<Props> = ({ onResult }) => {
+const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
   const [recording, setRecording] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [useDemucs, setUseDemucs] = useState(false);
+  // 初期値をpropsから設定
+  const [useDemucs, setUseDemucs] = useState(initialUseDemucs);
   const [progress, setProgress] = useState(0);
   const [stepLabel, setStepLabel] = useState("");
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    // propsが変わったらstateも更新（念のため）
+    setUseDemucs(initialUseDemucs);
+  }, [initialUseDemucs]);
 
   useEffect(() => {
     if (loading && useDemucs) {
@@ -51,44 +58,49 @@ const Recorder: React.FC<Props> = ({ onResult }) => {
   }, [loading, useDemucs]);
 
   const startRecording = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorder.current = new MediaRecorder(stream);
-    chunks.current = [];
-
-    mediaRecorder.current.ondataavailable = (e) => {
-      chunks.current.push(e.data);
-    };
-
-    mediaRecorder.current.onstop = async () => {
-      const blob = new Blob(chunks.current, { type: "audio/webm" });
-      setLoading(true);
-      setProgress(0);
-
-      try {
-        let data;
-        if (useDemucs) {
-          data = await analyzeKaraoke(blob, "recording.webm");
-        } else {
-          data = await analyzeVoice(blob);
-        }
-        setProgress(100);
-        setStepLabel("完了！");
-        onResult(data);
-      } catch (err) {
-        onResult({ error: "解析に失敗しました。もう一度お試しください。" });
-      } finally {
-        setTimeout(() => {
-          setLoading(false);
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder.current = new MediaRecorder(stream);
+        chunks.current = [];
+    
+        mediaRecorder.current.ondataavailable = (e) => {
+          chunks.current.push(e.data);
+        };
+    
+        mediaRecorder.current.onstop = async () => {
+          const blob = new Blob(chunks.current, { type: "audio/webm" });
+          setLoading(true);
           setProgress(0);
-          setStepLabel("");
-        }, 500);
-      }
-
-      stream.getTracks().forEach((track) => track.stop());
-    };
-
-    mediaRecorder.current.start();
-    setRecording(true);
+    
+          try {
+            let data;
+            if (useDemucs) {
+              data = await analyzeKaraoke(blob, "recording.webm");
+            } else {
+              data = await analyzeVoice(blob);
+            }
+            setProgress(100);
+            setStepLabel("完了！");
+            onResult(data);
+          } catch (err) {
+            onResult({ error: "解析に失敗しました。もう一度お試しください。" });
+          } finally {
+            setTimeout(() => {
+              setLoading(false);
+              setProgress(0);
+              setStepLabel("");
+            }, 500);
+          }
+    
+          stream.getTracks().forEach((track) => track.stop());
+        };
+    
+        mediaRecorder.current.start();
+        setRecording(true);
+    } catch (e) {
+        console.error("マイクへのアクセスが拒否されました", e);
+        alert("マイクの使用を許可してください");
+    }
   };
 
   const stopRecording = () => {
@@ -97,16 +109,17 @@ const Recorder: React.FC<Props> = ({ onResult }) => {
   };
 
   return (
-    <div>
+    <div className="flex flex-col items-center">
       <div style={{ marginBottom: 15 }}>
-        <label style={{ cursor: "pointer" }}>
+        <label style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
           <input
             type="checkbox"
             checked={useDemucs}
             onChange={(e) => setUseDemucs(e.target.checked)}
             disabled={recording || loading}
+            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
           />
-          🎵 カラオケ中（BGMを除去して解析する）
+          <span className="text-gray-700">🎵 カラオケ中（BGMを除去して解析する）</span>
         </label>
       </div>
 
@@ -114,37 +127,21 @@ const Recorder: React.FC<Props> = ({ onResult }) => {
         <button
           onClick={startRecording}
           disabled={loading}
-          style={{
-            padding: "15px 30px",
-            fontSize: 18,
-            background: "#4CAF50",
-            color: "white",
-            border: "none",
-            borderRadius: 10,
-            cursor: "pointer",
-          }}
+          className="px-8 py-4 bg-green-500 hover:bg-green-600 text-white rounded-full font-bold shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           🎙️ 録音スタート
         </button>
       ) : (
         <button
           onClick={stopRecording}
-          style={{
-            padding: "15px 30px",
-            fontSize: 18,
-            background: "#f44336",
-            color: "white",
-            border: "none",
-            borderRadius: 10,
-            cursor: "pointer",
-          }}
+          className="px-8 py-4 bg-red-500 hover:bg-red-600 text-white rounded-full font-bold shadow-lg transition-all transform hover:scale-105 animate-pulse"
         >
           ⏹️ 録音ストップ
         </button>
       )}
 
       {loading && (
-        <div style={{ marginTop: 15 }}>
+        <div style={{ marginTop: 25, width: '100%', maxWidth: '400px' }}>
           <div
             style={{
               width: "100%",
@@ -173,7 +170,7 @@ const Recorder: React.FC<Props> = ({ onResult }) => {
               {progress}%
             </div>
           </div>
-          <p style={{ color: "#666" }}>🔄 {stepLabel}</p>
+          <p className="text-center text-gray-600">🔄 {stepLabel}</p>
         </div>
       )}
     </div>
