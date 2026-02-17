@@ -6,9 +6,10 @@ interface Props {
     onNormalClick: () => void;
     onKaraokeClick: () => void;
     onUploadClick: () => void;
+    onAnalysisClick: () => void; // New Prop
 }
 
-const RecordingSelectionPage: React.FC<Props> = ({ onNormalClick, onKaraokeClick, onUploadClick }) => {
+const RecordingSelectionPage: React.FC<Props> = ({ onNormalClick, onKaraokeClick, onUploadClick, onAnalysisClick }) => {
     return (
         <div className="min-h-screen bg-slate-50 font-sans text-slate-700">
             {/* Header */}
@@ -25,7 +26,7 @@ const RecordingSelectionPage: React.FC<Props> = ({ onNormalClick, onKaraokeClick
                 <nav className="hidden md:flex gap-8 text-sm font-medium text-slate-500">
                     <button type="button" className="hover:text-blue-600 transition-colors bg-transparent border-0 cursor-pointer">使い方ガイド</button>
                     <button type="button" className="text-blue-600 font-bold transition-colors bg-transparent border-0 cursor-pointer">録音</button>
-                    <button type="button" className="hover:text-blue-600 transition-colors bg-transparent border-0 cursor-pointer">分析結果</button>
+                    <button type="button" onClick={onAnalysisClick} className="hover:text-blue-600 transition-colors bg-transparent border-0 cursor-pointer">分析結果</button>
                     <button type="button" className="hover:text-blue-600 transition-colors bg-transparent border-0 cursor-pointer">履歴</button>
                 </nav>
 

@@ -3,9 +3,10 @@ import RecordingSelectionPage from "./RecordingSelectionPage";
 import Recorder from "./components/Recorder";
 import KaraokeUploader from "./components/KaraokeUploader";
 import ResultView from "./components/ResultView";
+import AnalysisResultPage from "./AnalysisResultPage";
 
 // 画面の状態を定義
-type ViewState = "menu" | "recorder" | "uploader" | "result";
+type ViewState = "menu" | "recorder" | "uploader" | "result" | "analysis";
 
 export default function App() {
   const [view, setView] = useState<ViewState>("menu");
@@ -31,6 +32,11 @@ export default function App() {
     setView("uploader");
   };
 
+  // 分析結果画面へ (New)
+  const handleAnalysis = () => {
+    setView("analysis");
+  };
+
   // 解析完了時（結果画面へ）
   const handleResult = (data: any) => {
     setResult(data);
@@ -51,19 +57,20 @@ export default function App() {
           onNormalClick={handleNormalRecording}
           onKaraokeClick={handleKaraokeRecording}
           onUploadClick={handleUpload}
+          onAnalysisClick={handleAnalysis}
         />
       )}
 
       {/* 録音画面 (Recorder) */}
       {view === "recorder" && (
         <div className="min-h-screen bg-slate-50 p-8">
-          <button 
+          <button
             onClick={handleBackToMenu}
             className="mb-6 text-slate-500 hover:text-blue-600 font-bold flex items-center gap-2 transition-colors"
           >
             ← メニューに戻る
           </button>
-          
+
           <div className="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-lg">
             <h2 className="text-2xl font-bold text-slate-800 mb-6 text-center">
               {isKaraokeMode ? "🎤 カラオケで録音 (BGM除去)" : "🎙️ マイクで録音"}
@@ -79,7 +86,7 @@ export default function App() {
       {/* アップロード画面 (KaraokeUploader) */}
       {view === "uploader" && (
         <div className="min-h-screen bg-slate-50 p-8">
-          <button 
+          <button
             onClick={handleBackToMenu}
             className="mb-6 text-slate-500 hover:text-blue-600 font-bold flex items-center gap-2 transition-colors"
           >
@@ -95,10 +102,10 @@ export default function App() {
         </div>
       )}
 
-      {/* 結果表示画面 (ResultView) */}
+      {/* 結果表示画面 (ResultView) - 既存 */}
       {view === "result" && (
         <div className="min-h-screen bg-slate-50 p-8">
-          <button 
+          <button
             onClick={handleBackToMenu}
             className="mb-6 text-slate-500 hover:text-blue-600 font-bold flex items-center gap-2 transition-colors"
           >
@@ -108,6 +115,21 @@ export default function App() {
           <div className="max-w-3xl mx-auto bg-white p-8 rounded-2xl shadow-lg">
             <ResultView result={result} />
           </div>
+        </div>
+      )}
+
+      {/* 分析結果画面 (AnalysisResultPage) - 新規 */}
+      {view === "analysis" && (
+        <div className="min-h-screen bg-slate-50">
+          <div className="p-4">
+            <button
+              onClick={handleBackToMenu}
+              className="mb-2 text-slate-500 hover:text-blue-600 font-bold flex items-center gap-2 transition-colors"
+            >
+              ← メニューに戻る
+            </button>
+          </div>
+          <AnalysisResultPage />
         </div>
       )}
     </div>

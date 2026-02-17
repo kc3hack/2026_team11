@@ -123,10 +123,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
     }
   }, [recording]);
 
-  // Helper for interpolation
-  const widthInterpolation = (start: number, end: number, factor: number) => {
-    return start + (end - start) * factor;
-  };
+
 
   const drawVisualizer = () => {
     const canvas = canvasRef.current;
