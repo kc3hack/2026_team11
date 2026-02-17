@@ -1,13 +1,31 @@
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
+import logging
+import os
+import uuid
+
 from fastapi import FastAPI, File, UploadFile, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from analyzer import analyze
 from vocal_separator import separate_vocals
-from database import search_songs, get_song, get_artists, get_artist_songs
+from database import search_songs, get_song, get_artists, get_artist, get_artist_songs
 import shutil
-import os
+
+ALLOWED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".webm"}
+
+
+def _save_upload(file: UploadFile) -> str:
+    """アップロードファイルを安全に保存し、パスを返す"""
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"非対応のファイル形式です: {ext}")
+    safe_name = f"{uuid.uuid4().hex}{ext}"
+    os.makedirs("uploads", exist_ok=True)
+    file_path = os.path.join("uploads", safe_name)
+    with open(file_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+    return file_path
 
 app = FastAPI()
 
@@ -27,40 +45,29 @@ def health():
 @app.post("/analyze")
 async def analyze_voice(file: UploadFile = File(...)):
     """マイク録音（アカペラ）を解析"""
-    os.makedirs("uploads", exist_ok=True)
-    file_path = f"uploads/{file.filename}"
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
+    file_path = _save_upload(file)
     try:
         result = analyze(file_path)
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)
-
     return result
 
 
 @app.post("/analyze-karaoke")
 async def analyze_karaoke(file: UploadFile = File(...)):
     """カラオケ音源・BGM付きをボーカル分離して解析"""
-    os.makedirs("uploads", exist_ok=True)
-    file_path = f"uploads/{file.filename}"
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
+    file_path = _save_upload(file)
     try:
         vocal_path = separate_vocals(file_path, progress_callback=lambda p: None)
         result = analyze(vocal_path, already_separated=True)
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        result = {"error": f"解析に失敗しました: {str(e)}"}
+        logging.exception("カラオケ解析に失敗")
+        result = {"error": "解析に失敗しました"}
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)
         shutil.rmtree("separated", ignore_errors=True)
-
     return result
 
 
@@ -78,12 +85,12 @@ def _format_song(row: dict) -> dict:
             "falsetto": row["falsetto_note"],
         },
         "note": row["note"],
-        "source": "voice-key.news",
+        "source": row.get("source", "voice-key.news"),
     }
 
 
 @app.get("/songs/search")
-def song_search(q: str = Query(..., min_length=1)):
+def song_search(q: str = Query(..., min_length=1, max_length=100)):
     """曲名またはアーティスト名で楽曲を検索する"""
     results = search_songs(q)
     return {"results": [_format_song(r) for r in results]}
@@ -107,7 +114,8 @@ def artist_list(limit: int = Query(100, ge=1, le=500), offset: int = Query(0, ge
 @app.get("/artists/{artist_id}/songs")
 def artist_songs(artist_id: int):
     """アーティストの全楽曲を取得する"""
-    songs = get_artist_songs(artist_id)
-    if not songs:
+    artist = get_artist(artist_id)
+    if not artist:
         raise HTTPException(status_code=404, detail="アーティストが見つかりません")
+    songs = get_artist_songs(artist_id)
     return {"songs": [_format_song(s) for s in songs]}
