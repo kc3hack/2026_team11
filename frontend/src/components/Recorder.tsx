@@ -67,7 +67,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
     };
   }, [loading, useDemucs]);
 
-  // Cleanup audio context on unmount
+  // Cleanup audio context and media stream on unmount
   useEffect(() => {
     return () => {
       if (audioContextRef.current) {
@@ -75,6 +75,15 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
       }
       if (animationIdRef.current) {
         cancelAnimationFrame(animationIdRef.current);
+      }
+      // Stop MediaRecorder and Stream Tracks
+      if (mediaRecorder.current) {
+        if (mediaRecorder.current.state !== "inactive") {
+          mediaRecorder.current.stop();
+        }
+        if (mediaRecorder.current.stream) {
+          mediaRecorder.current.stream.getTracks().forEach((track) => track.stop());
+        }
       }
     };
   }, []);
@@ -90,7 +99,9 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
 
       // Resume context if suspended (browser policy)
       if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
+        void audioCtx.resume().catch((err) => {
+          console.error("Failed to resume AudioContext:", err);
+        });
       }
 
       // Cleanup previous nodes if any
@@ -110,9 +121,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
       sourceRef.current.connect(analyserRef.current);
 
       dataArrayRef.current = new Uint8Array(analyserRef.current.frequencyBinCount);
-      // Initialize smoothed buffer
-      prevDataRef.current = new Float32Array(analyserRef.current.frequencyBinCount).fill(128); // 128 is center (silence)
-
+      
       // Start drawing
       drawVisualizer();
     } else {
@@ -313,6 +322,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
               <button
                 onClick={stopRecording}
                 className="w-20 h-20 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center transition-all transform hover:scale-105 shadow-xl border-4 border-red-300 animate-pulse"
+                aria-label="録音を停止"
               >
                 <StopIcon className="w-10 h-10 text-white" />
               </button>
