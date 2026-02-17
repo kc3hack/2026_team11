@@ -34,28 +34,96 @@ def init_db(db_path: str = DB_PATH):
             highest_note TEXT,
             falsetto_note TEXT,
             note TEXT,
+            source TEXT DEFAULT 'voice-key.news',
             FOREIGN KEY (artist_id) REFERENCES artists(id)
         );
 
         CREATE INDEX IF NOT EXISTS idx_songs_title ON songs(title);
         CREATE INDEX IF NOT EXISTS idx_songs_artist ON songs(artist_id);
     """)
+
+    # マイグレーション: 既存DBに source カラムを追加
+    try:
+        conn.execute("ALTER TABLE songs ADD COLUMN source TEXT DEFAULT 'voice-key.news'")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass  # カラムが既に存在する場合は無視
+
+    # 既存の重複データを除去（IDが最小のレコードを残す）
+    conn.execute("""
+        DELETE FROM songs WHERE id NOT IN (
+            SELECT MIN(id) FROM songs GROUP BY artist_id, title, source
+        )
+    """)
     conn.commit()
+
+    # 同一アーティスト・同一タイトル・同一ソースの重複防止
+    conn.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_songs_unique
+        ON songs(artist_id, title, source)
+    """)
+    conn.commit()
+
+    # マイグレーション: 不正な音名データを修正
+    conn.executescript("""
+        -- タイプミス修正: mmid2A → mid2A
+        UPDATE songs SET lowest_note = 'mid2A' WHERE lowest_note = 'mmid2A';
+
+        -- 判別不可 → NULL
+        UPDATE songs SET lowest_note = NULL WHERE lowest_note = '判別不可';
+        UPDATE songs SET highest_note = NULL WHERE highest_note = '判別不可';
+
+        -- 疑問符付き → 疑問符を除去（推定値として扱う）
+        UPDATE songs SET highest_note = REPLACE(highest_note, '?', '') WHERE highest_note LIKE '%?';
+        UPDATE songs SET falsetto_note = REPLACE(falsetto_note, '?', '') WHERE falsetto_note LIKE '%?';
+
+        -- テキスト値 → NULL
+        UPDATE songs SET falsetto_note = NULL WHERE falsetto_note = '裏声あり';
+    """)
+    conn.commit()
+
+    # マイグレーション: クロスソース重複の削除（voice-key.news を優先）
+    # 同一アーティスト・同一タイトルが両ソースに存在する場合、vocal-range.com 側を削除
+    conn.execute("""
+        DELETE FROM songs WHERE id IN (
+            SELECT s2.id
+            FROM songs s1
+            JOIN songs s2 ON s1.artist_id = s2.artist_id AND s1.title = s2.title
+            WHERE s1.source = 'voice-key.news' AND s2.source = 'vocal-range.com'
+        )
+    """)
+    conn.commit()
+
+    # マイグレーション: song_count を実データから再計算
+    conn.execute("""
+        UPDATE artists SET song_count = (
+            SELECT COUNT(*) FROM songs WHERE songs.artist_id = artists.id
+        )
+    """)
+    conn.commit()
+
     conn.close()
+
+
+def _escape_like(query: str) -> str:
+    """LIKE パターンの特殊文字をエスケープ"""
+    return query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 def search_songs(query: str, limit: int = 20) -> list[dict]:
     """曲名またはアーティスト名であいまい検索"""
     conn = get_connection()
     try:
+        escaped = f"%{_escape_like(query)}%"
         rows = conn.execute("""
             SELECT s.id, s.title, a.name as artist,
-                   s.lowest_note, s.highest_note, s.falsetto_note, s.note
+                   s.lowest_note, s.highest_note, s.falsetto_note, s.note,
+                   s.source
             FROM songs s
             JOIN artists a ON s.artist_id = a.id
-            WHERE s.title LIKE ? OR a.name LIKE ?
+            WHERE s.title LIKE ? ESCAPE '\\' OR a.name LIKE ? ESCAPE '\\'
             LIMIT ?
-        """, (f"%{query}%", f"%{query}%", limit)).fetchall()
+        """, (escaped, escaped, limit)).fetchall()
         return [dict(r) for r in rows]
     finally:
         conn.close()
@@ -67,11 +135,25 @@ def get_song(song_id: int) -> dict | None:
     try:
         row = conn.execute("""
             SELECT s.id, s.title, a.name as artist,
-                   s.lowest_note, s.highest_note, s.falsetto_note, s.note
+                   s.lowest_note, s.highest_note, s.falsetto_note, s.note,
+                   s.source
             FROM songs s
             JOIN artists a ON s.artist_id = a.id
             WHERE s.id = ?
         """, (song_id,)).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def get_artist(artist_id: int) -> dict | None:
+    """IDでアーティストを取得"""
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT id, name, slug, song_count FROM artists WHERE id = ?",
+            (artist_id,),
+        ).fetchone()
         return dict(row) if row else None
     finally:
         conn.close()
@@ -98,7 +180,8 @@ def get_artist_songs(artist_id: int) -> list[dict]:
     try:
         rows = conn.execute("""
             SELECT s.id, s.title, a.name as artist,
-                   s.lowest_note, s.highest_note, s.falsetto_note, s.note
+                   s.lowest_note, s.highest_note, s.falsetto_note, s.note,
+                   s.source
             FROM songs s
             JOIN artists a ON s.artist_id = a.id
             WHERE s.artist_id = ?
