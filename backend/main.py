@@ -1,16 +1,17 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-from fastapi import FastAPI, File, UploadFile, BackgroundTasks
+from fastapi import FastAPI, File, UploadFile, BackgroundTasks, Query
 from fastapi.middleware.cors import CORSMiddleware
 import shutil
 import os
 import uuid
 
-from audio_converter import convert_to_wav, convert_to_wav_hq  # ← hq版を追加
+from audio_converter import convert_to_wav, convert_to_wav_hq
 from analyzer import analyze
 from vocal_separator import separate_vocals
 from database import get_all_songs, search_songs
+from recommender import recommend_songs, find_similar_artists, classify_voice_type, recommend_key_for_song
 
 app = FastAPI()
 
@@ -22,11 +23,68 @@ app.add_middleware(
 )
 
 @app.get("/songs")
-def read_songs(limit: int = 20, offset: int = 0, q: str | None = None):
+def read_songs(
+    limit: int = 20, offset: int = 0, q: str | None = None,
+    chest_min_hz: float | None = Query(None, description="ユーザー地声最低(Hz)"),
+    chest_max_hz: float | None = Query(None, description="ユーザー地声最高(Hz)"),
+    falsetto_max_hz: float | None = Query(None, description="ユーザー裏声最高(Hz)"),
+):
     if q:
-        return search_songs(q, limit, offset)
-    return get_all_songs(limit, offset)
+        songs = search_songs(q, limit, offset)
+    else:
+        songs = get_all_songs(limit, offset)
 
+    # ユーザーの音域が指定されている場合、各曲にキー変更おすすめを追加
+    if chest_min_hz and chest_max_hz:
+        effective_max = chest_max_hz
+        if falsetto_max_hz and falsetto_max_hz > chest_max_hz:
+            effective_max = falsetto_max_hz
+        for song in songs:
+            try:
+                key_info = recommend_key_for_song(
+                    song.get("lowest_note"),
+                    song.get("highest_note"),
+                    chest_min_hz,
+                    effective_max,
+                )
+                song.update(key_info)
+            except Exception:
+                song["recommended_key"] = 0
+                song["fit"] = "unknown"
+
+    return songs
+
+
+# ============================================================
+# おすすめ曲・似てるアーティスト（単体エンドポイント）
+# フロントから解析済みHz値を渡して使う
+# ============================================================
+@app.get("/recommend")
+def get_recommendations(
+    chest_min_hz: float = Query(...),
+    chest_max_hz: float = Query(...),
+    chest_avg_hz: float = Query(...),
+    falsetto_max_hz: float | None = Query(None),
+    limit: int = Query(10, ge=1, le=50),
+):
+    """音域Hzを指定しておすすめ曲を取得"""
+    return recommend_songs(chest_min_hz, chest_max_hz, chest_avg_hz, falsetto_max_hz, limit)
+
+
+@app.get("/similar-artists")
+def get_similar_artists(
+    chest_min_hz: float = Query(...),
+    chest_max_hz: float = Query(...),
+    chest_avg_hz: float = Query(...),
+    limit: int = Query(5, ge=1, le=20),
+):
+    """音域Hzを指定して似てるアーティストを取得"""
+    return find_similar_artists(chest_min_hz, chest_max_hz, chest_avg_hz, limit)
+
+
+# ============================================================
+# ファイル管理
+# ============================================================
 UPLOAD_DIR = "uploads"
 SEPARATED_DIR = "separated"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -44,6 +102,52 @@ def cleanup_files(*paths):
         except Exception as e:
             print(f"[WARN] Cleanup failed for {path}: {e}")
 
+
+def _enrich_result(result: dict) -> dict:
+    """解析結果におすすめ曲・似てるアーティストを追加"""
+    if "error" in result:
+        return result
+
+    chest_min_hz = result.get("chest_min_hz", 0)
+    chest_max_hz = result.get("chest_max_hz", 0)
+    chest_avg_hz = result.get("chest_avg_hz", 0)
+    falsetto_max_hz = result.get("falsetto_max_hz")
+
+    # デフォルト値を設定（フロントエンドでキー不在エラーを防止）
+    result.setdefault("recommended_songs", [])
+    result.setdefault("similar_artists", [])
+    result.setdefault("voice_type", {})
+
+    if chest_min_hz > 0 and chest_max_hz > 0:
+        try:
+            result["recommended_songs"] = recommend_songs(
+                chest_min_hz, chest_max_hz, chest_avg_hz, falsetto_max_hz, limit=10
+            )
+        except Exception as e:
+            print(f"[WARN] おすすめ曲取得失敗: {e}")
+
+        try:
+            result["similar_artists"] = find_similar_artists(
+                chest_min_hz, chest_max_hz, chest_avg_hz, limit=5
+            )
+        except Exception as e:
+            print(f"[WARN] 似てるアーティスト取得失敗: {e}")
+
+        try:
+            result["voice_type"] = classify_voice_type(
+                chest_min_hz, chest_max_hz, chest_avg_hz,
+                falsetto_max_hz,
+                result.get("chest_ratio", 100.0),
+            )
+        except Exception as e:
+            print(f"[WARN] 声質タイプ判定失敗: {e}")
+
+    return result
+
+
+# ============================================================
+# 解析エンドポイント
+# ============================================================
 @app.post("/analyze")
 async def analyze_voice(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
     """アカペラ/マイク録音用 (Demucsなし)"""
@@ -61,6 +165,7 @@ async def analyze_voice(background_tasks: BackgroundTasks, file: UploadFile = Fi
         converted_wav_path = convert_to_wav(temp_input_path, output_dir=UPLOAD_DIR)
 
         result = analyze(converted_wav_path)
+        result = _enrich_result(result)
 
         background_tasks.add_task(cleanup_files, temp_input_path, converted_wav_path)
         return result
@@ -92,12 +197,11 @@ async def analyze_karaoke(background_tasks: BackgroundTasks, file: UploadFile = 
         
         # 解析 (Demucs出力のvocals.wavはそのまま渡す)
         result = analyze(vocal_path, already_separated=True)
+        result = _enrich_result(result)
 
         # Demucs出力フォルダ全体を削除対象にする
-        # vocal_path例: separated/htdemucs/{uuid}/vocals.wav
-        # → 削除対象: separated/htdemucs/{uuid} フォルダ全体
         if vocal_path:
-            demucs_folder = os.path.dirname(vocal_path)  # {uuid}フォルダ
+            demucs_folder = os.path.dirname(vocal_path)
 
         background_tasks.add_task(cleanup_files, temp_input_path, converted_wav_path, demucs_folder)
         
@@ -105,7 +209,6 @@ async def analyze_karaoke(background_tasks: BackgroundTasks, file: UploadFile = 
 
     except Exception as e:
         print(f"[ERROR] Process failed: {e}")
-        # エラー時もDemucs出力フォルダを削除
         if vocal_path:
             demucs_folder = os.path.dirname(vocal_path)
         background_tasks.add_task(cleanup_files, temp_input_path, converted_wav_path, demucs_folder)

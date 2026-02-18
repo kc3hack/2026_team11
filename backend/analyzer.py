@@ -290,7 +290,7 @@ def analyze(wav_path: str, already_separated: bool = False) -> dict:
         if len(frame) < 512:
             continue
         try:
-            reg = classify_register(frame, sr_crepe, freq, median_freq)
+            reg = classify_register(frame, sr_crepe, freq, median_freq, already_separated)
             if reg == "falsetto":
                 falsetto_notes.append(freq)
             elif reg == "chest":
@@ -299,12 +299,11 @@ def analyze(wav_path: str, already_separated: bool = False) -> dict:
         except Exception:
             continue
 
-    # ★ 裏声フィルタのバグ修正
-    # 旧コード: フィルタ後のリストから low_falsetto を取っていた（常に空）
-    # 新コード: フィルタ前のオリジナルから low_falsetto を取る
+    # 裏声表示フィルタ: 330Hz未満の「裏声」は息混じり地声の可能性が高い
+    display_min_hz = FALSETTO_DISPLAY_MIN_HZ
     falsetto_orig  = list(falsetto_notes)
-    falsetto_notes = [f for f in falsetto_orig if f >= FALSETTO_DISPLAY_MIN_HZ]
-    low_falsetto   = [f for f in falsetto_orig if f < FALSETTO_DISPLAY_MIN_HZ]
+    falsetto_notes = [f for f in falsetto_orig if f >= display_min_hz]
+    low_falsetto   = [f for f in falsetto_orig if f < display_min_hz]
     chest_notes.extend(low_falsetto)
 
     if not chest_notes and not falsetto_notes:
@@ -323,6 +322,9 @@ def analyze(wav_path: str, already_separated: bool = False) -> dict:
         return hz_to_label_and_hz(hz)
 
     result = {}
+
+    # 地声の平均Hz（おすすめ曲のマッチングに使用）
+    chest_avg_hz = float(np.mean(chest_notes)) if chest_notes else 0.0
 
     def add_range(notes, prefix):
         if not notes:
@@ -349,6 +351,21 @@ def analyze(wav_path: str, already_separated: bool = False) -> dict:
     total = len(chest_notes) + len(falsetto_notes)
     result["chest_ratio"]    = round(len(chest_notes)    / total * 100, 1) if total else 100.0
     result["falsetto_ratio"] = round(len(falsetto_notes) / total * 100, 1) if total else 0.0
+    result["chest_avg_hz"]   = round(chest_avg_hz, 1)
+
+    # === 歌唱力分析 ===
+    try:
+        from recommender import analyze_singing_ability
+        result["singing_analysis"] = analyze_singing_ability(
+            f0_array=f0_reg_fixed,
+            conf_array=conf_reg,
+            chest_notes=chest_notes,
+            falsetto_notes=falsetto_notes,
+            overall_min_hz=overall_min,
+            overall_max_hz=overall_max,
+        )
+    except Exception as e:
+        print(f"[WARN] 歌唱力分析スキップ: {e}")
 
     print(f"[INFO] 解析完了: {result}")
     return result

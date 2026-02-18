@@ -47,15 +47,13 @@ const KaraokeUploader: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // WAVファイルかどうかチェック
-    const isWav =
-      file.name.toLowerCase().endsWith(".wav") ||
-      file.type === "audio/wav" ||
-      file.type === "audio/x-wav";
+    // 対応フォーマットチェック
+    const supportedExts = [".wav", ".mp3", ".m4a", ".aac", ".mp4", ".ogg", ".flac", ".wma", ".webm"];
+    const ext = file.name.toLowerCase().slice(file.name.lastIndexOf("."));
+    const isAudio = file.type.startsWith("audio/") || file.type.startsWith("video/") || supportedExts.includes(ext);
 
-    if (!isWav) {
-      setError("WAVファイルのみ対応しています。音源をWAV形式に変換してからアップロードしてください。");
-      // inputをリセット
+    if (!isAudio) {
+      setError("対応していないファイル形式です。音声ファイル（MP3, M4A, AAC, WAV, FLAC等）をアップロードしてください。");
       e.target.value = "";
       return;
     }
@@ -88,10 +86,10 @@ const KaraokeUploader: React.FC = () => {
   return (
     <div style={{ marginTop: 30 }}>
       <h2>🎤 カラオケ音源で測定</h2>
-      <p>歌入りのWAV音源をアップロードしてください（WAVのみ対応）</p>
+      <p>歌入りの音源をアップロードしてください（MP3, M4A, AAC, WAV, FLAC等対応）</p>
       <input
         type="file"
-        accept=".wav,audio/wav,audio/x-wav"
+        accept="audio/*,.mp3,.m4a,.aac,.wav,.flac,.ogg,.wma,.mp4"
         onChange={handleUpload}
         disabled={loading}
       />

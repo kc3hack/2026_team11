@@ -21,10 +21,29 @@ export const analyzeKaraoke = async (file: File | Blob, filename: string) => {
   return res.data;
 };
 
-// 楽曲取得
-export const getSongs = async (limit: number = 20, offset: number = 0, query: string = "") => {
+// ユーザーの音域情報（キーおすすめ用）
+export interface UserRange {
+  chest_min_hz: number;
+  chest_max_hz: number;
+  falsetto_max_hz?: number;
+}
+
+// 楽曲取得（音域指定でキーおすすめ付き）
+export const getSongs = async (
+  limit: number = 20,
+  offset: number = 0,
+  query: string = "",
+  userRange?: UserRange | null,
+) => {
   const params: any = { limit, offset };
   if (query) params.q = query;
+  if (userRange) {
+    params.chest_min_hz = userRange.chest_min_hz;
+    params.chest_max_hz = userRange.chest_max_hz;
+    if (userRange.falsetto_max_hz) {
+      params.falsetto_max_hz = userRange.falsetto_max_hz;
+    }
+  }
   const res = await API.get("/songs", { params });
   return res.data;
 };

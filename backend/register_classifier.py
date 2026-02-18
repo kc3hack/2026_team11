@@ -1,31 +1,82 @@
 """
 register_classifier.py  —  地声 / 裏声 判定
 
-【削除した指標: Hhigh (H1 vs H3-H8平均)】
-  この指標は実測で信頼できないことが判明:
-  - ノイズフロアが低い(-80dB)環境でH3-H8が-70dBのとき
-    h1_vs_high = 20-(-70) = 90dB → 誤ってF+5が付く
-  - 一方で実際の地声でも40-50dBになることが多く弁別力が低い
-  - hcountが同じ情報をより信頼できる形で提供している
+【判定方式】
+  1. MLモデルが存在する場合 → モデルで推論（6特徴量）
+  2. MLモデルがない場合     → ルールベース判定（従来方式）
 
-【使用する指標】
-  1. H1-H2差（即決 + スコア）★最重要
-  2. hcount（有効倍音本数）★重要
+  MLモデルの学習方法:
+    python labeler.py add chest chest_voice.wav
+    python labeler.py add falsetto falsetto_voice.wav
+    python train_classifier.py
+    → models/register_model.joblib が生成される
+
+【ルールベース使用する指標】
+  1. H1-H2差（地声即決 + スコア）
+  2. hcount（有効倍音本数）
   3. 倍音減衰スロープ
   4. HNR（調波対雑音比）
   5. スペクトル重心/f0
   6. 音域補正（補助のみ）
 """
 
+import os
 import numpy as np
 import librosa
 
 FALSETTO_HARD_MIN_HZ = 270.0
 
+# ============================================================
+# MLモデルのロード（ホットリロード対応）
+# ============================================================
+_ML_MODEL = None
+_MODEL_PATH = os.path.join(os.path.dirname(__file__), "models", "register_model.joblib")
+_MODEL_MTIME = 0.0  # モデルファイルの更新日時を記録
 
+
+def _load_model_if_needed():
+    """モデルファイルが更新されていたら再ロード（学習後にサーバー再起動不要）"""
+    global _ML_MODEL, _MODEL_MTIME
+
+    if not os.path.exists(_MODEL_PATH):
+        if _ML_MODEL is not None:
+            print(f"[INFO] MLモデルが削除されました（ルールベースに切替）")
+            _ML_MODEL = None
+            _MODEL_MTIME = 0.0
+        return
+
+    current_mtime = os.path.getmtime(_MODEL_PATH)
+    if current_mtime == _MODEL_MTIME and _ML_MODEL is not None:
+        return  # 変更なし、キャッシュ済みモデルを使用
+
+    try:
+        import joblib
+        _ML_MODEL = joblib.load(_MODEL_PATH)
+        _MODEL_MTIME = current_mtime
+        print(f"[INFO] MLモデルをロード: {_MODEL_PATH}")
+    except Exception as e:
+        print(f"[WARN] MLモデルのロードに失敗（ルールベースで動作）: {e}")
+        _ML_MODEL = None
+
+
+# 起動時に1回チェック
+_load_model_if_needed()
+
+
+# ============================================================
+# 共通特徴量抽出（feature_extractor.pyを使用）
+# ============================================================
+try:
+    from feature_extractor import extract_features
+except ImportError:
+    extract_features = None
+
+
+# ============================================================
+# ルールベース用のヘルパー（MLモデルがない場合のフォールバック）
+# ============================================================
 def _get_peak_db(fft: np.ndarray, freqs: np.ndarray,
                  target_hz: float, sr: int) -> float:
-    """target_hz付近のピークをdBで返す（二次補間あり）"""
     if target_hz <= 0 or target_hz >= sr / 2 * 0.95:
         return -120.0
     half_win = max(10.0, target_hz * 0.035)
@@ -36,22 +87,17 @@ def _get_peak_db(fft: np.ndarray, freqs: np.ndarray,
     pk  = lo + int(np.argmax(fft[lo:hi + 1]))
     a, b, c = fft[pk - 1], fft[pk], fft[pk + 1]
     denom = a - 2 * b + c
-
     if abs(denom) > 1e-12:
         offset = 0.5 * (a - c) / denom
         peak   = b - 0.25 * (a - c) * offset
-        # ★ 二次補間が発散した場合（窓端のピーク非対称など）は b にフォールバック
-        # 物理的に正しい補間ならピークはbを大きく超えない
         if peak > b * 2.0 or peak < 0:
             peak = b
     else:
         peak = b
-
     return 20.0 * np.log10(max(peak, 1e-10))
 
 
 def _compute_hnr(y: np.ndarray, sr: int, f0: float) -> float:
-    """自己相関ベースHNR (0〜1)。高いほど周期的=地声"""
     try:
         win = np.hanning(len(y))
         ac  = np.correlate(y * win, y * win, mode='full')
@@ -67,14 +113,45 @@ def _compute_hnr(y: np.ndarray, sr: int, f0: float) -> float:
         return 0.5
 
 
-def classify_register(y: np.ndarray, sr: int, f0: float, median_freq: float = 0) -> str:
-    if f0 <= 0 or len(y) < 512:
-        return "unknown"
+# ============================================================
+# ML推論
+# ============================================================
+def _classify_ml(y: np.ndarray, sr: int, f0: float) -> str | None:
+    """MLモデルで判定。モデルがないか特徴抽出に失敗したら None を返す"""
+    _load_model_if_needed()  # モデル更新チェック（mtime比較のみ、軽量）
 
-    if f0 < FALSETTO_HARD_MIN_HZ:
-        return "chest"
+    if _ML_MODEL is None or extract_features is None:
+        return None
 
-    # ===== FFT =====
+    feat = extract_features(y, sr, f0)
+    if feat is None:
+        return None
+
+    try:
+        X = feat.reshape(1, -1)
+        proba = _ML_MODEL.predict_proba(X)[0]
+        pred = int(np.argmax(proba))
+        label = "chest" if pred == 0 else "falsetto"
+        confidence = float(proba[pred])
+
+        # 信頼度が低い場合はルールベースにフォールバック
+        if confidence < 0.6:
+            print(f"[REGISTER/ML] f0={f0:.0f}Hz → {label} conf={confidence:.2f} (低信頼度→ルールへ)")
+            return None
+
+        print(f"[REGISTER/ML] f0={f0:.0f}Hz → {label} conf={confidence:.2f}")
+        return label
+    except Exception as e:
+        print(f"[WARN] ML推論失敗: {e}")
+        return None
+
+
+# ============================================================
+# ルールベース判定（フォールバック）
+# ============================================================
+def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float) -> str:
+    """従来のルールベース判定"""
+    # FFT
     n_fft    = 8192
     win      = np.hanning(len(y))
     y_pad    = np.zeros(n_fft)
@@ -86,35 +163,24 @@ def classify_register(y: np.ndarray, sr: int, f0: float, median_freq: float = 0)
     H  = [_get_peak_db(fft, freqs, f0 * n, sr) for n in range(1, 11)]
     h1 = H[0]
 
-    # H1が極端に弱い場合は無声音（息、子音、無音）→ 判定不能
     if h1 <= -60:
         return "unknown"
 
     h1_h2 = h1 - H[1]
 
-    # H1-H2が極端に低い場合（-20dB未満）は異常データ
-    # H2がH1より100倍以上強い = 基音が検出できていない = 無声音
     if h1_h2 < -20.0:
         return "unknown"
 
-    # ============================================================
-    # Step 1: H1-H2差による即決判定
-    # ============================================================
-    if h1_h2 > 10.0:
-        print(f"[REGISTER] f0={f0:.0f}Hz H1-H2={h1_h2:.1f}dB → 裏声確定(即決)")
-        return "falsetto"
-
+    # 地声即決
     if h1_h2 < -2.0:
-        print(f"[REGISTER] f0={f0:.0f}Hz H1-H2={h1_h2:.1f}dB → 地声確定(即決)")
+        print(f"[REGISTER/RULE] f0={f0:.0f}Hz H1-H2={h1_h2:.1f}dB → 地声確定(即決)")
         return "chest"
 
-    # ============================================================
-    # Step 2: スコア判定（H1-H2が -2〜10dB）
-    # ============================================================
+    # スコア判定
     chest_score    = 0.0
     falsetto_score = 0.0
 
-    # ---- 指標1: H1-H2差 ----
+    # H1-H2
     if h1_h2 >= 7:
         falsetto_score += 5.0
     elif h1_h2 >= 5:
@@ -125,11 +191,8 @@ def classify_register(y: np.ndarray, sr: int, f0: float, median_freq: float = 0)
         chest_score += 4.0
     elif h1_h2 <= 2:
         chest_score += 2.0
-    # 2〜3dBの場合は加点なし（本当に曖昧な帯域）
 
-    # ---- 指標2: 有効倍音本数（ノイズフロア+8dB超） ----
-    # ★ Hhigh(H1-avg)は削除: ノイズフロアの絶対値に依存して信頼できないため
-    # hcountが「倍音の豊かさ」を正しく表現している
+    # hcount
     hcount = sum(1 for db in H[:10] if db > noise_db + 8.0)
     if hcount <= 2:
         falsetto_score += 6.0
@@ -140,8 +203,7 @@ def classify_register(y: np.ndarray, sr: int, f0: float, median_freq: float = 0)
     elif hcount >= 6:
         chest_score += 3.0
 
-    # ---- 指標3: 倍音減衰スロープ ----
-    # noise_db+8dB超の倍音のみでスロープを計算（ノイズを除外）
+    # slope
     slope_pts = [(i + 1, H[i]) for i in range(8) if H[i] > noise_db + 8.0]
     if len(slope_pts) >= 3:
         xs    = np.array([p[0] for p in slope_pts], dtype=float)
@@ -158,7 +220,7 @@ def classify_register(y: np.ndarray, sr: int, f0: float, median_freq: float = 0)
     else:
         slope = None
 
-    # ---- 指標4: HNR ----
+    # HNR
     hnr = _compute_hnr(y, sr, f0)
     if hnr < 0.35:
         falsetto_score += 4.0
@@ -169,7 +231,7 @@ def classify_register(y: np.ndarray, sr: int, f0: float, median_freq: float = 0)
     elif hnr > 0.65:
         chest_score += 1.5
 
-    # ---- 指標5: スペクトル重心 / f0 ----
+    # centroid / f0
     centroid = float(librosa.feature.spectral_centroid(y=y, sr=sr)[0, 0])
     cr = centroid / f0
     if cr < 2.5:
@@ -181,7 +243,7 @@ def classify_register(y: np.ndarray, sr: int, f0: float, median_freq: float = 0)
     elif cr > 6.5:
         chest_score += 1.5
 
-    # ---- 指標6: 音域補正（補助のみ） ----
+    # f0補正
     if f0 > 600:
         falsetto_score += 2.0
     elif f0 > 500:
@@ -191,9 +253,7 @@ def classify_register(y: np.ndarray, sr: int, f0: float, median_freq: float = 0)
     elif f0 < 295:
         chest_score += 1.5
 
-    # ============================================================
-    # 最終判定: 閾値 0.58
-    # ============================================================
+    # 判定
     total = chest_score + falsetto_score
     if total < 1e-6:
         return "chest"
@@ -201,14 +261,39 @@ def classify_register(y: np.ndarray, sr: int, f0: float, median_freq: float = 0)
     falsetto_ratio = falsetto_score / total
     result = "falsetto" if falsetto_ratio >= 0.58 else "chest"
 
-    # ★ log_parts[:4]切り捨てをやめて全指標を表示（デバッグ用）
     print(
-        f"[REGISTER] f0={f0:.0f}Hz "
+        f"[REGISTER/RULE] f0={f0:.0f}Hz "
         f"H1-H2={h1_h2:.1f} hcount={hcount} "
         f"slope={slope:.1f if slope is not None else 'N/A'} "
         f"HNR={hnr:.2f} cr={cr:.2f} "
         f"C={chest_score:.1f} F={falsetto_score:.1f} ratio={falsetto_ratio:.2f} "
         f"→ {result}"
     )
-
     return result
+
+
+# ============================================================
+# メインAPI（analyzer.pyから呼ばれる）
+# ============================================================
+def classify_register(y: np.ndarray, sr: int, f0: float, median_freq: float = 0,
+                      already_separated: bool = False) -> str:
+    """
+    地声/裏声を判定する。
+
+    1. f0 < 270Hz → 地声確定
+    2. MLモデルがあればMLで判定
+    3. MLがないか低信頼度ならルールベースにフォールバック
+    """
+    if f0 <= 0 or len(y) < 512:
+        return "unknown"
+
+    if f0 < FALSETTO_HARD_MIN_HZ:
+        return "chest"
+
+    # ML判定を試行
+    ml_result = _classify_ml(y, sr, f0)
+    if ml_result is not None:
+        return ml_result
+
+    # フォールバック: ルールベース
+    return _classify_rules(y, sr, f0, median_freq)

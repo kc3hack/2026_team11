@@ -1,30 +1,131 @@
 import React from 'react';
-// import {
-//   Radar,
-//   RadarChart,
-//   PolarGrid,
-//   PolarAngleAxis,
-//   PolarRadiusAxis,
-//   ResponsiveContainer,
-// } from 'recharts';
 
-// Dummy Data for Radar Chart
-// const radarData = [
-//     { subject: '音程', A: 120, fullMark: 150 },
-//     { subject: '安定感', A: 98, fullMark: 150 },
-//     { subject: '抑揚', A: 86, fullMark: 150 },
-//     { subject: 'ロングトーン', A: 99, fullMark: 150 },
-//     { subject: 'テクニック', A: 85, fullMark: 150 },
-// ];
+interface AnalysisResultPageProps {
+    result: any | null;
+}
 
-// Dummy Data for Recommended Songs
-const recommendedSongs = [
-    { title: 'マリーゴールド', artist: 'あいみょん', difficulty: 'Easy' },
-    { title: '猫', artist: 'DISH//', difficulty: 'Medium' },
-    { title: 'ドライフラワー', artist: '優里', difficulty: 'Hard' },
-];
+/* キーバッジ */
+const keyBadge = (key: number, fit?: string) => {
+    const label = key === 0 ? "±0" : key > 0 ? `+${key}` : `${key}`;
+    let color: string;
+    if (fit === "perfect") color = "bg-emerald-100 text-emerald-700";
+    else if (fit === "good") color = "bg-sky-100 text-sky-700";
+    else if (fit === "ok") color = "bg-amber-100 text-amber-700";
+    else if (fit === "hard") color = "bg-rose-100 text-rose-600";
+    else color = "bg-slate-100 text-slate-400";
+    return (
+        <span className={`inline-flex items-center justify-center min-w-[2.5rem] h-6 rounded-full text-xs font-bold ${color}`}>
+            {label}
+        </span>
+    );
+};
 
-const AnalysisResultPage: React.FC = () => {
+/* 難易度バッジ (match_score ベース) */
+const difficultyBadge = (score: number) => {
+    if (score >= 80) return <span className="text-xs font-bold px-2 py-1 rounded-md bg-emerald-100 text-emerald-600">Easy</span>;
+    if (score >= 60) return <span className="text-xs font-bold px-2 py-1 rounded-md bg-yellow-100 text-yellow-600">Medium</span>;
+    return <span className="text-xs font-bold px-2 py-1 rounded-md bg-rose-100 text-rose-600">Hard</span>;
+};
+
+/* レーダーチャート (CSS/SVG ベース、ライブラリ不要) */
+const RadarChart: React.FC<{ data: { label: string; value: number }[] }> = ({ data }) => {
+    const cx = 120, cy = 120, r = 90;
+    const n = data.length;
+    if (n === 0) return null;
+
+    // 各軸の角度
+    const angles = data.map((_, i) => (Math.PI * 2 * i) / n - Math.PI / 2);
+
+    // グリッド (3段)
+    const gridLevels = [0.33, 0.66, 1.0];
+
+    // データポリゴンの点
+    const points = data.map((d, i) => {
+        const ratio = d.value / 100;
+        const x = cx + r * ratio * Math.cos(angles[i]);
+        const y = cy + r * ratio * Math.sin(angles[i]);
+        return `${x},${y}`;
+    }).join(" ");
+
+    return (
+        <svg viewBox="0 0 240 240" className="w-full h-full max-w-[250px] max-h-[250px]">
+            {/* グリッド */}
+            {gridLevels.map((level, li) => {
+                const gridPoints = angles.map((a) => {
+                    const x = cx + r * level * Math.cos(a);
+                    const y = cy + r * level * Math.sin(a);
+                    return `${x},${y}`;
+                }).join(" ");
+                return <polygon key={li} points={gridPoints} fill="none" stroke="#e2e8f0" strokeWidth="1" />;
+            })}
+
+            {/* 軸 */}
+            {angles.map((a, i) => (
+                <line key={i} x1={cx} y1={cy} x2={cx + r * Math.cos(a)} y2={cy + r * Math.sin(a)} stroke="#e2e8f0" strokeWidth="1" />
+            ))}
+
+            {/* データ */}
+            <polygon points={points} fill="rgba(167,139,250,0.4)" stroke="#8b5cf6" strokeWidth="2.5" />
+
+            {/* ラベル */}
+            {data.map((d, i) => {
+                const labelR = r + 22;
+                const x = cx + labelR * Math.cos(angles[i]);
+                const y = cy + labelR * Math.sin(angles[i]);
+                return (
+                    <text key={i} x={x} y={y} textAnchor="middle" dominantBaseline="central"
+                        className="fill-slate-500 text-[11px] font-medium">
+                        {d.label}
+                    </text>
+                );
+            })}
+        </svg>
+    );
+};
+
+const AnalysisResultPage: React.FC<AnalysisResultPageProps> = ({ result }) => {
+    // データがない場合
+    if (!result || result.error) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] text-slate-400 p-8">
+                <div className="text-6xl mb-4">🎤</div>
+                <p className="text-lg font-bold mb-2">まだ分析結果がありません</p>
+                <p className="text-sm">録音して音域を測定すると、ここに結果が表示されます</p>
+            </div>
+        );
+    }
+
+    const chestMin = result.chest_min || result.overall_min || "-";
+    const chestMax = result.chest_max || result.overall_max || "-";
+    const falsettoMin = result.falsetto_min || null;
+    const falsettoMax = result.falsetto_max || null;
+    const overallMin = result.overall_min || chestMin;
+    const overallMax = result.overall_max || (falsettoMax || chestMax);
+    const chestRatio = result.chest_ratio ?? 100;
+    const falsettoRatio = result.falsetto_ratio ?? 0;
+
+    const voiceType = result.voice_type || {};
+    const songs = result.recommended_songs || [];
+    const artists = result.similar_artists || [];
+    const singing = result.singing_analysis || {};
+
+    // レーダーチャート用データ
+    const radarData = singing.scores ? [
+        { label: "音域", value: singing.scores.range ?? 0 },
+        { label: "安定性", value: singing.scores.stability ?? 0 },
+        { label: "表現力", value: singing.scores.expression ?? 0 },
+        { label: "裏声", value: singing.scores.falsetto ?? 0 },
+        { label: "総合", value: singing.scores.total ?? 0 },
+    ] : [];
+
+    const rankColor = (rank: string) => {
+        if (rank === "S") return "text-amber-500";
+        if (rank === "A") return "text-violet-500";
+        if (rank === "B") return "text-blue-500";
+        if (rank === "C") return "text-emerald-500";
+        return "text-slate-400";
+    };
+
     return (
         <div className="flex flex-col items-center w-full min-h-screen bg-slate-50 p-6 font-sans text-slate-800">
             {/* Page Title */}
@@ -33,104 +134,136 @@ const AnalysisResultPage: React.FC = () => {
             </h1>
 
             <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* LEFT COLUMN (2/3) - Vocal Range & Main Stats */}
+                {/* LEFT COLUMN (2/3) */}
                 <div className="lg:col-span-2 space-y-8">
-                    {/* Main Card */}
-                    <div className="bg-white rounded-2xl shadow-md p-8 h-full flex flex-col justify-between">
-                        <div>
-                            <h2 className="text-xl font-bold mb-4 text-slate-700">音域チェック結果</h2>
-                            <div className="flex items-center space-x-4 mb-6">
-                                <div className="px-4 py-2 bg-blue-100 text-blue-600 rounded-full font-bold">
-                                    あなたの音域
-                                </div>
-                                <div className="text-4xl font-extrabold text-slate-800">
-                                    lowG <span className="text-slate-400 mx-2">~</span> hiA
-                                </div>
+                    {/* 音域カード */}
+                    <div className="bg-white rounded-2xl shadow-md p-8">
+                        <h2 className="text-xl font-bold mb-4 text-slate-700">音域チェック結果</h2>
+
+                        <div className="flex items-center space-x-4 mb-4">
+                            <div className="px-4 py-2 bg-blue-100 text-blue-600 rounded-full font-bold text-sm">
+                                あなたの音域
                             </div>
-
-                            <p className="text-slate-500 leading-relaxed mb-6">
-                                これはサンプルです
-                            </p>
-
-                            {/* Dummy "Voice Type" visualization */}
-                            <div className="mb-6">
-                                <h3 className="text-sm font-bold text-slate-400 mb-2 uppercase tracking-wide">Voice Type Ratio</h3>
-                                <div className="w-full h-4 bg-slate-100 rounded-full overflow-hidden flex">
-                                    <div className="h-full bg-indigo-500 w-[60%]"></div>
-                                    <div className="h-full bg-emerald-400 w-[40%]"></div>
-                                </div>
-                                <div className="flex justify-between text-xs text-slate-500 mt-2">
-                                    <span className="flex items-center"><div className="w-2 h-2 bg-indigo-500 rounded-full mr-1"></div> 地声 (60%)</span>
-                                    <span className="flex items-center"><div className="w-2 h-2 bg-emerald-400 rounded-full mr-1"></div> 裏声 (40%)</span>
-                                </div>
+                            <div className="text-4xl font-extrabold text-slate-800">
+                                {overallMin} <span className="text-slate-400 mx-2">~</span> {overallMax}
                             </div>
                         </div>
 
-                        {/* Piano Roll Placeholder (Could be an image or CSS grid later)
-                        <div className="w-full h-32 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-center text-slate-400">
-                            [ ピアノロール風の音域グラフを表示予定 ]
-                        </div> */}
+                        {/* 地声 / 裏声の詳細 */}
+                        <div className="flex flex-wrap gap-4 mb-6 text-sm">
+                            <div className="flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-lg">
+                                <div className="w-2.5 h-2.5 bg-indigo-500 rounded-full"></div>
+                                <span className="text-slate-600">地声</span>
+                                <span className="font-bold text-slate-800">{chestMin} ~ {chestMax}</span>
+                            </div>
+                            {falsettoMin && falsettoMax && (
+                                <div className="flex items-center gap-2 bg-emerald-50 px-3 py-1.5 rounded-lg">
+                                    <div className="w-2.5 h-2.5 bg-emerald-400 rounded-full"></div>
+                                    <span className="text-slate-600">裏声</span>
+                                    <span className="font-bold text-slate-800">{falsettoMin} ~ {falsettoMax}</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Voice Type */}
+                        {voiceType.voice_type && (
+                            <p className="text-slate-500 leading-relaxed mb-6">
+                                あなたの声質タイプ: <span className="font-bold text-slate-700">{voiceType.voice_type}</span>
+                                {voiceType.description && <span className="text-slate-400 ml-1">— {voiceType.description}</span>}
+                            </p>
+                        )}
+
+                        {/* Voice Type Ratio Bar */}
+                        <div className="mb-2">
+                            <h3 className="text-sm font-bold text-slate-400 mb-2 uppercase tracking-wide">Voice Type Ratio</h3>
+                            <div className="w-full h-4 bg-slate-100 rounded-full overflow-hidden flex">
+                                <div className="h-full bg-indigo-500 transition-all" style={{ width: `${chestRatio}%` }}></div>
+                                <div className="h-full bg-emerald-400 transition-all" style={{ width: `${falsettoRatio}%` }}></div>
+                            </div>
+                            <div className="flex justify-between text-xs text-slate-500 mt-2">
+                                <span className="flex items-center">
+                                    <div className="w-2 h-2 bg-indigo-500 rounded-full mr-1"></div>
+                                    地声 ({chestRatio}%)
+                                </span>
+                                <span className="flex items-center">
+                                    <div className="w-2 h-2 bg-emerald-400 rounded-full mr-1"></div>
+                                    裏声 ({falsettoRatio}%)
+                                </span>
+                            </div>
+                        </div>
                     </div>
+
+                    {/* 似ているアーティスト */}
+                    {artists.length > 0 && (
+                        <div className="bg-white rounded-2xl shadow-md p-6">
+                            <h2 className="text-lg font-bold text-slate-700 mb-4">声が似ているアーティスト</h2>
+                            <div className="flex flex-wrap gap-3">
+                                {artists.slice(0, 6).map((a: any, i: number) => (
+                                    <div key={i} className="flex items-center gap-2 bg-slate-50 px-4 py-2 rounded-xl">
+                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-400 to-indigo-400 flex items-center justify-center text-white text-xs font-bold">
+                                            {i + 1}
+                                        </div>
+                                        <span className="text-sm font-bold text-slate-700">{a.name}</span>
+                                        <span className="text-xs text-slate-400">{Math.round(a.similarity)}%</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
-                {/* RIGHT COLUMN (1/3) - Chart & Recommendations */}
+                {/* RIGHT COLUMN (1/3) */}
                 <div className="space-y-8">
-                    {/* Radar Chart Card */}
+                    {/* レーダーチャート */}
                     <div className="bg-white rounded-2xl shadow-md p-6 flex flex-col items-center">
                         <h2 className="text-lg font-bold text-slate-700 mb-4 self-start">歌唱力分析</h2>
-                        <div className="w-full h-[250px] relative flex items-center justify-center bg-slate-50 rounded-lg">
-                            {/* <ResponsiveContainer width="100%" height="100%">
-                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
-                  <PolarGrid stroke="#e2e8f0" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 12 }} />
-                  <PolarRadiusAxis angle={30} domain={[0, 150]} tick={false} axisLine={false} />
-                  <Radar
-                    name="My Stats"
-                    dataKey="A"
-                    stroke="#8b5cf6"
-                    strokeWidth={3}
-                    fill="#a78bfa"
-                    fillOpacity={0.5}
-                  />
-                </RadarChart>
-              </ResponsiveContainer> */}
-                            <div className="text-slate-400 text-sm text-center">
-                                チャート表示エラー<br />(ライブラリ未インストール)
+                        {radarData.length > 0 ? (
+                            <>
+                                <div className="w-full flex justify-center">
+                                    <RadarChart data={radarData} />
+                                </div>
+                                <div className="text-center mt-2">
+                                    <span className={`text-3xl font-extrabold ${rankColor(singing.rank || "-")}`}>
+                                        {singing.rank || "-"}
+                                    </span>
+                                    <span className="text-slate-400 text-sm ml-1">Rank</span>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="w-full h-[250px] flex items-center justify-center bg-slate-50 rounded-lg">
+                                <div className="text-slate-400 text-sm text-center">
+                                    歌唱力データなし
+                                </div>
                             </div>
-                        </div>
-                        <div className="text-center mt-2">
-                            <span className="text-3xl font-extrabold text-violet-500">A</span>
-                            <span className="text-slate-400 text-sm ml-1">Rank</span>
-                        </div>
+                        )}
                     </div>
 
-                    {/* Recommended Songs Card */}
+                    {/* おすすめの曲 */}
                     <div className="bg-white rounded-2xl shadow-md p-6">
                         <h2 className="text-lg font-bold text-slate-700 mb-4">おすすめの曲</h2>
-                        <div className="space-y-4">
-                            {recommendedSongs.map((song, index) => (
-                                <div key={index} className="flex items-center justify-between group cursor-pointer hover:bg-slate-50 p-2 rounded-lg transition-colors">
-                                    <div className="flex items-center space-x-3">
-                                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-400 flex items-center justify-center text-white font-bold text-sm shadow-sm group-hover:scale-110 transition-transform">
-                                            {index + 1}
+                        {songs.length > 0 ? (
+                            <div className="space-y-3">
+                                {songs.slice(0, 8).map((song: any, index: number) => (
+                                    <div key={song.id || index} className="flex items-center justify-between group cursor-pointer hover:bg-slate-50 p-2 rounded-lg transition-colors">
+                                        <div className="flex items-center space-x-3 min-w-0">
+                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-400 flex items-center justify-center text-white font-bold text-sm shadow-sm group-hover:scale-110 transition-transform flex-shrink-0">
+                                                {index + 1}
+                                            </div>
+                                            <div className="min-w-0">
+                                                <div className="font-bold text-slate-800 text-sm truncate">{song.title}</div>
+                                                <div className="text-xs text-slate-500 truncate">{song.artist}</div>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <div className="font-bold text-slate-800 text-sm">{song.title}</div>
-                                            <div className="text-xs text-slate-500">{song.artist}</div>
+                                        <div className="flex items-center gap-2 flex-shrink-0">
+                                            {song.recommended_key !== undefined && keyBadge(song.recommended_key, song.fit)}
+                                            {song.match_score !== undefined && difficultyBadge(song.match_score)}
                                         </div>
                                     </div>
-                                    <span className={`text-xs font-bold px-2 py-1 rounded-md 
-                    ${song.difficulty === 'Easy' ? 'bg-emerald-100 text-emerald-600' :
-                                            song.difficulty === 'Medium' ? 'bg-yellow-100 text-yellow-600' :
-                                                'bg-rose-100 text-rose-600'}`}>
-                                        {song.difficulty}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                        {/* <button className="w-full mt-6 py-2 text-sm text-blue-500 font-bold hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                            もっと見る →
-                        </button> */}
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-slate-400 text-sm text-center py-4">おすすめ曲データなし</p>
+                        )}
                     </div>
                 </div>
             </div>
