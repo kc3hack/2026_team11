@@ -51,7 +51,7 @@ def separate_vocals(input_wav_path: str, output_dir: str = "separated",
     except FileNotFoundError:
         raise RuntimeError("demucsコマンドが見つかりません。'pip install demucs' を実行してください。")
 
-    # 出力パスの特定 (htdemucs/input_filename/vocals.wav)
+    # 出力パスの特定 ({model_name}/input_filename/vocals.wav)
     stem_name = input_file.stem
     expected_path = Path(output_dir) / model_name / stem_name / "vocals.wav"
     
