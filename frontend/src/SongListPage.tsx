@@ -22,26 +22,23 @@ const SongListPage: React.FC<SongListPageProps> = ({ searchQuery = "" }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [page, setPage] = useState(0);
-    const [debouncedQuery, setDebouncedQuery] = useState("");
+    // debouncedQueryを削除し、searchQueryを直接使用します
     const LIMIT = 20;
 
-    // 検索語句のデバウンス処理
+    // searchQueryが変わったらページをリセット
     useEffect(() => {
-        const timer = setTimeout(() => {
-            setDebouncedQuery(searchQuery);
-            setPage(0); // 検索条件が変わったらページをリセット
-        }, 500);
-        return () => clearTimeout(timer);
+        setPage(0);
     }, [searchQuery]);
 
     useEffect(() => {
         fetchSongs();
-    }, [page, debouncedQuery]);
+    }, [page, searchQuery]);
 
     const fetchSongs = async () => {
         setLoading(true);
         try {
-            const data = await getSongs(LIMIT, page * LIMIT, debouncedQuery);
+            // debouncedQuery ではなく searchQuery を直接使用
+            const data = await getSongs(LIMIT, page * LIMIT, searchQuery);
             setSongs(data);
             setError(null);
         } catch (err: any) {
