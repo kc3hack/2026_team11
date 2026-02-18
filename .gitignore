@@ -12,3 +12,4 @@ frontend/build/
 
 # env
 .env
+node_modules
