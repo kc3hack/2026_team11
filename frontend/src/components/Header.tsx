@@ -1,4 +1,4 @@
-import React from 'react';
+import logo from '../assets/logo.png';
 
 interface HeaderProps {
     onMenuClick: () => void;
@@ -20,10 +20,8 @@ const Header: React.FC<HeaderProps> = ({
     return (
         <header className="hidden md:flex items-center justify-between px-8 py-4 bg-white shadow-sm sticky top-0 z-50">
             <div className="flex items-center gap-4 cursor-pointer" onClick={onMenuClick}>
-                {/* Logo (Dummy) */}
-                <div className="w-10 h-10 bg-blue-600 flex items-center justify-center text-white text-xs rounded-lg shadow-md">
-                    logo
-                </div>
+                {/* Logo Image */}
+                <img src={logo} alt="App Logo" className="w-10 h-10 rounded-lg shadow-md object-cover" />
                 <h1 className="text-xl font-bold tracking-tight text-slate-800">アプリ名</h1>
             </div>
 
