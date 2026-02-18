@@ -4,9 +4,12 @@ import Recorder from "./components/Recorder";
 import KaraokeUploader from "./components/KaraokeUploader";
 import ResultView from "./components/ResultView";
 import AnalysisResultPage from "./AnalysisResultPage";
+import Header from "./components/Header";
+
+import SongListPage from "./SongListPage";
 
 // 画面の状態を定義
-type ViewState = "menu" | "recorder" | "uploader" | "result" | "analysis";
+type ViewState = "menu" | "recorder" | "uploader" | "result" | "analysis" | "songList";
 
 export default function App() {
   const [view, setView] = useState<ViewState>("menu");
@@ -37,6 +40,11 @@ export default function App() {
     setView("analysis");
   };
 
+  // 楽曲一覧画面へ (New)
+  const handleSongList = () => {
+    setView("songList");
+  };
+
   // 解析完了時（結果画面へ）
   const handleResult = (data: any) => {
     setResult(data);
@@ -51,13 +59,19 @@ export default function App() {
 
   return (
     <div>
+      <Header
+        onMenuClick={handleBackToMenu}
+        onAnalysisClick={handleAnalysis}
+        onSongListClick={handleSongList}
+        currentView={view}
+      />
+
       {/* メニュー画面 */}
       {view === "menu" && (
         <RecordingSelectionPage
           onNormalClick={handleNormalRecording}
           onKaraokeClick={handleKaraokeRecording}
           onUploadClick={handleUpload}
-          onAnalysisClick={handleAnalysis}
         />
       )}
 
@@ -121,16 +135,13 @@ export default function App() {
       {/* 分析結果画面 (AnalysisResultPage) - 新規 */}
       {view === "analysis" && (
         <div className="min-h-screen bg-slate-50">
-          <div className="p-4">
-            <button
-              onClick={handleBackToMenu}
-              className="mb-2 text-slate-500 hover:text-blue-600 font-bold flex items-center gap-2 transition-colors"
-            >
-              ← メニューに戻る
-            </button>
-          </div>
           <AnalysisResultPage />
         </div>
+      )}
+
+      {/* 楽曲一覧画面 (SongListPage) - 新規 */}
+      {view === "songList" && (
+        <SongListPage />
       )}
     </div>
   );
