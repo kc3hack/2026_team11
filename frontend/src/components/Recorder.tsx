@@ -172,7 +172,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
         } catch (err: any) {
           // タイムアウトエラーの特別処理
           let errorMsg: string;
-          if (err.code === 'ECONNABORTED' || err?.message?.includes('timeout')) {
+          if (err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')) {
             errorMsg = "⏱️ 処理時間が5分を超えたため、タイムアウトしました。録音が長すぎるか、サーバーの負荷が高い可能性があります。もう一度お試しください。";
           } else {
             errorMsg = err?.response?.data?.error ||
