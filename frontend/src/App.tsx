@@ -7,9 +7,11 @@ import AnalysisResultPage from "./AnalysisResultPage";
 import Header from "./components/Header";
 
 import SongListPage from "./SongListPage";
+import PlaceholderPage from "./PlaceholderPage";
+import BottomNav from "./components/BottomNav";
 
 // 画面の状態を定義
-type ViewState = "menu" | "recorder" | "uploader" | "result" | "analysis" | "songList";
+type ViewState = "menu" | "recorder" | "uploader" | "result" | "analysis" | "songList" | "history" | "mypage";
 
 export default function App() {
   const [view, setView] = useState<ViewState>("menu");
@@ -58,7 +60,7 @@ export default function App() {
   };
 
   return (
-    <div>
+    <div className="pb-24 md:pb-0 min-h-screen relative">
       <Header
         onMenuClick={handleBackToMenu}
         onAnalysisClick={handleAnalysis}
@@ -143,6 +145,19 @@ export default function App() {
       {view === "songList" && (
         <SongListPage />
       )}
+
+      {/* 履歴画面 (Placeholder) */}
+      {view === "history" && (
+        <PlaceholderPage title="履歴" />
+      )}
+
+      {/* マイページ画面 (Placeholder) */}
+      {view === "mypage" && (
+        <PlaceholderPage title="マイページ" />
+      )}
+
+      {/* Bottom Navigation (Mobile Only) */}
+      <BottomNav currentView={view} onViewChange={setView} />
     </div>
   );
 }

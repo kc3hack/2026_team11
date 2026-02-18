@@ -9,7 +9,7 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ onMenuClick, onAnalysisClick, onSongListClick, currentView }) => {
     return (
-        <header className="flex items-center justify-between px-8 py-4 bg-white shadow-sm sticky top-0 z-50">
+        <header className="hidden md:flex items-center justify-between px-8 py-4 bg-white shadow-sm sticky top-0 z-50">
             <div className="flex items-center gap-4 cursor-pointer" onClick={onMenuClick}>
                 {/* Logo (Dummy) */}
                 <div className="w-10 h-10 bg-blue-600 flex items-center justify-center text-white text-xs rounded-lg shadow-md">
