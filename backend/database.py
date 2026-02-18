@@ -110,7 +110,7 @@ def _escape_like(query: str) -> str:
     return query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
-def search_songs(query: str, limit: int = 20) -> list[dict]:
+def search_songs(query: str, limit: int = 20, offset: int = 0) -> list[dict]:
     """曲名またはアーティスト名であいまい検索"""
     conn = get_connection()
     try:
@@ -122,8 +122,9 @@ def search_songs(query: str, limit: int = 20) -> list[dict]:
             FROM songs s
             JOIN artists a ON s.artist_id = a.id
             WHERE s.title LIKE ? ESCAPE '\\' OR a.name LIKE ? ESCAPE '\\'
-            LIMIT ?
-        """, (escaped, escaped, limit)).fetchall()
+            ORDER BY s.id
+            LIMIT ? OFFSET ?
+        """, (escaped, escaped, limit, offset)).fetchall()
         return [dict(r) for r in rows]
     finally:
         conn.close()

@@ -17,6 +17,7 @@ export default function App() {
   const [view, setView] = useState<ViewState>("menu");
   const [isKaraokeMode, setIsKaraokeMode] = useState(false); // Recorderに渡すモード
   const [result, setResult] = useState<any>(null); // 解析結果
+  const [searchQuery, setSearchQuery] = useState(""); // 検索クエリ
 
   // --- イベントハンドラ ---
 
@@ -66,6 +67,8 @@ export default function App() {
         onAnalysisClick={handleAnalysis}
         onSongListClick={handleSongList}
         currentView={view}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
       />
 
       {/* メニュー画面 */}
@@ -143,7 +146,7 @@ export default function App() {
 
       {/* 楽曲一覧画面 (SongListPage) - 新規 */}
       {view === "songList" && (
-        <SongListPage />
+        <SongListPage searchQuery={searchQuery} />
       )}
 
       {/* 履歴画面 (Placeholder) */}

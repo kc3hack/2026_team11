@@ -22,7 +22,9 @@ export const analyzeKaraoke = async (file: File | Blob, filename: string) => {
 };
 
 // 楽曲取得
-export const getSongs = async (limit: number = 20, offset: number = 0) => {
-  const res = await API.get("/songs", { params: { limit, offset } });
+export const getSongs = async (limit: number = 20, offset: number = 0, query: string = "") => {
+  const params: any = { limit, offset };
+  if (query) params.q = query;
+  const res = await API.get("/songs", { params });
   return res.data;
 };

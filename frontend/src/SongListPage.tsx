@@ -13,21 +13,35 @@ interface Song {
     source: string;
 }
 
-const SongListPage: React.FC = () => {
+interface SongListPageProps {
+    searchQuery?: string;
+}
+
+const SongListPage: React.FC<SongListPageProps> = ({ searchQuery = "" }) => {
     const [songs, setSongs] = useState<Song[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [page, setPage] = useState(0);
+    const [debouncedQuery, setDebouncedQuery] = useState("");
     const LIMIT = 20;
+
+    // 検索語句のデバウンス処理
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedQuery(searchQuery);
+            setPage(0); // 検索条件が変わったらページをリセット
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
 
     useEffect(() => {
         fetchSongs();
-    }, [page]);
+    }, [page, debouncedQuery]);
 
     const fetchSongs = async () => {
         setLoading(true);
         try {
-            const data = await getSongs(LIMIT, page * LIMIT);
+            const data = await getSongs(LIMIT, page * LIMIT, debouncedQuery);
             setSongs(data);
             setError(null);
         } catch (err: any) {

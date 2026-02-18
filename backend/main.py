@@ -10,7 +10,7 @@ import uuid
 from audio_converter import convert_to_wav, convert_to_wav_hq  # ← hq版を追加
 from analyzer import analyze
 from vocal_separator import separate_vocals
-from database import get_all_songs
+from database import get_all_songs, search_songs
 
 app = FastAPI()
 
@@ -22,7 +22,9 @@ app.add_middleware(
 )
 
 @app.get("/songs")
-def read_songs(limit: int = 20, offset: int = 0):
+def read_songs(limit: int = 20, offset: int = 0, q: str | None = None):
+    if q:
+        return search_songs(q, limit, offset)
     return get_all_songs(limit, offset)
 
 UPLOAD_DIR = "uploads"
