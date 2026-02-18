@@ -1,5 +1,3 @@
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 """
 train_classifier.py — 地声/裏声 ML分類器の学習
 
@@ -23,6 +21,10 @@ import os
 import sys
 import argparse
 import numpy as np
+
+# ml/ から実行時に親ディレクトリ (backend/) の feature_extractor を見つける
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler

@@ -109,14 +109,18 @@ const AnalysisResultPage: React.FC<AnalysisResultPageProps> = ({ result }) => {
     const artists = result.similar_artists || [];
     const singing = result.singing_analysis || {};
 
-    // レーダーチャート用データ
-    const radarData = singing.scores ? [
-        { label: "音域", value: singing.scores.range ?? 0 },
-        { label: "安定性", value: singing.scores.stability ?? 0 },
-        { label: "表現力", value: singing.scores.expression ?? 0 },
-        { label: "裏声", value: singing.scores.falsetto ?? 0 },
-        { label: "総合", value: singing.scores.total ?? 0 },
+    // レーダーチャート用データ（バックエンドは range_score, stability_score 等を直接返す）
+    const hasScores = singing.range_score !== undefined;
+    const radarData = hasScores ? [
+        { label: "音域", value: singing.range_score ?? 0 },
+        { label: "安定性", value: singing.stability_score ?? 0 },
+        { label: "表現力", value: singing.expression_score ?? 0 },
+        { label: "総合", value: singing.overall_score ?? 0 },
     ] : [];
+
+    // ランク計算（バックエンドにrankフィールドがないので自前計算）
+    const overallScore = singing.overall_score ?? 0;
+    const computedRank = overallScore >= 90 ? "S" : overallScore >= 80 ? "A" : overallScore >= 65 ? "B" : overallScore >= 50 ? "C" : "D";
 
     const rankColor = (rank: string) => {
         if (rank === "S") return "text-amber-500";
@@ -204,7 +208,7 @@ const AnalysisResultPage: React.FC<AnalysisResultPageProps> = ({ result }) => {
                                             {i + 1}
                                         </div>
                                         <span className="text-sm font-bold text-slate-700">{a.name}</span>
-                                        <span className="text-xs text-slate-400">{Math.round(a.similarity)}%</span>
+                                        <span className="text-xs text-slate-400">{Math.round(a.similarity_score)}%</span>
                                     </div>
                                 ))}
                             </div>
@@ -223,10 +227,13 @@ const AnalysisResultPage: React.FC<AnalysisResultPageProps> = ({ result }) => {
                                     <RadarChart data={radarData} />
                                 </div>
                                 <div className="text-center mt-2">
-                                    <span className={`text-3xl font-extrabold ${rankColor(singing.rank || "-")}`}>
-                                        {singing.rank || "-"}
+                                    <span className={`text-3xl font-extrabold ${rankColor(computedRank)}`}>
+                                        {computedRank}
                                     </span>
                                     <span className="text-slate-400 text-sm ml-1">Rank</span>
+                                    {singing.overall_score !== undefined && (
+                                        <p className="text-xs text-slate-400 mt-1">{Math.round(singing.overall_score)}点</p>
+                                    )}
                                 </div>
                             </>
                         ) : (

@@ -1,5 +1,3 @@
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 """
 download_training_data.py — GTSingerからML学習データを自動構築
 
@@ -40,6 +38,9 @@ import argparse
 import subprocess
 import glob
 import numpy as np
+
+# ml/ から実行時に親ディレクトリ (backend/) の feature_extractor を見つける
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 # ============================================================
 # 設定

@@ -35,6 +35,9 @@ import librosa
 import torch
 import torchcrepe
 
+# ml/ から実行時に親ディレクトリ (backend/) の feature_extractor を見つける
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+
 from feature_extractor import extract_features
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "training_data")
