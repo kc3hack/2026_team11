@@ -19,7 +19,6 @@ const KaraokeUploader: React.FC = () => {
   const [stepLabel, setStepLabel] = useState("");
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // フェイク進捗（実際の処理時間に合わせて段階的に進む）
   useEffect(() => {
     if (loading) {
       let stepIndex = 0;
@@ -32,7 +31,7 @@ const KaraokeUploader: React.FC = () => {
           setProgress(STEPS[stepIndex].progress);
           setStepLabel(STEPS[stepIndex].label);
         }
-      }, 8000); // 8秒ごとに進捗更新
+      }, 8000);
     } else {
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -48,6 +47,19 @@ const KaraokeUploader: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // WAVファイルかどうかチェック
+    const isWav =
+      file.name.toLowerCase().endsWith(".wav") ||
+      file.type === "audio/wav" ||
+      file.type === "audio/x-wav";
+
+    if (!isWav) {
+      setError("WAVファイルのみ対応しています。音源をWAV形式に変換してからアップロードしてください。");
+      // inputをリセット
+      e.target.value = "";
+      return;
+    }
+
     setLoading(true);
     setError("");
     setResult(null);
@@ -56,21 +68,30 @@ const KaraokeUploader: React.FC = () => {
       const data = await analyzeKaraoke(file, file.name);
       setProgress(100);
       setStepLabel("完了！");
-      setResult(data);
+      if (data.error) {
+        setError(data.error);
+      } else {
+        setResult(data);
+      }
     } catch (err: any) {
-      setError(err?.response?.data?.error || "解析に失敗しました。もう一度お試しください。");
+      setError(
+        err?.response?.data?.error ||
+        "解析に失敗しました。もう一度お試しください。"
+      );
     } finally {
       setTimeout(() => setLoading(false), 500);
+      // inputをリセット（同じファイルを再アップロードできるように）
+      e.target.value = "";
     }
   };
 
   return (
     <div style={{ marginTop: 30 }}>
       <h2>🎤 カラオケ音源で測定</h2>
-      <p>歌入りの音源（mp3, wav, m4a）をアップロードしてください</p>
+      <p>歌入りのWAV音源をアップロードしてください（WAVのみ対応）</p>
       <input
         type="file"
-        accept="audio/*"
+        accept=".wav,audio/wav,audio/x-wav"
         onChange={handleUpload}
         disabled={loading}
       />
