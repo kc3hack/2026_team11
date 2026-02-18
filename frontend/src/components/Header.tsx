@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import logo from '../assets/logo.png';
 
 interface HeaderProps {
@@ -17,6 +18,22 @@ const Header: React.FC<HeaderProps> = ({
     searchQuery = "",
     onSearchChange
 }) => {
+    // 入力中の値を管理するローカルステート
+    const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery);
+
+    // 親コンポーネントからsearchQueryが変更された場合（例：クリア時）に同期する
+    useEffect(() => {
+        setLocalSearchQuery(searchQuery);
+    }, [searchQuery]);
+
+    // Enterキーが押されたときに検索を実行
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            onSearchChange?.(localSearchQuery);
+        }
+    };
+
     return (
         <header className="hidden md:flex items-center justify-between px-8 py-4 bg-white shadow-sm sticky top-0 z-50">
             <div className="flex items-center gap-4 cursor-pointer" onClick={onMenuClick}>
@@ -55,12 +72,14 @@ const Header: React.FC<HeaderProps> = ({
 
             <div className="flex items-center gap-6">
                 {/* Search Bar */}
-                <div className="relative hidden lg:block">
+                <div className="relative hidden lg:block" role="search">
                     <input
                         type="text"
                         placeholder="サイト内楽曲検索"
-                        value={searchQuery}
-                        onChange={(e) => onSearchChange?.(e.target.value)}
+                        aria-label="サイト内楽曲検索"
+                        value={localSearchQuery} // ローカルステートを使用
+                        onChange={(e) => setLocalSearchQuery(e.target.value)} // ローカルステートを更新
+                        onKeyDown={handleKeyDown} // Enterキーイベントを追加
                         className="bg-slate-100 text-sm rounded-full px-5 py-2.5 w-64 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white transition-all placeholder-slate-400 text-slate-700"
                     />
                 </div>
