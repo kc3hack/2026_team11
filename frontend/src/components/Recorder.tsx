@@ -85,7 +85,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
   const drawVisualizer = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas || !analyserRef.current || !dataArrayRef.current) {
-      // キャンバスが見つからない場合も少し待って再トライ（Reactの描画待ち）
+      // キャンバスが見つからない場合も少し待って再トライ
       animationIdRef.current = requestAnimationFrame(drawVisualizer);
       return;
     }
@@ -137,7 +137,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
     animationIdRef.current = requestAnimationFrame(drawVisualizer);
   }, []);
 
-  // 録音開始時の処理（ここでAudioContextを確実に起こす）
+  // 録音開始時の処理
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -150,8 +150,8 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
         chunks.current.push(e.data);
       };
 
+      // 録音停止時の処理
       mediaRecorder.current.onstop = async () => {
-        // 録音停止時の処理
         if (animationIdRef.current) cancelAnimationFrame(animationIdRef.current);
         const blob = new Blob(chunks.current, { type: "audio/webm" });
         
@@ -165,36 +165,41 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
           } else {
             data = await analyzeVoice(blob);
           }
+          
           setProgress(100);
           setStepLabel("完了！");
           onResult(data);
-        } catch (err) {
-          onResult({ error: "解析に失敗しました。" });
+          
+        } catch (err: any) {
+          const serverMsg =
+            err?.response?.data?.error ||
+            err?.message ||
+            "解析に失敗しました。もう一度お試しください。";
+          onResult({ error: serverMsg });
         } finally {
+          // 少し待ってからローディング表示を消す
           setTimeout(() => {
             setLoading(false);
             setProgress(0);
             setStepLabel("");
           }, 500);
         }
-        setProgress(100);
-        setStepLabel("完了！");
-        onResult(data);
-      } catch (err: any) {
-        const serverMsg =
-          err?.response?.data?.error ||
-          err?.message ||
-          "解析に失敗しました。もう一度お試しください。";
-        onResult({ error: serverMsg });
-      } finally {
-        setTimeout(() => {
-          setLoading(false);
-          setProgress(0);
-          setStepLabel("");
-        }, 500);
+      };
+
+      // 2. AudioContextのセットアップ（ビジュアライザー用）
+      // ここで初期化されていない場合は作成する
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
 
       const audioCtx = audioContextRef.current;
+      
+      // TypeScriptエラー回避: audioCtxがnullでないことを確認
+      if (!audioCtx) {
+        console.error("AudioContextの初期化に失敗しました");
+        return;
+      }
+
       analyserRef.current = audioCtx.createAnalyser();
       analyserRef.current.fftSize = 1024;
       
