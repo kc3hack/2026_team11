@@ -1,0 +1,22 @@
+# 環境変数
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+*.egg-info/
+
+# データベース
+*.db
+
+# アップロードファイル
+uploads/
+separated/
+
+# OS
+.DS_Store

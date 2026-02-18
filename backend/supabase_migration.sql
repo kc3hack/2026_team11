@@ -1,0 +1,176 @@
+-- ============================================================
+-- Supabase用データベース設計
+-- 実行方法: Supabaseダッシュボードの「SQL Editor」で実行
+-- ============================================================
+
+-- ============================================================
+-- 1. ユーザープロファイルテーブル
+--    Supabase Authのユーザーと1:1で紐付け
+-- ============================================================
+CREATE TABLE IF NOT EXISTS user_profiles (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    email TEXT NOT NULL UNIQUE,
+    display_name TEXT,
+    avatar_url TEXT,
+    
+    -- DAM連携用（将来実装）
+    dam_account_id TEXT,
+    
+    -- 最新の声域データ（プロファイルに表示用）
+    current_vocal_range_min TEXT,  -- 例: "mid1C"
+    current_vocal_range_max TEXT,  -- 例: "hiA"
+    current_falsetto_max TEXT,     -- 例: "hiE"
+    
+    -- メタデータ
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- RLS (Row Level Security) を有効化
+ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
+
+-- 自分のプロファイルは自分だけが読み書き可能
+CREATE POLICY "Users can view own profile" 
+    ON user_profiles FOR SELECT 
+    USING (auth.uid() = id);
+
+CREATE POLICY "Users can update own profile" 
+    ON user_profiles FOR UPDATE 
+    USING (auth.uid() = id);
+
+-- サインアップ時に自動的にプロファイルを作成するトリガー
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.user_profiles (id, email, display_name)
+    VALUES (NEW.id, NEW.email, COALESCE(NEW.raw_user_meta_data->>'display_name', NULL));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- ============================================================
+-- 2. 分析履歴テーブル
+--    声域の変化を時系列で追跡
+-- ============================================================
+CREATE TABLE IF NOT EXISTS analysis_history (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
+    
+    -- 測定結果
+    vocal_range_min TEXT,
+    vocal_range_max TEXT,
+    falsetto_max TEXT,
+    
+    -- 測定メタデータ
+    source_type TEXT NOT NULL CHECK (source_type IN ('microphone', 'karaoke', 'file')),
+    file_name TEXT,
+    
+    -- タイムスタンプ
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- インデックス
+CREATE INDEX idx_analysis_user_date ON analysis_history(user_id, created_at DESC);
+
+-- RLS
+ALTER TABLE analysis_history ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own analysis history" 
+    ON analysis_history FOR SELECT 
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own analysis" 
+    ON analysis_history FOR INSERT 
+    WITH CHECK (auth.uid() = user_id);
+
+-- ============================================================
+-- 3. 楽曲テーブル（artists, songs）
+--    お気に入りテーブルより先に作成が必要
+-- ============================================================
+
+-- アーティストテーブル
+CREATE TABLE IF NOT EXISTS artists (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    slug TEXT NOT NULL UNIQUE,
+    song_count INTEGER DEFAULT 0
+);
+
+-- 楽曲テーブル
+CREATE TABLE IF NOT EXISTS songs (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    artist_id INTEGER NOT NULL REFERENCES artists(id) ON DELETE CASCADE,
+    lowest_note TEXT,
+    highest_note TEXT,
+    falsetto_note TEXT,
+    note TEXT,
+    source TEXT DEFAULT 'voice-key.news',
+    
+    -- 重複防止
+    UNIQUE(artist_id, title, source)
+);
+
+-- インデックス
+CREATE INDEX idx_songs_title ON songs(title);
+CREATE INDEX idx_songs_artist ON songs(artist_id);
+
+-- RLS（楽曲データは全員が閲覧可能）
+ALTER TABLE artists ENABLE ROW LEVEL SECURITY;
+ALTER TABLE songs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can view artists" 
+    ON artists FOR SELECT 
+    USING (true);
+
+CREATE POLICY "Anyone can view songs" 
+    ON songs FOR SELECT 
+    USING (true);
+
+-- ============================================================
+-- 4. お気に入り楽曲テーブル
+--    songs テーブルの後に作成
+-- ============================================================
+CREATE TABLE IF NOT EXISTS favorite_songs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
+    song_id INTEGER NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- 同じ曲を重複してお気に入り登録できないように
+    UNIQUE(user_id, song_id)
+);
+
+-- インデックス
+CREATE INDEX idx_favorites_user ON favorite_songs(user_id, created_at DESC);
+
+-- RLS
+ALTER TABLE favorite_songs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own favorites" 
+    ON favorite_songs FOR SELECT 
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can manage own favorites" 
+    ON favorite_songs FOR ALL 
+    USING (auth.uid() = user_id);
+
+-- ============================================================
+-- 5. updated_atの自動更新トリガー
+-- ============================================================
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_user_profiles_updated_at
+    BEFORE UPDATE ON user_profiles
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
