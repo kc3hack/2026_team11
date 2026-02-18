@@ -8,11 +8,10 @@ interface Props {
 }
 
 const STEPS = [
-  { progress: 15, label: "ボーカル分離中..." },
-  { progress: 35, label: "ボーカル分離中（もう少し）..." },
-  { progress: 55, label: "ボーカル分離中（あと少し）..." },
-  { progress: 75, label: "ノイズ除去中..." },
-  { progress: 90, label: "音域を解析中..." },
+  { progress: 20, label: "⚡ 超高速ボーカル分離中..." },
+  { progress: 50, label: "🎵 ボーカル抽出中（1〜2分）..." },
+  { progress: 75, label: "🎶 もうすぐ完了..." },
+  { progress: 90, label: "📊 音域を解析中..." },
 ];
 
 const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
@@ -122,7 +121,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
       const percent = i / barCount;
       const indexMapping = Math.pow(percent, 2.0); // 低音域を広く取る
       const rawIndex = Math.floor(indexMapping * maxBinIndex);
-      
+
       // 安全策: 配列外参照を防ぐ
       const valueIndex = Math.min(rawIndex, totalBins - 1);
       const v = dataArrayRef.current[valueIndex];
@@ -141,7 +140,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
+
       // 1. MediaRecorderのセットアップ
       mediaRecorder.current = new MediaRecorder(stream);
       chunks.current = [];
@@ -154,7 +153,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
       mediaRecorder.current.onstop = async () => {
         if (animationIdRef.current) cancelAnimationFrame(animationIdRef.current);
         const blob = new Blob(chunks.current, { type: "audio/webm" });
-        
+
         setLoading(true);
         setProgress(0);
 
@@ -165,17 +164,22 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
           } else {
             data = await analyzeVoice(blob);
           }
-          
+
           setProgress(100);
           setStepLabel("完了！");
           onResult(data);
-          
+
         } catch (err: any) {
-          const serverMsg =
-            err?.response?.data?.error ||
-            err?.message ||
-            "解析に失敗しました。もう一度お試しください。";
-          onResult({ error: serverMsg });
+          // タイムアウトエラーの特別処理
+          let errorMsg: string;
+          if (err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')) {
+            errorMsg = "⏱️ 処理時間が5分を超えたため、タイムアウトしました。録音が長すぎるか、サーバーの負荷が高い可能性があります。もう一度お試しください。";
+          } else {
+            errorMsg = err?.response?.data?.error ||
+              err?.message ||
+              "解析に失敗しました。もう一度お試しください。";
+          }
+          onResult({ error: errorMsg });
         } finally {
           // 少し待ってからローディング表示を消す
           setTimeout(() => {
@@ -193,7 +197,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
       }
 
       const audioCtx = audioContextRef.current;
-      
+
       // TypeScriptエラー回避: audioCtxがnullでないことを確認
       if (!audioCtx) {
         console.error("AudioContextの初期化に失敗しました");
@@ -202,19 +206,19 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
 
       analyserRef.current = audioCtx.createAnalyser();
       analyserRef.current.fftSize = 1024;
-      
+
       // 既存の接続があれば切る
       if (sourceRef.current) sourceRef.current.disconnect();
-      
+
       sourceRef.current = audioCtx.createMediaStreamSource(stream);
       sourceRef.current.connect(analyserRef.current);
-      
+
       dataArrayRef.current = new Uint8Array(analyserRef.current.frequencyBinCount);
 
       // 3. 録音開始
       mediaRecorder.current.start();
       setRecording(true);
-      
+
       // 4. 描画開始（少し遅らせてDOM生成を待つ）
       setTimeout(() => {
         if (!animationIdRef.current) {
