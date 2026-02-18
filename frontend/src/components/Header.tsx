@@ -29,6 +29,7 @@ const Header: React.FC<HeaderProps> = ({
     // Enterキーが押されたときに検索を実行
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
+            e.preventDefault();
             onSearchChange?.(localSearchQuery);
         }
     };
