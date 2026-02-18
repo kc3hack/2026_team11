@@ -21,6 +21,15 @@ export default function App() {
 
   // --- イベントハンドラ ---
 
+  // 検索ハンドラ（新規追加）: 入力があったら楽曲一覧へ遷移
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
+    // 検索文字が入力され、かつ現在が楽曲一覧でないなら遷移
+    if (query && view !== "songList") {
+      setView("songList");
+    }
+  };
+
   // マイク録音（通常）へ
   const handleNormalRecording = () => {
     setIsKaraokeMode(false);
@@ -68,7 +77,7 @@ export default function App() {
         onSongListClick={handleSongList}
         currentView={view}
         searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
+        onSearchChange={handleSearch} // ここを変更: setSearchQuery から handleSearch へ
       />
 
       {/* メニュー画面 */}
@@ -114,14 +123,11 @@ export default function App() {
 
           <div className="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-lg">
             <KaraokeUploader />
-            {/* Note: KaraokeUploader内で結果表示まで行う実装になっている場合はそのままでOKですが、
-                ResultViewを共通化したい場合はKaraokeUploaderにもonResultを追加する必要があります。
-                今回は元の実装を尊重してそのまま表示します。 */}
           </div>
         </div>
       )}
 
-      {/* 結果表示画面 (ResultView) - 既存 */}
+      {/* 結果表示画面 (ResultView) */}
       {view === "result" && (
         <div className="min-h-screen bg-slate-50 p-8">
           <button
@@ -137,14 +143,14 @@ export default function App() {
         </div>
       )}
 
-      {/* 分析結果画面 (AnalysisResultPage) - 新規 */}
+      {/* 分析結果画面 (AnalysisResultPage) */}
       {view === "analysis" && (
         <div className="min-h-screen bg-slate-50">
           <AnalysisResultPage />
         </div>
       )}
 
-      {/* 楽曲一覧画面 (SongListPage) - 新規 */}
+      {/* 楽曲一覧画面 (SongListPage) */}
       {view === "songList" && (
         <SongListPage searchQuery={searchQuery} />
       )}
