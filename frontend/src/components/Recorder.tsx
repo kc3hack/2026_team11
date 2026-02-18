@@ -74,8 +74,12 @@ const Recorder: React.FC<Props> = ({ onResult }) => {
         setProgress(100);
         setStepLabel("完了！");
         onResult(data);
-      } catch (err) {
-        onResult({ error: "解析に失敗しました。もう一度お試しください。" });
+      } catch (err: any) {
+        const serverMsg =
+          err?.response?.data?.error ||
+          err?.message ||
+          "解析に失敗しました。もう一度お試しください。";
+        onResult({ error: serverMsg });
       } finally {
         setTimeout(() => {
           setLoading(false);
