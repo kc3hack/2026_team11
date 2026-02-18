@@ -223,7 +223,8 @@ def analyze(wav_path: str, already_separated: bool = False) -> dict:
 
     print(f"\n[STEP 3/7] 🎼 CREPE音高推定中...")
     f0_raw = conf_raw = None
-    for model_size in ['tiny', 'full']:
+    # まず最軽量の'tiny'を試し、失敗した場合は段階的なフォールバックとして'small'を使用
+    for model_size in ['tiny', 'small']:
         try:
             print(f"[INFO] CREPEモデル '{model_size}' で試行中... (device={device})")
             f0_raw, conf_raw = run_crepe(audio_tensor, sr_crepe, hop_length, device, model_size)
