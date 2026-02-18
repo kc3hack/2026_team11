@@ -10,6 +10,7 @@ torch==2.5.1
 torchaudio==2.5.1
 demucs
 torchcrepe
+torchcodec
 noisereduce
 soundfile
 scikit-learn>=1.4.0

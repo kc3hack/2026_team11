@@ -3,12 +3,10 @@ import { analyzeKaraoke } from "../api";
 import ResultView from "./ResultView";
 
 const STEPS = [
-  { progress: 10, label: "音源を読み込み中..." },
-  { progress: 25, label: "ボーカル分離中..." },
-  { progress: 40, label: "ボーカル分離中（もう少し）..." },
-  { progress: 55, label: "ボーカル分離中（あと少し）..." },
-  { progress: 70, label: "ノイズ除去中..." },
-  { progress: 85, label: "音域を解析中..." },
+  { progress: 10, label: "⚡ 音源を読み込み中..." },
+  { progress: 35, label: "🎤 超高速ボーカル分離中..." },
+  { progress: 60, label: "🎵 もう少しで完了..." },
+  { progress: 85, label: "📊 音域を解析中..." },
 ];
 
 const KaraokeUploader: React.FC = () => {
@@ -72,10 +70,17 @@ const KaraokeUploader: React.FC = () => {
         setResult(data);
       }
     } catch (err: any) {
-      setError(
-        err?.response?.data?.error ||
-        "解析に失敗しました。もう一度お試しください。"
-      );
+      // タイムアウトエラーの特別処理
+      if (err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')) {
+        setError(
+          "⏱️ 処理時間が5分を超えたため、タイムアウトしました。音源が長すぎるか、サーバーの負荷が高い可能性があります。もう一度お試しください。"
+        );
+      } else {
+        setError(
+          err?.response?.data?.error ||
+          "解析に失敗しました。もう一度お試しください。"
+        );
+      }
     } finally {
       setTimeout(() => setLoading(false), 500);
       // inputをリセット（同じファイルを再アップロードできるように）

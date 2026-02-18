@@ -8,11 +8,10 @@ interface Props {
 }
 
 const STEPS = [
-  { progress: 15, label: "ボーカル分離中..." },
-  { progress: 35, label: "ボーカル分離中（もう少し）..." },
-  { progress: 55, label: "ボーカル分離中（あと少し）..." },
-  { progress: 75, label: "ノイズ除去中..." },
-  { progress: 90, label: "音域を解析中..." },
+  { progress: 20, label: "⚡ 超高速ボーカル分離中..." },
+  { progress: 50, label: "🎵 ボーカル抽出中（1〜2分）..." },
+  { progress: 75, label: "🎶 もうすぐ完了..." },
+  { progress: 90, label: "📊 音域を解析中..." },
 ];
 
 const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
@@ -163,6 +162,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
         if (animationIdRef.current) cancelAnimationFrame(animationIdRef.current);
         const blob = new Blob(chunks.current, { type: "audio/webm" });
 
+
         setLoading(true);
         setProgress(0);
 
@@ -174,16 +174,23 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
             data = await analyzeVoice(blob);
           }
 
+
           setProgress(100);
           setStepLabel("完了！");
           onResult(data);
 
+
         } catch (err: any) {
-          const serverMsg =
-            err?.response?.data?.error ||
-            err?.message ||
-            "解析に失敗しました。もう一度お試しください。";
-          onResult({ error: serverMsg });
+          // タイムアウトエラーの特別処理
+          let errorMsg: string;
+          if (err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')) {
+            errorMsg = "⏱️ 処理時間が5分を超えたため、タイムアウトしました。録音が長すぎるか、サーバーの負荷が高い可能性があります。もう一度お試しください。";
+          } else {
+            errorMsg = err?.response?.data?.error ||
+              err?.message ||
+              "解析に失敗しました。もう一度お試しください。";
+          }
+          onResult({ error: errorMsg });
         } finally {
           setTimeout(() => {
             setLoading(false);
@@ -209,8 +216,10 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
 
       if (sourceRef.current) sourceRef.current.disconnect();
 
+
       sourceRef.current = audioCtx.createMediaStreamSource(stream);
       sourceRef.current.connect(analyserRef.current);
+
 
       dataArrayRef.current = new Uint8Array(analyserRef.current.frequencyBinCount);
 
