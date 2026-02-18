@@ -10,5 +10,7 @@ torch
 torchaudio
 demucs
 torchcrepe
+torchcodec
 noisereduce
 soundfile
+certifi

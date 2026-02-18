@@ -1,8 +1,12 @@
 import axios from "axios";
 
+// タイムアウト設定: 5分 (300秒)
+// Demucsのボーカル分離は2-4分かかることがあります
+const TIMEOUT_MS = 300000;
+
 const API = axios.create({
   baseURL: "http://127.0.0.1:8000",
-  timeout: 300000,  // 5分タイムアウト（Demucsは時間がかかる）
+  timeout: TIMEOUT_MS,
 });
 
 // マイク録音用
