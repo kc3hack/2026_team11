@@ -73,7 +73,7 @@ const KaraokeUploader: React.FC = () => {
       }
     } catch (err: any) {
       // タイムアウトエラーの特別処理
-      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+      if (err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')) {
         setError(
           "⏱️ 処理時間が5分を超えたため、タイムアウトしました。音源が長すぎるか、サーバーの負荷が高い可能性があります。もう一度お試しください。"
         );
