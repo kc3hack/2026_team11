@@ -1,8 +1,7 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-from fastapi import FastAPI, File, UploadFile, BackgroundTasks, Depends, HTTPException
-from fastapi import FastAPI, File, UploadFile, BackgroundTasks, Query
+from fastapi import FastAPI, File, UploadFile, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 import shutil
 import os
@@ -12,8 +11,6 @@ import time
 from audio_converter import convert_to_wav, convert_to_wav_hq
 from analyzer import analyze
 from vocal_separator import separate_vocals
-from database import get_all_songs, search_songs
-from recommender import recommend_songs, find_similar_artists, classify_voice_type, recommend_key_for_song
 
 # Supabase対応のデータベース関数をインポート
 from database_supabase import (
