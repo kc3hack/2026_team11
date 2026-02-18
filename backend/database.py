@@ -190,3 +190,21 @@ def get_artist_songs(artist_id: int) -> list[dict]:
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
+
+def get_all_songs(limit: int = 20, offset: int = 0) -> list[dict]:
+    """全曲を取得（ページネーション対応）"""
+    conn = get_connection()
+    try:
+        rows = conn.execute("""
+            SELECT s.id, s.title, a.name as artist,
+                   s.lowest_note, s.highest_note, s.falsetto_note, s.note,
+                   s.source
+            FROM songs s
+            JOIN artists a ON s.artist_id = a.id
+            ORDER BY s.id
+            LIMIT ? OFFSET ?
+        """, (limit, offset)).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()

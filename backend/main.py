@@ -10,6 +10,7 @@ import uuid
 from audio_converter import convert_to_wav, convert_to_wav_hq  # ← hq版を追加
 from analyzer import analyze
 from vocal_separator import separate_vocals
+from database import get_all_songs
 
 app = FastAPI()
 
@@ -19,6 +20,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/songs")
+def read_songs(limit: int = 20, offset: int = 0):
+    return get_all_songs(limit, offset)
 
 UPLOAD_DIR = "uploads"
 SEPARATED_DIR = "separated"
