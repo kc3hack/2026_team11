@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { analyzeVoice, analyzeKaraoke } from "../api";
 import { MicrophoneIcon, StopIcon } from "@heroicons/react/24/solid";
 
@@ -33,13 +33,12 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
   const dataArrayRef = useRef<Uint8Array | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const animationIdRef = useRef<number | null>(null);
-  const prevDataRef = useRef<Float32Array | null>(null);
 
   useEffect(() => {
     setUseDemucs(initialUseDemucs);
   }, [initialUseDemucs]);
 
-  // Loading animation logic (existing)
+  // Loading animation logic
   useEffect(() => {
     if (loading && useDemucs) {
       let stepIndex = 0;
@@ -67,7 +66,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
     };
   }, [loading, useDemucs]);
 
-  // Cleanup audio context and media stream on unmount
+  // クリーンアップ処理
   useEffect(() => {
     return () => {
       if (audioContextRef.current) {
@@ -76,67 +75,20 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
       if (animationIdRef.current) {
         cancelAnimationFrame(animationIdRef.current);
       }
-      // Stop MediaRecorder and Stream Tracks
-      if (mediaRecorder.current) {
-        if (mediaRecorder.current.state !== "inactive") {
-          mediaRecorder.current.stop();
-        }
-        if (mediaRecorder.current.stream) {
-          mediaRecorder.current.stream.getTracks().forEach((track) => track.stop());
-        }
+      if (mediaRecorder.current && mediaRecorder.current.state !== "inactive") {
+        mediaRecorder.current.stop();
       }
     };
   }, []);
 
-  // Start/Stop Visualizer when recording state changes
-  useEffect(() => {
-    if (recording && mediaRecorder.current && mediaRecorder.current.stream) {
-      // Setup AudioContext if needed
-      if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-      }
-      const audioCtx = audioContextRef.current;
-
-      // Resume context if suspended (browser policy)
-      if (audioCtx.state === 'suspended') {
-        void audioCtx.resume().catch((err) => {
-          console.error("Failed to resume AudioContext:", err);
-        });
-      }
-
-      // Cleanup previous nodes if any
-      if (sourceRef.current) {
-        sourceRef.current.disconnect();
-      }
-      if (analyserRef.current) {
-        analyserRef.current.disconnect();
-      }
-
-      analyserRef.current = audioCtx.createAnalyser();
-      // Fixed FFT Size for Histogram (1024 = 512 frequency bins)
-      // We want enough resolution for bass, but not too many bars to draw.
-      analyserRef.current.fftSize = 1024;
-
-      sourceRef.current = audioCtx.createMediaStreamSource(mediaRecorder.current.stream);
-      sourceRef.current.connect(analyserRef.current);
-
-      dataArrayRef.current = new Uint8Array(analyserRef.current.frequencyBinCount);
-      
-      // Start drawing
-      drawVisualizer();
-    } else {
-      // Stop animation when not recording
-      if (animationIdRef.current) {
-        cancelAnimationFrame(animationIdRef.current);
-      }
-    }
-  }, [recording]);
-
-
-
-  const drawVisualizer = () => {
+  // ビジュアライザー描画関数
+  const drawVisualizer = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !analyserRef.current || !dataArrayRef.current || !prevDataRef.current) return;
+    if (!canvas || !analyserRef.current || !dataArrayRef.current) {
+      // キャンバスが見つからない場合も少し待って再トライ（Reactの描画待ち）
+      animationIdRef.current = requestAnimationFrame(drawVisualizer);
+      return;
+    }
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -144,92 +96,67 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
     const WIDTH = canvas.width;
     const HEIGHT = canvas.height;
 
-    // --- FREQUENCY BARS (HISTOGRAM) FOR ALL MODES ---
-    analyserRef.current.getByteFrequencyData(dataArrayRef.current as any);
+    analyserRef.current.getByteFrequencyData(dataArrayRef.current);
 
-    // Clear canvas
+    // 背景クリア
     ctx.fillStyle = "rgb(100, 116, 139)";
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-    // Create Gradient (Light Purple to Light Blue)
+    // グラデーション作成
     const gradient = ctx.createLinearGradient(0, HEIGHT, 0, 0);
     gradient.addColorStop(0, '#38bdf8'); // Sky 400
     gradient.addColorStop(1, '#a78bfa'); // Violet 400
     ctx.fillStyle = gradient;
 
-    // --- MAPPING CONFIG ---
-    // Total frequency bins (512 for fftSize 1024)
     const totalBins = dataArrayRef.current.length;
-
-    // Effective Max Frequency Index:
-    // We only care about up to ~10-12kHz for visual impact. 
-    // Truncating the top end ensures the right side isn't just dead static.
-    // 0.4 * 24000Hz = ~9600Hz.
+    // 高音域（右側）は成分が少ないのでカットして表示
     const maxBinIndex = Math.floor(totalBins * 0.4);
 
     const barCount = 80;
     const barWidth = (WIDTH / barCount) * 0.8;
     const gap = (WIDTH / barCount) * 0.2;
 
-    // Helper to get interpolated value for fractional indices
-    const getInterpolatedValue = (index: number) => {
-      const i1 = Math.floor(index);
-      const i2 = Math.min(i1 + 1, totalBins - 1);
-      const t = index - i1; // fractional part
-
-      if (!dataArrayRef.current) return 0; // Should not happen
-
-      const v1 = dataArrayRef.current[i1];
-      const v2 = dataArrayRef.current[i2];
-
-      return v1 + (v2 - v1) * t;
-    };
-
     let x = 0;
 
     for (let i = 0; i < barCount; i++) {
       const percent = i / barCount;
-
-      // Logarithmic-ish mapping: x^2.0
-      const indexMapping = Math.pow(percent, 2.0);
-
-      // Map to our truncated range [0, maxBinIndex]
-      const rawIndex = indexMapping * maxBinIndex;
-
-      // Use interpolated value to fix "steps" on the low end
-      const v = getInterpolatedValue(rawIndex);
+      const indexMapping = Math.pow(percent, 2.0); // 低音域を広く取る
+      const rawIndex = Math.floor(indexMapping * maxBinIndex);
+      
+      // 安全策: 配列外参照を防ぐ
+      const valueIndex = Math.min(rawIndex, totalBins - 1);
+      const v = dataArrayRef.current[valueIndex];
 
       let barHeight = (v / 255) * HEIGHT * 0.95;
-      if (barHeight < 5) barHeight = 5;
+      if (barHeight < 5) barHeight = 5; // 最低限の高さを保証
 
       ctx.fillRect(x, HEIGHT - barHeight, barWidth, barHeight);
       x += barWidth + gap;
     }
 
     animationIdRef.current = requestAnimationFrame(drawVisualizer);
-  };
+  }, []);
 
+  // 録音開始時の処理（ここでAudioContextを確実に起こす）
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // 1. MediaRecorderのセットアップ
       mediaRecorder.current = new MediaRecorder(stream);
       chunks.current = [];
-
-      // Note: Visualizer setup is now handled in the useEffect which watches [recording]
 
       mediaRecorder.current.ondataavailable = (e) => {
         chunks.current.push(e.data);
       };
 
       mediaRecorder.current.onstop = async () => {
+        // 録音停止時の処理
+        if (animationIdRef.current) cancelAnimationFrame(animationIdRef.current);
         const blob = new Blob(chunks.current, { type: "audio/webm" });
+        
         setLoading(true);
         setProgress(0);
-
-        // Stop visualizer
-        if (animationIdRef.current) {
-          cancelAnimationFrame(animationIdRef.current);
-        }
 
         try {
           let data;
@@ -242,7 +169,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
           setStepLabel("完了！");
           onResult(data);
         } catch (err) {
-          onResult({ error: "解析に失敗しました。もう一度お試しください。" });
+          onResult({ error: "解析に失敗しました。" });
         } finally {
           setTimeout(() => {
             setLoading(false);
@@ -250,45 +177,80 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
             setStepLabel("");
           }, 500);
         }
-
+        
+        // ストリームの停止
         stream.getTracks().forEach((track) => track.stop());
       };
 
+      // 2. AudioContext（波形表示用）のセットアップ
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      
+      // ブラウザの制限解除（重要）
+      if (audioContextRef.current.state === 'suspended') {
+        await audioContextRef.current.resume();
+      }
+
+      const audioCtx = audioContextRef.current;
+      analyserRef.current = audioCtx.createAnalyser();
+      analyserRef.current.fftSize = 1024;
+      
+      // 既存の接続があれば切る
+      if (sourceRef.current) sourceRef.current.disconnect();
+      
+      sourceRef.current = audioCtx.createMediaStreamSource(stream);
+      sourceRef.current.connect(analyserRef.current);
+      
+      dataArrayRef.current = new Uint8Array(analyserRef.current.frequencyBinCount);
+
+      // 3. 録音開始
       mediaRecorder.current.start();
       setRecording(true);
+      
+      // 4. 描画開始（少し遅らせてDOM生成を待つ）
+      setTimeout(() => {
+        if (!animationIdRef.current) {
+          drawVisualizer();
+        }
+      }, 100);
+
     } catch (e) {
-      console.error(e);
-      alert("マイクの使用が許可されていません。");
+      console.error("録音開始エラー:", e);
+      alert("マイクの使用が許可されていないか、エラーが発生しました。");
     }
   };
 
   const stopRecording = () => {
     if (mediaRecorder.current && mediaRecorder.current.state !== "inactive") {
-    mediaRecorder.current?.stop();
+      mediaRecorder.current.stop();
     }
     setRecording(false);
+    if (animationIdRef.current) {
+      cancelAnimationFrame(animationIdRef.current);
+      animationIdRef.current = null;
+    }
   };
 
   return (
     <div className="flex flex-col items-center w-full">
-      {/* Visualizer Container */}
       <div className="relative w-full max-w-4xl h-[500px] bg-slate-500 rounded-3xl overflow-hidden shadow-inner flex flex-col items-center justify-center">
 
-        {/* Canvas for Visualizer */}
-        {recording ? (
+        {/* キャンバス: 録音中のみ表示 */}
+        {recording && (
           <canvas
             ref={canvasRef}
             width={800}
             height={500}
             className="absolute inset-0 w-full h-full"
           />
-        ) : (
-          // Placeholder text removed as per user request
-          loading && (
-            <div className="text-white text-xl font-medium tracking-wide z-10 animate-pulse">
-              解析中...
-            </div>
-          )
+        )}
+
+        {/* 待機中の表示（録音していないとき） */}
+        {!recording && !loading && (
+          <div className="absolute inset-0 flex items-center justify-center text-white/20 text-4xl font-bold tracking-widest select-none pointer-events-none">
+            READY
+          </div>
         )}
 
         {/* Loading Overlay */}
@@ -304,7 +266,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
           </div>
         )}
 
-        {/* Recording Button */}
+        {/* Start/Stop Button */}
         {!loading && (
           <div className={`absolute z-20 transition-all duration-500 ease-in-out ${recording ? 'bottom-10' : 'inset-0 flex items-center justify-center'}`}>
             {!recording ? (
@@ -312,9 +274,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
                 onClick={startRecording}
                 className="w-24 h-24 bg-slate-600 hover:bg-slate-700 rounded-full flex items-center justify-center transition-all transform hover:scale-110 shadow-2xl border-4 border-slate-400 group relative"
               >
-                {/* Ripple effect */}
                 <span className="absolute inset-0 rounded-full border border-white/30 animate-ping"></span>
-
                 <div className="flex flex-col items-center justify-center text-white">
                   <MicrophoneIcon className="w-10 h-10 group-hover:text-blue-300 transition-colors" />
                   <span className="text-xs mt-1 font-bold">START</span>
