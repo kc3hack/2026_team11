@@ -1,72 +1,120 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import RecordingSelectionPage from "./RecordingSelectionPage";
 import Recorder from "./components/Recorder";
 import KaraokeUploader from "./components/KaraokeUploader";
 import ResultView from "./components/ResultView";
 import AnalysisResultPage from "./AnalysisResultPage";
 import Header from "./components/Header";
+import GuidePage from "./GuidePage";
 
 import SongListPage from "./SongListPage";
 import PlaceholderPage from "./PlaceholderPage";
 import BottomNav from "./components/BottomNav";
+import { UserRange } from "./api";
 
 // 画面の状態を定義
-type ViewState = "menu" | "recorder" | "uploader" | "result" | "analysis" | "songList" | "history" | "mypage";
+type ViewState = "menu" | "recorder" | "uploader" | "result" | "analysis" | "songList" | "history" | "mypage" | "guide";
+
+// localStorageキー
+const RANGE_STORAGE_KEY = "voiceRange";
+const RESULT_STORAGE_KEY = "lastResult";
+
+function loadSavedRange(): UserRange | null {
+  try {
+    const saved = localStorage.getItem(RANGE_STORAGE_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch { /* ignore */ }
+  return null;
+}
+
+function saveRange(range: UserRange) {
+  localStorage.setItem(RANGE_STORAGE_KEY, JSON.stringify(range));
+}
+
+function loadSavedResult(): any | null {
+  try {
+    const saved = localStorage.getItem(RESULT_STORAGE_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch { /* ignore */ }
+  return null;
+}
+
+function saveResult(result: any) {
+  localStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify(result));
+}
 
 export default function App() {
   const [view, setView] = useState<ViewState>("menu");
-  const [isKaraokeMode, setIsKaraokeMode] = useState(false); // Recorderに渡すモード
-  const [result, setResult] = useState<any>(null); // 解析結果
-  const [searchQuery, setSearchQuery] = useState(""); // 検索クエリ
+  const [isKaraokeMode, setIsKaraokeMode] = useState(false);
+  const [result, setResult] = useState<any>(loadSavedResult);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [userRange, setUserRange] = useState<UserRange | null>(loadSavedRange);
+
+  // 解析結果から音域を抽出して保存
+  useEffect(() => {
+    if (result && !result.error && result.chest_min_hz && result.chest_max_hz) {
+      const range: UserRange = {
+        chest_min_hz: result.chest_min_hz,
+        chest_max_hz: result.chest_max_hz,
+      };
+      if (result.falsetto_max_hz) {
+        range.falsetto_max_hz = result.falsetto_max_hz;
+      }
+      setUserRange(range);
+      saveRange(range);
+      saveResult(result);
+    }
+  }, [result]);
 
   // --- イベントハンドラ ---
 
-  // 検索ハンドラ（新規追加）: 入力があったら楽曲一覧へ遷移
   const handleSearch = (query: string) => {
     setSearchQuery(query);
-    // 検索文字が入力され、かつ現在が楽曲一覧でないなら遷移
     if (query && view !== "songList") {
       setView("songList");
     }
   };
 
-  // マイク録音（通常）へ
   const handleNormalRecording = () => {
     setIsKaraokeMode(false);
     setView("recorder");
   };
 
-  // マイク録音（カラオケモード）へ
   const handleKaraokeRecording = () => {
     setIsKaraokeMode(true);
     setView("recorder");
   };
 
-  // ファイルアップロード画面へ
   const handleUpload = () => {
     setView("uploader");
   };
 
-  // 分析結果画面へ (New)
   const handleAnalysis = () => {
     setView("analysis");
   };
 
-  // 楽曲一覧画面へ (New)
   const handleSongList = () => {
     setView("songList");
   };
 
-  // 解析完了時（結果画面へ）
+  const handleGuide = () => {
+    setView("guide");
+  };
+
   const handleResult = (data: any) => {
     setResult(data);
     setView("result");
   };
 
-  // 戻るボタン（メニューへ）
   const handleBackToMenu = () => {
     setResult(null);
     setView("menu");
+  };
+
+  // 音域リセット
+  const handleClearRange = () => {
+    setUserRange(null);
+    localStorage.removeItem(RANGE_STORAGE_KEY);
   };
 
   return (
@@ -75,9 +123,10 @@ export default function App() {
         onMenuClick={handleBackToMenu}
         onAnalysisClick={handleAnalysis}
         onSongListClick={handleSongList}
+        onGuideClick={handleGuide}
         currentView={view}
         searchQuery={searchQuery}
-        onSearchChange={handleSearch} // ここを変更: setSearchQuery から handleSearch へ
+        onSearchChange={handleSearch}
       />
 
       {/* メニュー画面 */}
@@ -146,13 +195,18 @@ export default function App() {
       {/* 分析結果画面 (AnalysisResultPage) */}
       {view === "analysis" && (
         <div className="min-h-screen bg-slate-50">
-          <AnalysisResultPage />
+          <AnalysisResultPage result={result} />
         </div>
       )}
 
       {/* 楽曲一覧画面 (SongListPage) */}
       {view === "songList" && (
-        <SongListPage searchQuery={searchQuery} />
+        <SongListPage searchQuery={searchQuery} userRange={userRange} />
+      )}
+
+      {/* 使い方ガイド */}
+      {view === "guide" && (
+        <GuidePage />
       )}
 
       {/* 履歴画面 (Placeholder) */}

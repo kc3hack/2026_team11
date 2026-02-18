@@ -5,6 +5,7 @@ interface HeaderProps {
     onMenuClick: () => void;
     onAnalysisClick: () => void;
     onSongListClick: () => void;
+    onGuideClick: () => void;
     currentView: string;
     searchQuery?: string;
     onSearchChange?: (query: string) => void;
@@ -14,6 +15,7 @@ const Header: React.FC<HeaderProps> = ({
     onMenuClick,
     onAnalysisClick,
     onSongListClick,
+    onGuideClick,
     currentView,
     searchQuery = "",
     onSearchChange
@@ -44,11 +46,17 @@ const Header: React.FC<HeaderProps> = ({
 
             {/* Navigation */}
             <nav className="hidden md:flex gap-8 text-sm font-medium text-slate-500">
-                <button type="button" className="hover:text-blue-600 transition-colors bg-transparent border-0 cursor-pointer">使い方ガイド</button>
+                <button
+                    type="button"
+                    onClick={onGuideClick}
+                    className={`${currentView === 'guide' ? 'text-blue-600 font-bold' : 'hover:text-blue-600 text-slate-500'} transition-colors bg-transparent border-0 cursor-pointer`}
+                >
+                    使い方ガイド
+                </button>
                 <button
                     type="button"
                     onClick={onMenuClick}
-                    className={`${currentView === 'menu' || currentView === 'recorder' || currentView === 'uploder' ? 'text-blue-600 font-bold' : 'hover:text-blue-600 text-slate-500'} transition-colors bg-transparent border-0 cursor-pointer`}
+                    className={`${currentView === 'menu' || currentView === 'recorder' || currentView === 'uploader' ? 'text-blue-600 font-bold' : 'hover:text-blue-600 text-slate-500'} transition-colors bg-transparent border-0 cursor-pointer`}
                 >
                     録音
                 </button>
