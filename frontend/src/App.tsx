@@ -13,7 +13,16 @@ import BottomNav from "./components/BottomNav";
 import { UserRange } from "./api";
 
 // 画面の状態を定義
-type ViewState = "menu" | "recorder" | "uploader" | "result" | "analysis" | "songList" | "history" | "mypage" | "guide";
+type ViewState =
+  | "menu"
+  | "recorder"
+  | "uploader"
+  | "result"
+  | "analysis"
+  | "songList"
+  | "history"
+  | "mypage"
+  | "guide";
 
 // localStorageキー
 const RANGE_STORAGE_KEY = "voiceRange";
@@ -23,7 +32,9 @@ function loadSavedRange(): UserRange | null {
   try {
     const saved = localStorage.getItem(RANGE_STORAGE_KEY);
     if (saved) return JSON.parse(saved);
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return null;
 }
 
@@ -35,7 +46,9 @@ function loadSavedResult(): any | null {
   try {
     const saved = localStorage.getItem(RESULT_STORAGE_KEY);
     if (saved) return JSON.parse(saved);
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return null;
 }
 
@@ -94,7 +107,7 @@ export default function App() {
   };
 
   const handleSongList = () => {
-    setSearchQuery("");   // ← 検索クリア（全曲一覧に戻る）
+    setSearchQuery(""); // ← 検索クリア（全曲一覧に戻る）
     setView("songList");
   };
 
@@ -108,7 +121,7 @@ export default function App() {
   };
 
   const handleBackToMenu = () => {
-    setSearchQuery("");   // ← 検索もクリア
+    setSearchQuery(""); // ← 検索もクリア
     setView("menu");
   };
 
@@ -151,7 +164,9 @@ export default function App() {
 
           <div className="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-lg">
             <h2 className="text-2xl font-bold text-slate-800 mb-6 text-center">
-              {isKaraokeMode ? "🎤 カラオケで録音 (BGM除去)" : "🎙️ マイクで録音"}
+              {isKaraokeMode
+                ? "🎤 カラオケで録音 (BGM除去)"
+                : "🎙️ マイクで録音"}
             </h2>
             <Recorder
               onResult={handleResult}
@@ -206,19 +221,13 @@ export default function App() {
       )}
 
       {/* 使い方ガイド */}
-      {view === "guide" && (
-        <GuidePage />
-      )}
+      {view === "guide" && <GuidePage />}
 
       {/* 履歴画面 (Placeholder) */}
-      {view === "history" && (
-        <PlaceholderPage title="履歴" />
-      )}
+      {view === "history" && <PlaceholderPage title="履歴" />}
 
       {/* マイページ画面 (Placeholder) */}
-      {view === "mypage" && (
-        <PlaceholderPage title="マイページ" />
-      )}
+      {view === "mypage" && <PlaceholderPage title="マイページ" />}
 
       {/* Bottom Navigation (Mobile Only) */}
       <BottomNav currentView={view} onViewChange={setView} />
