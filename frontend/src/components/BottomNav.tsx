@@ -1,7 +1,7 @@
 import React from "react";
 import {
   MusicalNoteIcon,
-  ClockIcon,
+  HeartIcon,
   ChartBarIcon,
   UserCircleIcon,
 } from "@heroicons/react/24/outline";
@@ -37,13 +37,13 @@ const BottomNav: React.FC<BottomNavProps> = ({ currentView, onViewChange, isAuth
           <span className="text-[10px] font-medium">楽曲一覧</span>
         </button>
 
-        {/* 2. 履歴 */}
+        {/* 2. お気に入り */}
         <button
-          onClick={() => onViewChange("history")}
-          className={`flex-1 flex flex-col items-center justify-end h-full py-1 ${getItemClass("history")}`}
+          onClick={() => onViewChange("favorites")}
+          className={`flex-1 flex flex-col items-center justify-end h-full py-1 ${getItemClass("favorites")}`}
         >
-          <ClockIcon className="w-6 h-6 mb-1" />
-          <span className="text-[10px] font-medium">履歴</span>
+          <HeartIcon className="w-6 h-6 mb-1" />
+          <span className="text-[10px] font-medium">お気に入り</span>
         </button>
 
         {/* 3. 録音 (Center - Special) */}

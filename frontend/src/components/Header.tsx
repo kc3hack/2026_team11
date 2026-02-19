@@ -6,6 +6,7 @@ interface HeaderProps {
     onMenuClick: () => void;
     onAnalysisClick: () => void;
     onSongListClick: () => void;
+    onFavoritesClick?: () => void;
     onGuideClick: () => void;
     onHistoryClick: () => void;
     currentView: string;
@@ -22,6 +23,7 @@ const Header: React.FC<HeaderProps> = ({
     onMenuClick,
     onAnalysisClick,
     onSongListClick,
+    onFavoritesClick,
     onGuideClick,
     onHistoryClick,
     currentView,
@@ -55,6 +57,9 @@ const Header: React.FC<HeaderProps> = ({
                 </button>
                 <button type="button" onClick={onSongListClick} className={navClass(currentView === 'songList')}>
                     楽曲一覧
+                </button>
+                <button type="button" onClick={onFavoritesClick} className={navClass(currentView === 'favorites')}>
+                    お気に入り
                 </button>
                 <button type="button" onClick={onHistoryClick} className={navClass(currentView === 'history')}>
                     履歴

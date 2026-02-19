@@ -1,7 +1,10 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { getSongs, UserRange, getFavoriteArtists, addFavoriteArtist, removeFavoriteArtist, Song } from './api';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { getSongs, UserRange, getFavoriteArtists, addFavoriteArtist, removeFavoriteArtist, getFavorites, addFavorite, removeFavorite, Song } from './api';
 import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
 import { StarIcon as StarOutline } from '@heroicons/react/24/outline';
+import { HeartIcon } from '@heroicons/react/24/outline';
+import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
+import { useAuth } from './contexts/AuthContext';
 
 interface ArtistSummary {
   id: number;
@@ -28,10 +31,14 @@ const keyBadge = (key: number, fit?: string) => {
 
 const INDEX_KANA = ['あ', 'か', 'さ', 'た', 'な', 'は', 'ま', 'や', 'ら', 'わ'];
 
-const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | null }> = ({ searchQuery = "", userRange }) => {
+const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | null; onLoginClick?: () => void }> = ({ searchQuery = "", userRange, onLoginClick }) => {
+  const { isAuthenticated } = useAuth();
   // --- States ---
   const [songs, setSongs] = useState<Song[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
+  // お気に入り曲
+  const [favoriteSongIds, setFavoriteSongIds] = useState<Set<number>>(new Set());
+  const [togglingIds, setTogglingIds] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -92,6 +99,58 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
       alert(err.response?.data?.detail || "ログインが必要、または上限10組です");
     }
   };
+
+  // お気に入り曲ID一括取得
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setFavoriteSongIds(new Set());
+      return;
+    }
+    getFavorites(500)
+      .then(favs => setFavoriteSongIds(new Set(favs.map(f => f.song_id))))
+      .catch(err => console.error("お気に入り曲取得失敗:", err));
+  }, [isAuthenticated]);
+
+  // ハートトグル（曲単位）
+  const handleToggleFavoriteSong = useCallback(async (songId: number) => {
+    if (!isAuthenticated) {
+      onLoginClick?.();
+      return;
+    }
+    if (togglingIds.has(songId)) return;
+
+    const wasFavorite = favoriteSongIds.has(songId);
+
+    // オプティミスティック更新
+    setFavoriteSongIds(prev => {
+      const next = new Set(prev);
+      wasFavorite ? next.delete(songId) : next.add(songId);
+      return next;
+    });
+    setTogglingIds(prev => new Set(prev).add(songId));
+
+    try {
+      if (wasFavorite) {
+        await removeFavorite(songId);
+      } else {
+        await addFavorite(songId);
+      }
+    } catch (err) {
+      console.error("お気に入り曲更新失敗:", err);
+      // ロールバック
+      setFavoriteSongIds(prev => {
+        const next = new Set(prev);
+        wasFavorite ? next.add(songId) : next.delete(songId);
+        return next;
+      });
+    } finally {
+      setTogglingIds(prev => {
+        const next = new Set(prev);
+        next.delete(songId);
+        return next;
+      });
+    }
+  }, [isAuthenticated, favoriteSongIds, togglingIds, onLoginClick]);
 
   // --- Logic ---
   const allArtistList: ArtistSummary[] = useMemo(() => {
@@ -165,6 +224,7 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
                 <th className="py-3 px-4 font-medium">Highest</th>
                 <th className="py-3 px-4 font-medium hidden sm:table-cell">Falsetto</th>
                 {userRange && <th className="py-3 px-4 font-medium text-center">Key</th>}
+                <th className="py-3 px-2 font-medium w-10"></th>
               </tr>
             </thead>
             <tbody>
@@ -182,6 +242,17 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
                         : <span className="text-slate-600">-</span>}
                     </td>
                   )}
+                  <td className="py-3 px-2 text-center">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleToggleFavoriteSong(song.id); }}
+                      disabled={togglingIds.has(song.id)}
+                      className="p-1 rounded-full hover:bg-white/10 transition-colors disabled:opacity-50"
+                    >
+                      {favoriteSongIds.has(song.id)
+                        ? <HeartIconSolid className="w-5 h-5 text-rose-500" />
+                        : <HeartIcon className="w-5 h-5 text-slate-500 hover:text-rose-400" />}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

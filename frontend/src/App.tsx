@@ -9,6 +9,7 @@ import Header from "./components/Header";
 import GuidePage from "./GuidePage";
 import LoginPage from "./LoginPage";
 import SongListPage from "./SongListPage";
+import FavoritesPage from "./FavoritesPage";
 import PlaceholderPage from "./PlaceholderPage";
 import BottomNav from "./components/BottomNav";
 import { AnalysisResult, UserRange } from "./api";
@@ -23,6 +24,7 @@ type ViewState =
   | "result"
   | "analysis"
   | "songList"
+  | "favorites"
   | "history"
   | "mypage"
   | "guide"
@@ -122,6 +124,10 @@ function AppContent() {
     setView("history");
   };
 
+  const handleFavorites = () => {
+    setView("favorites");
+  };
+
   const handleResult = (data: AnalysisResult) => {
     setResult(data);
     setView("result");
@@ -153,6 +159,7 @@ function AppContent() {
           onMenuClick={handleBackToMenu}
           onAnalysisClick={handleAnalysis}
           onSongListClick={handleSongList}
+          onFavoritesClick={handleFavorites}
           onGuideClick={handleGuide}
           onHistoryClick={handleHistory}
           currentView={view}
@@ -242,7 +249,12 @@ function AppContent() {
 
         {/* 楽曲一覧画面 (SongListPage) */}
         {view === "songList" && (
-          <SongListPage searchQuery={searchQuery} userRange={userRange} />
+          <SongListPage searchQuery={searchQuery} userRange={userRange} onLoginClick={() => setView("login")} />
+        )}
+
+        {/* お気に入り画面 */}
+        {view === "favorites" && (
+          <FavoritesPage userRange={userRange} onLoginClick={() => setView("login")} />
         )}
 
         {/* 使い方ガイド */}

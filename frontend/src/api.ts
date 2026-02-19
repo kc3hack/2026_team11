@@ -77,6 +77,18 @@ export interface FavoriteArtist {
   created_at: string;
 }
 
+// お気に入り楽曲
+export interface FavoriteSong {
+  favorite_id: string;
+  song_id: number;
+  title: string;
+  artist: string | null;
+  lowest_note: string | null;
+  highest_note: string | null;
+  falsetto_note: string | null;
+  created_at: string;
+}
+
 /**
  * 解析結果の全体型
  * ResultView.tsx や AnalysisResultPage.tsx で必要な全フィールドを網羅
@@ -177,4 +189,29 @@ export const addFavoriteArtist = async (artistId: number, artistName: string): P
 export const removeFavoriteArtist = async (artistId: number): Promise<{ message: string }> => {
   const res = await API.delete<{ message: string }>(`/favorite-artists/${artistId}`);
   return res.data;
+};
+
+// ── お気に入り楽曲 API ─────────────────────────────────
+
+/** お気に入り楽曲一覧取得 */
+export const getFavorites = async (limit = 100): Promise<FavoriteSong[]> => {
+  const res = await API.get("/favorites", { params: { limit } });
+  return res.data;
+};
+
+/** お気に入り楽曲追加 */
+export const addFavorite = async (songId: number) => {
+  const res = await API.post("/favorites", { song_id: songId });
+  return res.data;
+};
+
+/** お気に入り楽曲削除 */
+export const removeFavorite = async (songId: number) => {
+  await API.delete(`/favorites/${songId}`);
+};
+
+/** お気に入り楽曲チェック */
+export const checkFavorite = async (songId: number): Promise<boolean> => {
+  const res = await API.get(`/favorites/check/${songId}`);
+  return res.data.is_favorite;
 };
