@@ -5,6 +5,7 @@ interface Song {
     id: number;
     title: string;
     artist: string;
+    artist_reading?: string;
     lowest_note: string | null;
     highest_note: string | null;
     falsetto_note: string | null;
@@ -16,6 +17,7 @@ interface Song {
 
 interface ArtistSummary {
     name: string;
+    reading: string;
     songCount: number;
 }
 
@@ -40,23 +42,24 @@ const keyBadge = (key: number, fit?: string) => {
     );
 };
 
+// 50音インデックスのみ
+const INDEX_KANA = ['あ', 'か', 'さ', 'た', 'な', 'は', 'ま', 'や', 'ら', 'わ'];
+
 const SongListPage: React.FC<SongListPageProps> = ({ searchQuery = "", userRange }) => {
     const [songs, setSongs] = useState<Song[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     
-    // アーティストリスト用のページネーション管理
+    // ページネーション管理
     const [artistPage, setArtistPage] = useState(0);
-    // 【変更】1ページあたり10人に設定（描画負荷を軽減）
     const ARTISTS_PER_PAGE = 10;
+    const [pageInput, setPageInput] = useState("1");
 
     const [debouncedQuery, setDebouncedQuery] = useState("");
     const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
     
-    // APIから一度に取得する上限（曲数制限を実質なくすため大きく設定）
     const FETCH_LIMIT = 10000; 
 
-    // 検索デバウンス
     useEffect(() => {
         const timer = setTimeout(() => {
             setDebouncedQuery(searchQuery);
@@ -66,15 +69,17 @@ const SongListPage: React.FC<SongListPageProps> = ({ searchQuery = "", userRange
         return () => clearTimeout(timer);
     }, [searchQuery]);
 
-    // 初回または検索時に全曲（または大量の曲）を取得する
     useEffect(() => {
         fetchSongs();
     }, [debouncedQuery, userRange]);
 
+    useEffect(() => {
+        setPageInput((artistPage + 1).toString());
+    }, [artistPage]);
+
     const fetchSongs = async () => {
         setLoading(true);
         try {
-            // オフセット0で大量に取得して、クライアント側でアーティストをまとめる
             const data = await getSongs(FETCH_LIMIT, 0, debouncedQuery, userRange);
             setSongs(data);
             setError(null);
@@ -87,25 +92,39 @@ const SongListPage: React.FC<SongListPageProps> = ({ searchQuery = "", userRange
         }
     };
 
-    // アーティスト別にグループ化（50音順）
+    // アーティスト別にグループ化
     const allArtistList: ArtistSummary[] = useMemo(() => {
-        const map = new Map<string, number>();
+        const map = new Map<string, ArtistSummary>();
+        
         for (const song of songs) {
-            const artist = song.artist || "不明";
-            map.set(artist, (map.get(artist) || 0) + 1);
+            const artistName = song.artist || "不明";
+            // 読み仮名がない場合は名前を小文字にして代用
+            const reading = song.artist_reading || artistName.toLowerCase();
+
+            if (!map.has(artistName)) {
+                map.set(artistName, { 
+                    name: artistName, 
+                    reading: reading,
+                    songCount: 0 
+                });
+            }
+            const entry = map.get(artistName)!;
+            entry.songCount += 1;
         }
-        return Array.from(map.entries())
-            .sort(([a], [b]) => a.localeCompare(b, "ja"))
-            .map(([name, songCount]) => ({ name, songCount }));
+        
+        // 読み仮名順でソート
+        return Array.from(map.values())
+             .sort((a, b) => a.reading.localeCompare(b.reading, "ja"));
+
     }, [songs]);
 
-    // 現在のページに表示するアーティスト（10件）
+    const totalPages = Math.ceil(allArtistList.length / ARTISTS_PER_PAGE);
+
     const visibleArtists = useMemo(() => {
         const start = artistPage * ARTISTS_PER_PAGE;
         return allArtistList.slice(start, start + ARTISTS_PER_PAGE);
-    }, [allArtistList, artistPage]);
+    }, [allArtistList, artistPage, ARTISTS_PER_PAGE]);
 
-    // 選択中アーティストの曲
     const artistSongs: Song[] = useMemo(() => {
         if (!selectedArtist) return [];
         return songs
@@ -122,7 +141,7 @@ const SongListPage: React.FC<SongListPageProps> = ({ searchQuery = "", userRange
     };
 
     const handleNext = () => {
-        if ((artistPage + 1) * ARTISTS_PER_PAGE < allArtistList.length) {
+        if (artistPage + 1 < totalPages) {
             setArtistPage(p => p + 1);
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
@@ -134,11 +153,49 @@ const SongListPage: React.FC<SongListPageProps> = ({ searchQuery = "", userRange
         }
     };
 
+    const handlePageJump = () => {
+        let p = parseInt(pageInput, 10);
+        if (isNaN(p)) {
+            setPageInput((artistPage + 1).toString());
+            return;
+        }
+        if (p < 1) p = 1;
+        if (p > totalPages) p = totalPages;
+
+        setArtistPage(p - 1);
+        setPageInput(p.toString());
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            handlePageJump();
+            (e.target as HTMLInputElement).blur();
+        }
+    };
+
+    // ジャンプ機能（50音のみ）
+    const handleIndexJump = (char: string) => {
+        // ひらがな辞書順で探す
+        const index = allArtistList.findIndex(artist => 
+            artist.reading.localeCompare(char, 'ja') >= 0
+        );
+        
+        if (index !== -1) {
+            const targetPage = Math.floor(index / ARTISTS_PER_PAGE);
+            setArtistPage(targetPage);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+            // 見つからない場合、'わ' なら末尾へ
+            if (char === 'わ' && allArtistList.length > 0) {
+                setArtistPage(totalPages - 1);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+    };
+
     const hasKeyData = userRange && songs.some(s => s.recommended_key !== undefined);
 
-    // =========================================================
-    // アーティスト詳細ビュー（曲一覧） - 変更なし
-    // =========================================================
     if (selectedArtist) {
         return (
             <div className="flex flex-col items-center min-h-[calc(100vh-80px)] bg-slate-50 p-4 sm:p-8">
@@ -196,26 +253,43 @@ const SongListPage: React.FC<SongListPageProps> = ({ searchQuery = "", userRange
         );
     }
 
-    // =========================================================
-    // アーティスト一覧ビュー（リスト表示）
-    // =========================================================
     return (
         <div className="flex flex-col items-center min-h-[calc(100vh-80px)] bg-slate-50 p-4 sm:p-8">
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-2">楽曲一覧</h1>
-
-            {userRange && <p className="text-xs text-slate-400 mb-1">あなたの音域に合わせたキーおすすめを表示中</p>}
-            {!userRange && <p className="text-xs text-slate-400 mb-1">録音するとキーおすすめが表示されます</p>}
+            
+            <div className="w-full max-w-3xl flex flex-col mb-4 gap-4">
+                <div className="flex flex-col md:flex-row md:items-end md:justify-between">
+                    <div>
+                        <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-2">楽曲一覧</h1>
+                        {userRange ? (
+                            <p className="text-xs text-slate-400">あなたの音域に合わせたキーおすすめを表示中</p>
+                        ) : (
+                            <p className="text-xs text-slate-400">録音するとキーおすすめが表示されます</p>
+                        )}
+                    </div>
+                    {/* インデックスバー（50音のみ） */}
+                    <div className="flex flex-wrap gap-1 justify-end">
+                        {INDEX_KANA.map(char => (
+                            <button
+                                key={char}
+                                onClick={() => handleIndexJump(char)}
+                                className="w-8 h-8 flex items-center justify-center text-sm font-bold text-slate-500 bg-white border border-slate-200 rounded hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors shadow-sm"
+                            >
+                                {char}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
 
             {debouncedQuery && (
-                <p className="text-sm text-blue-500 mb-3">
+                <p className="text-sm text-blue-500 mb-3 w-full max-w-3xl">
                     「{debouncedQuery}」の検索結果 — 全{allArtistList.length}アーティスト
                 </p>
             )}
 
             {error && <p className="text-red-500 mb-4">{error}</p>}
 
-            {/* アーティストリスト表示 */}
-            <div className="w-full max-w-3xl bg-white rounded-xl shadow-sm border border-slate-200 mt-4 overflow-hidden">
+            <div className="w-full max-w-3xl bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 {visibleArtists.map((artist, index) => (
                     <button
                         key={artist.name}
@@ -228,13 +302,14 @@ const SongListPage: React.FC<SongListPageProps> = ({ searchQuery = "", userRange
                             <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 font-bold text-sm group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
                                 {artist.name.charAt(0)}
                             </div>
-                            {/* アーティスト名 */}
-                            <p className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">
-                                {artist.name}
-                            </p>
+                            <div className="flex flex-col">
+                                {/* アーティスト名 */}
+                                <p className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">
+                                    {artist.name}
+                                </p>
+                            </div>
                         </div>
                         
-                        {/* 右側：曲数と矢印 */}
                         <div className="flex items-center gap-3">
                             <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-full">
                                 {artist.songCount}曲
@@ -261,9 +336,8 @@ const SongListPage: React.FC<SongListPageProps> = ({ searchQuery = "", userRange
                 )}
             </div>
 
-            {/* ページネーション（アーティスト単位） */}
             {!loading && allArtistList.length > ARTISTS_PER_PAGE && (
-                <div className="flex items-center gap-4 mt-8">
+                <div className="flex items-center justify-center gap-4 mt-8">
                     <button
                         onClick={handlePrev}
                         disabled={artistPage === 0}
@@ -271,12 +345,25 @@ const SongListPage: React.FC<SongListPageProps> = ({ searchQuery = "", userRange
                     >
                         前の{ARTISTS_PER_PAGE}件
                     </button>
-                    <span className="text-slate-500 text-sm font-medium">
-                        {artistPage + 1} / {Math.ceil(allArtistList.length / ARTISTS_PER_PAGE)} ページ
-                    </span>
+                    
+                    <div className="flex items-center gap-2 text-slate-500 text-sm font-medium">
+                        <input
+                            type="text"
+                            inputMode="numeric"
+                            value={pageInput}
+                            onChange={(e) => setPageInput(e.target.value)}
+                            onBlur={handlePageJump}
+                            onKeyDown={handleKeyDown}
+                            className="w-12 h-9 text-center border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent text-slate-700 font-bold"
+                            aria-label="ページ番号"
+                        />
+                        <span className="text-slate-400">/</span>
+                        <span>{totalPages} ページ</span>
+                    </div>
+
                     <button
                         onClick={handleNext}
-                        disabled={(artistPage + 1) * ARTISTS_PER_PAGE >= allArtistList.length}
+                        disabled={artistPage + 1 >= totalPages}
                         className="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm text-sm"
                     >
                         次の{ARTISTS_PER_PAGE}件
