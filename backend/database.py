@@ -131,7 +131,7 @@ def search_songs(query: str, limit: int = 20, offset: int = 0) -> list[dict]:
     try:
         escaped = f"%{_escape_like(query)}%"
         rows = conn.execute("""
-            SELECT s.id, s.title, a.name as artist,
+            SELECT s.id, s.artist_id, s.title, a.name as artist,  # ← s.artist_id, を追加！
                    s.lowest_note, s.highest_note, s.falsetto_note, s.note,
                    s.source
             FROM songs s
@@ -150,7 +150,7 @@ def get_song(song_id: int) -> dict | None:
     conn = get_connection()
     try:
         row = conn.execute("""
-            SELECT s.id, s.title, a.name as artist,
+            SELECT s.id, s.artist_id, s.title, a.name as artist,
                    s.lowest_note, s.highest_note, s.falsetto_note, s.note,
                    s.source
             FROM songs s
@@ -194,7 +194,7 @@ def get_artist_songs(artist_id: int) -> list[dict]:
     conn = get_connection()
     try:
         rows = conn.execute("""
-            SELECT s.id, s.title, a.name as artist,
+            SELECT s.id, s.artist_id, s.title, a.name as artist,
                    s.lowest_note, s.highest_note, s.falsetto_note, s.note,
                    s.source
             FROM songs s
@@ -212,7 +212,7 @@ def get_all_songs(limit: int = 20, offset: int = 0) -> list[dict]:
     conn = get_connection()
     try:
         rows = conn.execute("""
-            SELECT s.id, s.title, a.name as artist,
+            SELECT s.id, s.artist_id, s.title, a.name as artist,
                    s.lowest_note, s.highest_note, s.falsetto_note, s.note,
                    s.source
             FROM songs s
