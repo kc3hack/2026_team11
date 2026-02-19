@@ -1,4 +1,4 @@
-import React from 'react'; // 【修正】Reactをインポート（これがないとビルドエラーになります）
+import React from 'react';
 import logo from '../assets/logo.png';
 
 interface HeaderProps {
@@ -30,46 +30,32 @@ const Header: React.FC<HeaderProps> = ({
     onLoginClick,
     onLogoutClick
 }) => {
+    const navClass = (isActive: boolean) =>
+        `${isActive ? 'text-cyan-400 font-bold drop-shadow-[0_0_5px_rgba(34,211,238,0.8)]' : 'hover:text-cyan-400 text-slate-400'} transition-all bg-transparent border-0 cursor-pointer`;
+
     return (
         <header className="hidden md:flex items-center justify-between px-8 py-4 bg-slate-900/80 backdrop-blur-md border-b border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.15)] sticky top-0 z-50">
             <div className="flex items-center gap-4 cursor-pointer group" onClick={onLogoClick || onMenuClick}>
                 {/* Logo Image */}
                 <img src={logo} alt="App Logo" className="w-10 h-10 rounded-lg shadow-lg object-cover ring-2 ring-cyan-500/50 group-hover:ring-cyan-400 transition-all" />
-                <h1 className="text-xl font-bold tracking-tight text-white group-hover:text-cyan-400 transition-colors drop-shadow-sm">アプリ名</h1>
+                <h1 className="text-xl font-bold tracking-tight text-white group-hover:text-cyan-400 transition-colors drop-shadow-sm">ピッチスカウト</h1>
             </div>
 
             {/* Navigation */}
             <nav className="hidden md:flex gap-8 text-sm font-medium text-slate-400">
-                <button
-                    type="button"
-                    onClick={onGuideClick}
-                    className={`${currentView === 'guide' ? 'text-cyan-400 font-bold drop-shadow-[0_0_5px_rgba(34,211,238,0.8)]' : 'hover:text-cyan-400 text-slate-400'} transition-all bg-transparent border-0 cursor-pointer`}
-                >
+                <button type="button" onClick={onGuideClick} className={navClass(currentView === 'guide')}>
                     使い方ガイド
                 </button>
-                <button
-                    type="button"
-                    onClick={onMenuClick}
-                    className={`${currentView === 'menu' || currentView === 'recorder' || currentView === 'uploader' ? 'text-cyan-400 font-bold drop-shadow-[0_0_5px_rgba(34,211,238,0.8)]' : 'hover:text-cyan-400 text-slate-400'} transition-all bg-transparent border-0 cursor-pointer`}
-                >
+                <button type="button" onClick={onMenuClick} className={navClass(currentView === 'menu' || currentView === 'recorder' || currentView === 'uploader')}>
                     録音
                 </button>
-                <button
-                    type="button"
-                    onClick={onAnalysisClick}
-                    className={`${currentView === 'analysis' || currentView === 'result' ? 'text-cyan-400 font-bold drop-shadow-[0_0_5px_rgba(34,211,238,0.8)]' : 'hover:text-cyan-400 text-slate-400'} transition-all bg-transparent border-0 cursor-pointer`}
-                >
+                <button type="button" onClick={onAnalysisClick} className={navClass(currentView === 'analysis' || currentView === 'result')}>
                     分析結果
                 </button>
-                <button
-                    type="button"
-                    onClick={onSongListClick}
-                    className={`${currentView === 'songList' ? 'text-cyan-400 font-bold drop-shadow-[0_0_5px_rgba(34,211,238,0.8)]' : 'hover:text-cyan-400 text-slate-400'} transition-all bg-transparent border-0 cursor-pointer`}
-                >
+                <button type="button" onClick={onSongListClick} className={navClass(currentView === 'songList')}>
                     楽曲一覧
                 </button>
-
-                <button type="button" className="hover:text-cyan-400 text-slate-400 transition-all bg-transparent border-0 cursor-pointer">履歴</button>
+                <button type="button" className={navClass(false)}>履歴</button>
             </nav>
 
             <div className="flex items-center gap-6">
