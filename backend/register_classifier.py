@@ -30,7 +30,7 @@ FALSETTO_HARD_MIN_HZ = 270.0
 # MLモデルのロード（ホットリロード対応）
 # ============================================================
 _ML_MODEL = None
-_MODEL_PATH = os.path.join(os.path.dirname(__file__), "models", "register_model.joblib")
+_MODEL_PATH = os.path.join(os.path.dirname(__file__), "ml", "models", "register_model.joblib")
 _MODEL_MTIME = 0.0  # モデルファイルの更新日時を記録
 
 
