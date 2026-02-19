@@ -24,21 +24,47 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # ============================================================
 
 def search_songs(query: str, limit: int = 20, offset: int = 0) -> List[Dict[str, Any]]:
-    """曲名またはアーティスト名であいまい検索"""
-    response = supabase.table("songs").select(
+    """
+    曲名またはアーティスト名であいまい検索。
+
+    [FIX] PostgRESTはJOINテーブルに対して or_().ilike() が使えない。
+          タイトル検索とアーティスト検索を分けて実行し、重複をIDで除外する。
+    """
+    # 曲名で検索
+    title_resp = supabase.table("songs").select(
         "id, title, lowest_note, highest_note, falsetto_note, note, source, artists(name)"
-    ).or_(f"title.ilike.%{query}%,artists.name.ilike.%{query}%").range(
-        offset, offset + limit - 1
+    ).ilike("title", f"%{query}%").range(offset, offset + limit - 1).execute()
+
+    # アーティスト名で検索（artists テーブルで一致するIDを取得）
+    artist_resp = supabase.table("artists").select("id").ilike(
+        "name", f"%{query}%"
     ).execute()
-    
+
+    artist_songs: List[Dict[str, Any]] = []
+    if artist_resp.data:
+        artist_ids = [a["id"] for a in artist_resp.data]
+        for artist_id in artist_ids:
+            resp = supabase.table("songs").select(
+                "id, title, lowest_note, highest_note, falsetto_note, note, source, artists(name)"
+            ).eq("artist_id", artist_id).range(0, limit - 1).execute()
+            artist_songs.extend(resp.data or [])
+
+    # 重複除去（IDベース）
+    seen_ids: set = set()
+    merged: List[Dict[str, Any]] = []
+    for song in (title_resp.data or []) + artist_songs:
+        if song["id"] not in seen_ids:
+            seen_ids.add(song["id"])
+            merged.append(song)
+
     # artistsをフラットに変換
-    songs = []
-    for song in response.data:
-        songs.append({
-            **song,
-            "artist": song["artists"]["name"] if song.get("artists") else None
+    result = []
+    for song in merged[:limit]:
+        result.append({
+            **{k: v for k, v in song.items() if k != "artists"},
+            "artist": song["artists"]["name"] if song.get("artists") else None,
         })
-    return songs
+    return result
 
 
 def get_song(song_id: int) -> Optional[Dict[str, Any]]:
@@ -46,11 +72,11 @@ def get_song(song_id: int) -> Optional[Dict[str, Any]]:
     response = supabase.table("songs").select(
         "id, title, lowest_note, highest_note, falsetto_note, note, source, artists(name)"
     ).eq("id", song_id).single().execute()
-    
+
     if response.data:
         return {
-            **response.data,
-            "artist": response.data["artists"]["name"] if response.data.get("artists") else None
+            **{k: v for k, v in response.data.items() if k != "artists"},
+            "artist": response.data["artists"]["name"] if response.data.get("artists") else None,
         }
     return None
 
@@ -60,12 +86,12 @@ def get_all_songs(limit: int = 20, offset: int = 0) -> List[Dict[str, Any]]:
     response = supabase.table("songs").select(
         "id, title, lowest_note, highest_note, falsetto_note, note, source, artists(name)"
     ).range(offset, offset + limit - 1).execute()
-    
+
     songs = []
     for song in response.data:
         songs.append({
-            **song,
-            "artist": song["artists"]["name"] if song.get("artists") else None
+            **{k: v for k, v in song.items() if k != "artists"},
+            "artist": song["artists"]["name"] if song.get("artists") else None,
         })
     return songs
 
@@ -91,12 +117,12 @@ def get_artist_songs(artist_id: int) -> List[Dict[str, Any]]:
     response = supabase.table("songs").select(
         "id, title, lowest_note, highest_note, falsetto_note, note, source, artists(name)"
     ).eq("artist_id", artist_id).order("title").execute()
-    
+
     songs = []
     for song in response.data:
         songs.append({
-            **song,
-            "artist": song["artists"]["name"] if song.get("artists") else None
+            **{k: v for k, v in song.items() if k != "artists"},
+            "artist": song["artists"]["name"] if song.get("artists") else None,
         })
     return songs
 
@@ -131,7 +157,7 @@ def update_vocal_range(
         data["current_vocal_range_max"] = vocal_max
     if falsetto:
         data["current_falsetto_max"] = falsetto
-    
+
     return update_user_profile(user_id, data)
 
 
@@ -179,7 +205,6 @@ def add_favorite_song(user_id: str, song_id: int) -> Optional[Dict[str, Any]]:
         response = supabase.table("favorite_songs").insert(data).execute()
         return response.data[0] if response.data else None
     except Exception as e:
-        # 既に登録済みの場合はエラーになる
         print(f"お気に入り追加エラー: {e}")
         return None
 
@@ -198,7 +223,7 @@ def get_favorite_songs(user_id: str, limit: int = 100) -> List[Dict[str, Any]]:
     response = supabase.table("favorite_songs").select(
         "*, songs(id, title, lowest_note, highest_note, falsetto_note, artists(name))"
     ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute()
-    
+
     favorites = []
     for fav in response.data:
         song = fav.get("songs", {})
@@ -210,7 +235,7 @@ def get_favorite_songs(user_id: str, limit: int = 100) -> List[Dict[str, Any]]:
             "artist": song.get("artists", {}).get("name") if song.get("artists") else None,
             "lowest_note": song.get("lowest_note"),
             "highest_note": song.get("highest_note"),
-            "falsetto_note": song.get("falsetto_note")
+            "falsetto_note": song.get("falsetto_note"),
         })
     return favorites
 
@@ -221,3 +246,74 @@ def is_favorite(user_id: str, song_id: int) -> bool:
         "user_id", user_id
     ).eq("song_id", song_id).execute()
     return len(response.data) > 0
+
+
+# ============================================================
+# お気に入りアーティスト関連
+# ============================================================
+
+def add_favorite_artist(user_id: str, artist_id: int, artist_name: str) -> Optional[Dict[str, Any]]:
+    """
+    お気に入りアーティストを追加（上限10組）。
+    既に登録済みの場合はNoneを返す。
+    """
+    try:
+        # 上限チェック
+        count_resp = supabase.table("favorite_artists").select(
+            "id", count="exact"
+        ).eq("user_id", user_id).execute()
+        if (count_resp.count or 0) >= 10:
+            return None  # 上限超過
+
+        data = {
+            "user_id": user_id,
+            "artist_id": artist_id,
+            "artist_name": artist_name,
+        }
+        response = supabase.table("favorite_artists").insert(data).execute()
+        return response.data[0] if response.data else None
+    except Exception as e:
+        print(f"お気に入りアーティスト追加エラー: {e}")
+        return None
+
+
+def remove_favorite_artist(user_id: str, artist_id: int) -> bool:
+    """お気に入りアーティストを削除"""
+    try:
+        supabase.table("favorite_artists").delete().eq(
+            "user_id", user_id
+        ).eq("artist_id", artist_id).execute()
+        return True
+    except Exception:
+        return False
+
+
+def get_favorite_artists(user_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+    """ユーザーのお気に入りアーティスト一覧を取得（登録が古い順）"""
+    response = supabase.table("favorite_artists").select(
+        "id, artist_id, artist_name, created_at"
+    ).eq("user_id", user_id).order("created_at", desc=False).limit(limit).execute()
+    return response.data or []
+
+
+def is_favorite_artist(user_id: str, artist_id: int) -> bool:
+    """アーティストがお気に入りに登録されているか確認"""
+    response = supabase.table("favorite_artists").select("id").eq(
+        "user_id", user_id
+    ).eq("artist_id", artist_id).execute()
+    return len(response.data) > 0
+
+
+def get_favorite_artist_ids(user_id: str) -> List[int]:
+    """
+    お気に入りアーティストのIDリストを返す（recommenderで使用）。
+    DBエラー時は空リストを返してフォールバック。
+    """
+    try:
+        response = supabase.table("favorite_artists").select(
+            "artist_id"
+        ).eq("user_id", user_id).execute()
+        return [row["artist_id"] for row in (response.data or [])]
+    except Exception as e:
+        print(f"[WARN] お気に入りアーティストID取得失敗: {e}")
+        return []

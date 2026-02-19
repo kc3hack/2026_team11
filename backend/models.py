@@ -92,6 +92,22 @@ class FavoriteSongResponse(BaseModel):
 
 
 # ============================================================
+# お気に入りアーティスト
+# ============================================================
+
+class FavoriteArtistAdd(BaseModel):
+    artist_id: int
+    artist_name: str = Field(..., max_length=200, description="アーティスト名（songs.dbから取得）")
+
+
+class FavoriteArtistResponse(BaseModel):
+    id: str
+    artist_id: int
+    artist_name: str
+    created_at: datetime
+
+
+# ============================================================
 # 楽曲・アーティスト
 # ============================================================
 

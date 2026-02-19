@@ -261,10 +261,12 @@ def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float) -> st
     falsetto_ratio = falsetto_score / total
     result = "falsetto" if falsetto_ratio >= 0.58 else "chest"
 
+    # [FIX] f-string内で条件式をフォーマット指定子に使うとValueError → 事前に文字列変換
+    slope_str = f"{slope:.1f}" if slope is not None else "N/A"
     print(
         f"[REGISTER/RULE] f0={f0:.0f}Hz "
         f"H1-H2={h1_h2:.1f} hcount={hcount} "
-        f"slope={slope:.1f if slope is not None else 'N/A'} "
+        f"slope={slope_str} "
         f"HNR={hnr:.2f} cr={cr:.2f} "
         f"C={chest_score:.1f} F={falsetto_score:.1f} ratio={falsetto_ratio:.2f} "
         f"→ {result}"
