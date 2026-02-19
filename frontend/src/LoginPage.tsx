@@ -1,22 +1,22 @@
-import React from "react";
+import type React from "react";
 import { useAuth } from "./contexts/AuthContext";
 
 const LoginPage: React.FC = () => {
   const { loginWithGoogle } = useAuth();
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] bg-slate-50 p-8">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-lg p-8 text-center">
-        <h1 className="text-2xl font-bold text-slate-800 mb-2">
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] bg-transparent p-8">
+      <div className="w-full max-w-sm bg-slate-900/60 backdrop-blur-md rounded-2xl shadow-xl border border-white/10 p-8 text-center">
+        <h1 className="text-2xl font-bold text-white mb-2">
           ピッチスカウト
         </h1>
-        <p className="text-slate-500 text-sm mb-8">
+        <p className="text-slate-400 text-sm mb-8">
           ログインして声域分析の履歴やお気に入りを保存しよう
         </p>
 
         <button
           onClick={loginWithGoogle}
-          className="w-full flex items-center justify-center gap-3 bg-white border-2 border-slate-200 rounded-xl px-6 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all"
+          className="w-full flex items-center justify-center gap-3 bg-slate-800 border-2 border-slate-700 rounded-xl px-6 py-3 text-sm font-medium text-slate-200 hover:bg-slate-700 hover:border-slate-600 transition-all"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path

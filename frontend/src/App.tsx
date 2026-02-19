@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import Home from "./Home";
 import Landing from "./Landing";
 import Recorder from "./components/Recorder";
@@ -51,7 +51,7 @@ function saveResult(result: any) {
 }
 
 function AppContent() {
-  const { user, isAuthenticated, loginWithGoogle, logout } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
   const [view, setView] = useState<ViewState>("landing");
   const [isKaraokeMode, setIsKaraokeMode] = useState(false);
   const [result, setResult] = useState<any>(loadSavedResult);
@@ -134,12 +134,6 @@ function AppContent() {
     setView("history");
   };
 
-  // 音域リセット
-  const handleClearRange = () => {
-    setUserRange(null);
-    localStorage.removeItem(RANGE_STORAGE_KEY);
-  };
-
   return (
     <div className="pb-24 md:pb-0 min-h-[100dvh] relative bg-slate-900 overflow-hidden font-sans selection:bg-pink-500 selection:text-white text-slate-200">
       {/* Dynamic Background Elements (Global) */}
@@ -188,13 +182,13 @@ function AppContent() {
           <div className="min-h-screen bg-transparent p-8">
             <button
               onClick={handleBackToMenu}
-              className="mb-6 text-slate-500 hover:text-blue-600 font-bold flex items-center gap-2 transition-colors"
+              className="mb-6 text-slate-500 hover:text-cyan-400 font-bold flex items-center gap-2 transition-colors"
             >
               ← メニューに戻る
             </button>
 
-            <div className="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-lg">
-              <h2 className="text-2xl font-bold text-slate-800 mb-6 text-center">
+            <div className="max-w-2xl mx-auto bg-slate-900/60 backdrop-blur-md p-8 rounded-2xl shadow-xl border border-white/10">
+              <h2 className="text-2xl font-bold text-white mb-6 text-center">
                 {isKaraokeMode ? "🎤 カラオケで録音 (BGM除去)" : "🎙️ マイクで録音"}
               </h2>
               <Recorder
@@ -210,12 +204,12 @@ function AppContent() {
           <div className="min-h-screen bg-transparent p-8">
             <button
               onClick={handleBackToMenu}
-              className="mb-6 text-slate-500 hover:text-blue-600 font-bold flex items-center gap-2 transition-colors"
+              className="mb-6 text-slate-500 hover:text-cyan-400 font-bold flex items-center gap-2 transition-colors"
             >
               ← メニューに戻る
             </button>
 
-            <div className="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-lg">
+            <div className="max-w-2xl mx-auto bg-slate-900/60 backdrop-blur-md p-8 rounded-2xl shadow-xl border border-white/10">
               <KaraokeUploader />
             </div>
           </div>
@@ -226,7 +220,7 @@ function AppContent() {
           <div className="min-h-screen bg-transparent p-8">
             <button
               onClick={handleBackToMenu}
-              className="mb-6 text-slate-500 hover:text-blue-600 font-bold flex items-center gap-2 transition-colors"
+              className="mb-6 text-slate-500 hover:text-cyan-400 font-bold flex items-center gap-2 transition-colors"
             >
               ← トップへ戻る
             </button>

@@ -33,7 +33,7 @@ const Home: React.FC<Props> = ({ onNormalClick, onKaraokeClick, onUploadClick, o
                         onClick={onNormalClick}
                         className="group relative col-span-1 md:col-span-6 row-span-2 h-64 md:h-auto bg-slate-800 border-4 border-cyan-400 transform -skew-x-3 hover:skew-x-0 hover:scale-[1.02] hover:bg-cyan-400 transition-all duration-300 shadow-[8px_8px_0px_0px_rgba(6,182,212,0.5)] hover:shadow-[12px_12px_0px_0px_rgba(255,255,255,0.8)] overflow-hidden"
                     >
-                        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+                        <div className="absolute inset-0 opacity-20" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='6' height='6' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='1' height='1' fill='%23fff' fill-opacity='0.15'/%3E%3C/svg%3E\")", backgroundSize: '6px 6px' }}></div>
                         <div className="absolute inset-0 flex flex-col items-center justify-center z-10 p-8">
                             <MicrophoneIcon className="w-24 h-24 md:w-32 md:h-32 text-cyan-400 group-hover:text-slate-900 transition-colors duration-300 animate-pulse" />
                             <h2 className="text-3xl md:text-5xl font-black italic text-white group-hover:text-slate-900 mt-4 tracking-tighter uppercase transform -skew-x-6">
