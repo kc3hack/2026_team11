@@ -9,7 +9,9 @@ import { useAuth } from './contexts/AuthContext';
 interface ArtistSummary {
   id: number;
   name: string;
+  slug: string;
   reading: string;
+  consonantRow: number;
   songCount: number;
 }
 
@@ -30,6 +32,54 @@ const keyBadge = (key: number, fit?: string) => {
 };
 
 const INDEX_KANA = ['あ', 'か', 'さ', 'た', 'な', 'は', 'ま', 'や', 'ら', 'わ'];
+
+/**
+ * slugの先頭文字から五十音の行番号を返す
+ * 0=あ行, 1=か行, 2=さ行, 3=た行, 4=な行, 5=は行, 6=ま行, 7=や行, 8=ら行, 9=わ行, 99=その他
+ *
+ * ひらがな/カタカナは Unicode 範囲で判定（濁音・半濁音・小文字を含む）
+ * ローマ字は先頭文字から子音行にマッピング
+ */
+const getConsonantRow = (slug: string): number => {
+  if (!slug) return 99;
+  const ch = slug.charAt(0);
+  let code = ch.codePointAt(0) ?? 0;
+
+  // カタカナ → ひらがなに正規化 (U+30A1..U+30F6 → U+3041..U+3096)
+  if (code >= 0x30A1 && code <= 0x30F6) code -= 0x60;
+
+  // ひらがな範囲判定 (濁音・小文字含む)
+  if (code >= 0x3041 && code <= 0x3093) {
+    if (code <= 0x304A) return 0; // ぁ-お → あ行
+    if (code <= 0x3054) return 1; // か-ご → か行
+    if (code <= 0x305E) return 2; // さ-ぞ → さ行
+    if (code <= 0x3069) return 3; // た-ど → た行
+    if (code <= 0x306E) return 4; // な-の → な行
+    if (code <= 0x307D) return 5; // は-ぽ → は行
+    if (code <= 0x3082) return 6; // ま-も → ま行
+    if (code <= 0x3088) return 7; // ゃ-よ → や行
+    if (code <= 0x308D) return 8; // ら-ろ → ら行
+    return 9;                      // ゎ-ん → わ行
+  }
+
+  // ローマ字 (voice-key.news のslug)
+  const lower = ch.toLowerCase();
+  const ROMAJI_MAP: Record<string, number> = {
+    a: 0, i: 0, u: 0, e: 0, o: 0,  // あ行
+    k: 1, g: 1,                       // か行
+    s: 2, z: 2, j: 2,                 // さ行
+    t: 3, d: 3, c: 3,                 // た行
+    n: 4,                              // な行
+    h: 5, b: 5, p: 5, f: 5,           // は行
+    m: 6,                              // ま行
+    y: 7,                              // や行
+    r: 8, l: 8,                        // ら行
+    w: 9,                              // わ行
+  };
+  if (ROMAJI_MAP[lower] !== undefined) return ROMAJI_MAP[lower];
+
+  return 99; // 漢字・記号・数字 → 末尾
+};
 
 const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | null; onLoginClick?: () => void }> = ({ searchQuery = "", userRange, onLoginClick }) => {
   const { isAuthenticated } = useAuth();
@@ -157,13 +207,17 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
     const map = new Map<string, ArtistSummary>();
     songs.forEach(s => {
       const artistName = s.artist || "不明";
-      const reading = s.artist_reading || artistName.toLowerCase();
+      const slug = s.artist_slug || artistName;
+      const reading = s.artist_reading || slug;
       if (!map.has(artistName)) {
-        map.set(artistName, { id: s.artist_id, name: artistName, reading: reading, songCount: 0 });
+        map.set(artistName, { id: s.artist_id, name: artistName, slug, reading, consonantRow: getConsonantRow(reading), songCount: 0 });
       }
       map.get(artistName)!.songCount++;
     });
-    return Array.from(map.values()).sort((a, b) => a.reading.localeCompare(b.reading, "ja"));
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.consonantRow !== b.consonantRow) return a.consonantRow - b.consonantRow;
+      return a.reading.localeCompare(b.reading, "ja");
+    });
   }, [songs]);
 
   const totalPages = Math.ceil(allArtistList.length / ARTISTS_PER_PAGE);
@@ -188,7 +242,9 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   const handleIndexJump = (char: string) => {
-    const index = allArtistList.findIndex(artist => artist.reading.localeCompare(char, 'ja') >= 0);
+    const targetRow = INDEX_KANA.indexOf(char);
+    if (targetRow === -1) return;
+    const index = allArtistList.findIndex(artist => artist.consonantRow >= targetRow);
     if (index !== -1) { setArtistPage(Math.floor(index / ARTISTS_PER_PAGE)); window.scrollTo({ top: 0, behavior: 'smooth' }); }
   };
 

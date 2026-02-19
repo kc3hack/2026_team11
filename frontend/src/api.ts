@@ -61,6 +61,7 @@ export interface Song {
   title: string;
   artist: string;
   artist_reading?: string;
+  artist_slug?: string;
   lowest_note: string | null;
   highest_note: string | null;
   falsetto_note: string | null;

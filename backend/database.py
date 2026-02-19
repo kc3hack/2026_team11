@@ -24,7 +24,8 @@ def init_db(db_path: str = DB_PATH):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
             slug TEXT NOT NULL UNIQUE,
-            song_count INTEGER DEFAULT 0
+            song_count INTEGER DEFAULT 0,
+            reading TEXT
         );
 
         CREATE TABLE IF NOT EXISTS songs (
@@ -42,6 +43,13 @@ def init_db(db_path: str = DB_PATH):
         CREATE INDEX IF NOT EXISTS idx_songs_title ON songs(title);
         CREATE INDEX IF NOT EXISTS idx_songs_artist ON songs(artist_id);
     """)
+
+    # マイグレーション: 既存DBに reading カラムを追加
+    try:
+        conn.execute("ALTER TABLE artists ADD COLUMN reading TEXT")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass  # カラムが既に存在する場合は無視
 
     # マイグレーション: 既存DBに source カラムを追加
     try:
@@ -131,13 +139,15 @@ def search_songs(query: str, limit: int = 20, offset: int = 0) -> list[dict]:
     try:
         escaped = f"%{_escape_like(query)}%"
         rows = conn.execute("""
-            SELECT s.id, s.artist_id, s.title, a.name as artist,  # ← s.artist_id, を追加！
+            SELECT s.id, s.title, a.name as artist,
+                   s.artist_id, a.slug as artist_slug,
+                   a.reading as artist_reading,
                    s.lowest_note, s.highest_note, s.falsetto_note, s.note,
                    s.source
             FROM songs s
             JOIN artists a ON s.artist_id = a.id
             WHERE s.title LIKE ? ESCAPE '\\' OR a.name LIKE ? ESCAPE '\\'
-            ORDER BY a.name COLLATE NOCASE, s.title COLLATE NOCASE
+            ORDER BY a.reading, s.title COLLATE NOCASE
             LIMIT ? OFFSET ?
         """, (escaped, escaped, limit, offset)).fetchall()
         return [dict(r) for r in rows]
@@ -167,7 +177,7 @@ def get_artist(artist_id: int) -> dict | None:
     conn = get_connection()
     try:
         row = conn.execute(
-            "SELECT id, name, slug, song_count FROM artists WHERE id = ?",
+            "SELECT id, name, slug, song_count, reading FROM artists WHERE id = ?",
             (artist_id,),
         ).fetchone()
         return dict(row) if row else None
@@ -180,9 +190,9 @@ def get_artists(limit: int = 100, offset: int = 0) -> list[dict]:
     conn = get_connection()
     try:
         rows = conn.execute("""
-            SELECT id, name, slug, song_count
+            SELECT id, name, slug, song_count, reading
             FROM artists
-            ORDER BY name
+            ORDER BY reading
             LIMIT ? OFFSET ?
         """, (limit, offset)).fetchall()
         return [dict(r) for r in rows]
@@ -212,12 +222,14 @@ def get_all_songs(limit: int = 20, offset: int = 0) -> list[dict]:
     conn = get_connection()
     try:
         rows = conn.execute("""
-            SELECT s.id, s.artist_id, s.title, a.name as artist,
+            SELECT s.id, s.title, a.name as artist,
+                   s.artist_id, a.slug as artist_slug,
+                   a.reading as artist_reading,
                    s.lowest_note, s.highest_note, s.falsetto_note, s.note,
                    s.source
             FROM songs s
             JOIN artists a ON s.artist_id = a.id
-            ORDER BY a.name COLLATE NOCASE, s.title COLLATE NOCASE
+            ORDER BY a.reading, s.title COLLATE NOCASE
             LIMIT ? OFFSET ?
         """, (limit, offset)).fetchall()
         return [dict(r) for r in rows]
