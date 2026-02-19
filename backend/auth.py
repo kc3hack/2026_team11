@@ -28,13 +28,19 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     try:
         # Supabaseでトークンを検証
         user = supabase.auth.get_user(token)
-        if not user:
+        if not user or not user.user:
+            print(f"[DEBUG] Invalid token: user={user}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="無効なトークンです"
             )
-        return user.user.model_dump()
+        user_data = user.user.model_dump()
+        print(f"[DEBUG] Authenticated user: {user_data.get('id')}")
+        return user_data
+    except HTTPException:
+        raise
     except Exception as e:
+        print(f"[DEBUG] Auth error: {type(e).__name__}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"認証エラー: {str(e)}"

@@ -61,6 +61,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/auth/debug")
+def debug_auth(authorization: str | None = None):
+    """
+    認証情報をデバッグするエンドポイント（開発用）
+    """
+    return {
+        "message": "認証テスト用エンドポイント",
+        "authorization_header": authorization,
+    }
+
+
+@app.post("/auth/login-test")
+def login_test(email: str, password: str):
+    """
+    テスト用のログインエンドポイント
+    Supabase認証を直接テストしたい場合に使用
+    """
+    try:
+        result = sign_in_with_email(email, password)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 # ============================================================
 # 認証エンドポイント
 # ============================================================
@@ -242,8 +266,15 @@ def remove_favorite_artist_endpoint(
 
 
 @app.get("/favorite-artists")
-def get_my_favorite_artists(user: dict = Depends(get_current_user)):
-    """自分のお気に入りアーティスト一覧を取得"""
+def get_my_favorite_artists(user: dict = Depends(get_optional_user)):
+    """
+    自分のお気に入りアーティスト一覧を取得
+    認証がなくても空配列を返す
+    """
+    if not user:
+        # ログインしていない場合は空配列を返す
+        print("[DEBUG] No authenticated user for /favorite-artists")
+        return []
     return get_favorite_artists(user["id"])
 
 
