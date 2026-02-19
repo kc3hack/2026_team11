@@ -7,14 +7,16 @@ import ResultView from "./components/ResultView";
 import AnalysisResultPage from "./AnalysisResultPage";
 import Header from "./components/Header";
 import GuidePage from "./GuidePage";
+import LoginPage from "./LoginPage";
 
 import SongListPage from "./SongListPage";
 import PlaceholderPage from "./PlaceholderPage";
 import BottomNav from "./components/BottomNav";
 import { UserRange } from "./api";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 
 // 画面の状態を定義
-type ViewState = "landing" | "menu" | "recorder" | "uploader" | "result" | "analysis" | "songList" | "history" | "mypage" | "guide";
+type ViewState = "landing" | "menu" | "recorder" | "uploader" | "result" | "analysis" | "songList" | "history" | "mypage" | "guide" | "login";
 
 // localStorageキー
 const RANGE_STORAGE_KEY = "voiceRange";
@@ -24,7 +26,9 @@ function loadSavedRange(): UserRange | null {
   try {
     const saved = localStorage.getItem(RANGE_STORAGE_KEY);
     if (saved) return JSON.parse(saved);
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return null;
 }
 
@@ -36,7 +40,9 @@ function loadSavedResult(): any | null {
   try {
     const saved = localStorage.getItem(RESULT_STORAGE_KEY);
     if (saved) return JSON.parse(saved);
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return null;
 }
 
@@ -44,7 +50,8 @@ function saveResult(result: any) {
   localStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify(result));
 }
 
-export default function App() {
+function AppContent() {
+  const { user, isAuthenticated, loginWithGoogle, logout } = useAuth();
   const [view, setView] = useState<ViewState>("landing");
   const [isKaraokeMode, setIsKaraokeMode] = useState(false);
   const [result, setResult] = useState<any>(loadSavedResult);
@@ -104,6 +111,7 @@ export default function App() {
   };
 
   const handleSongList = () => {
+    setSearchQuery(""); // ← 検索クリア（全曲一覧に戻る）
     setView("songList");
   };
 
@@ -117,7 +125,7 @@ export default function App() {
   };
 
   const handleBackToMenu = () => {
-    setResult(null);
+    setSearchQuery(""); // ← 検索もクリア
     setView("menu");
   };
 
@@ -151,6 +159,10 @@ export default function App() {
           currentView={view}
           searchQuery={searchQuery}
           onSearchChange={handleSearch}
+          isAuthenticated={isAuthenticated}
+          userName={user?.user_metadata?.full_name || user?.email || null}
+          onLoginClick={() => setView("login")}
+          onLogoutClick={logout}
         />
 
         {/* ランディング画面 (Landing) */}
@@ -252,9 +264,24 @@ export default function App() {
           <PlaceholderPage title="マイページ" />
         )}
 
+        {/* ログイン画面 */}
+        {view === "login" && <LoginPage />}
+
         {/* Bottom Navigation (Mobile Only) */}
-        <BottomNav currentView={view} onViewChange={setView} />
+        <BottomNav
+          currentView={view}
+          onViewChange={setView}
+          isAuthenticated={isAuthenticated}
+        />
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }

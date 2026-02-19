@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react'; // 【修正】Reactをインポート（これがないとビルドエラーになります）
 import logo from '../assets/logo.png';
 
 interface HeaderProps {
@@ -10,6 +10,10 @@ interface HeaderProps {
     currentView: string;
     searchQuery?: string;
     onSearchChange?: (query: string) => void;
+    isAuthenticated?: boolean;
+    userName?: string | null;
+    onLoginClick?: () => void;
+    onLogoutClick?: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -20,24 +24,12 @@ const Header: React.FC<HeaderProps> = ({
     onGuideClick,
     currentView,
     searchQuery = "",
-    onSearchChange
+    onSearchChange,
+    isAuthenticated = false,
+    userName = null,
+    onLoginClick,
+    onLogoutClick
 }) => {
-    // 入力中の値を管理するローカルステート
-    const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery);
-
-    // 親コンポーネントからsearchQueryが変更された場合（例：クリア時）に同期する
-    useEffect(() => {
-        setLocalSearchQuery(searchQuery);
-    }, [searchQuery]);
-
-    // Enterキーが押されたときに検索を実行
-    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            onSearchChange?.(localSearchQuery);
-        }
-    };
-
     return (
         <header className="hidden md:flex items-center justify-between px-8 py-4 bg-slate-900/80 backdrop-blur-md border-b border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.15)] sticky top-0 z-50">
             <div className="flex items-center gap-4 cursor-pointer group" onClick={onLogoClick || onMenuClick}>
@@ -82,18 +74,12 @@ const Header: React.FC<HeaderProps> = ({
 
             <div className="flex items-center gap-6">
                 {/* Search Bar */}
+                {/* 【修正】role="search"を追加してアクセシビリティを向上 */}
                 <div className="relative hidden lg:block" role="search">
                     <input
                         type="text"
                         placeholder="サイト内楽曲検索"
                         aria-label="サイト内楽曲検索"
-<<<<<<< Updated upstream
-                        value={localSearchQuery} // ローカルステートを使用
-                        onChange={(e) => setLocalSearchQuery(e.target.value)} // ローカルステートを更新
-                        onKeyDown={handleKeyDown} // Enterキーイベントを追加
-                        className="bg-slate-100 text-sm rounded-full px-5 py-2.5 w-64 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white transition-all placeholder-slate-400 text-slate-700"
-                    />
-=======
                         value={searchQuery}
                         onChange={(e) => onSearchChange?.(e.target.value)}
                         className="bg-slate-800/80 text-sm rounded-full px-5 py-2.5 pr-9 w-64 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:bg-slate-800 transition-all placeholder-slate-500 text-slate-200 border border-slate-700 hover:border-slate-600"
@@ -108,16 +94,31 @@ const Header: React.FC<HeaderProps> = ({
                             ✕
                         </button>
                     )}
->>>>>>> Stashed changes
                 </div>
 
-                {/* User Profile */}
-                <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium hidden sm:block text-slate-300">ユーザー名</span>
-                    <div className="w-10 h-10 bg-slate-800 rounded-full flex items-center justify-center text-slate-400 text-xs shadow-md border border-slate-700 ring-1 ring-white/5">
-                        icon
+                {/* User Profile / Login */}
+                {isAuthenticated ? (
+                    <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium hidden sm:block text-slate-300">
+                            {userName || "ユーザー"}
+                        </span>
+                        <button
+                            type="button"
+                            onClick={onLogoutClick}
+                            className="text-xs text-slate-400 hover:text-rose-400 transition-colors bg-transparent border-0 cursor-pointer"
+                        >
+                            ログアウト
+                        </button>
                     </div>
-                </div>
+                ) : (
+                    <button
+                        type="button"
+                        onClick={onLoginClick}
+                        className="text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-500 rounded-full px-5 py-2 transition-colors border-0 cursor-pointer shadow-lg shadow-cyan-500/20"
+                    >
+                        ログイン
+                    </button>
+                )}
             </div>
         </header>
     );
