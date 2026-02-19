@@ -6,6 +6,11 @@ analyzeの結果とsongs.dbを照合して:
   2. 音域に合ったおすすめ曲（地声平均も考慮）
   3. 声質が似てるアーティスト
 を返す。
+
+【おすすめ曲の配分】
+  - DISCOVERY_SLOTS(4曲)は必ずお気に入り以外のアーティストから選ぶ
+  - 残り枠(最大6曲)はお気に入りアーティストの曲で埋める
+  - お気に入り登録がない場合は全枠を通常推薦に使用
 """
 
 import math
@@ -91,8 +96,6 @@ def analyze_singing_ability(
     result["range_score"] = round(range_score, 1)
 
     # --- ピッチ安定性 ---
-    # ローカル区間(25ms=5フレーム)のピッチ標準偏差(cent)の平均で評価
-    # std=0: 完璧, std≥50: かなり不安定
     stability_score = _compute_stability(f0_array, conf_array)
     result["stability_score"] = round(stability_score, 1)
 
@@ -114,7 +117,6 @@ def _compute_stability(f0: np.ndarray, conf: np.ndarray) -> float:
     if len(f0) < 10:
         return 50.0
 
-    # confidence >= 0.3 のフレームのみ使用
     mask = (conf >= 0.3) & (f0 > 0)
     f0_valid = f0[mask]
     if len(f0_valid) < 10:
@@ -133,7 +135,6 @@ def _compute_stability(f0: np.ndarray, conf: np.ndarray) -> float:
         return 50.0
 
     avg_std = float(np.mean(local_stds))
-    # std=0→100, std=50→0
     return max(0.0, min(100.0, 100.0 - avg_std * 2.0))
 
 
@@ -150,18 +151,15 @@ def _compute_expression(
 
     score = 30.0  # ベース
 
-    # 声区の多様性: 両方使えていれば加点
     if len(falsetto_notes) > 0 and len(chest_notes) > 0:
         minor = min(len(falsetto_notes), len(chest_notes))
-        diversity = minor / total  # 0〜0.5
-        score += diversity * 80.0  # max +40
+        diversity = minor / total
+        score += diversity * 80.0
 
-    # 音域の活用度: 使っている音域のバリエーション
     all_notes = chest_notes + falsetto_notes
     if len(all_notes) >= 5:
         arr = np.array(all_notes)
         iqr_st = _semitones(float(np.percentile(arr, 25)), float(np.percentile(arr, 75)))
-        # IQR が広いほど多くの音域を使っている
         score += min(30.0, iqr_st * 3.0)
 
     return min(100.0, score)
@@ -170,15 +168,30 @@ def _compute_expression(
 # ============================================================
 # 2. おすすめ曲
 # ============================================================
+
+# お気に入りアーティスト以外から必ず確保する曲数
+DISCOVERY_SLOTS = 4
+# お気に入りアーティストに割り当てる最大曲数
+FAV_MAX_SLOTS = 6
+# アーティスト多様性フィルタ: 同一アーティスト最大曲数
+MAX_PER_ARTIST = 2
+
+
 def recommend_songs(
     chest_min_hz: float,
     chest_max_hz: float,
     chest_avg_hz: float,
     falsetto_max_hz: float | None = None,
     limit: int = 10,
+    favorite_artist_ids: list[int] | None = None,
 ) -> list[dict]:
     """
     ユーザーの音域に合った楽曲をスコア順で返す。
+
+    favorite_artist_ids が指定されている場合:
+      - DISCOVERY_SLOTS(4曲)はお気に入り以外のアーティストから選ぶ
+      - 残り枠(最大FAV_MAX_SLOTS=6曲)はお気に入りアーティストの曲で埋める
+      - お気に入りに合う曲が少ない場合は通常曲で補完
 
     スコアリング:
       - 楽曲の音域がユーザーの地声範囲に収まるほど高スコア
@@ -186,10 +199,12 @@ def recommend_songs(
       - 裏声がある場合、裏声最高音も上限として考慮
       - 完全に範囲内ならボーナス加点
     """
+    fav_ids: set[int] = set(favorite_artist_ids) if favorite_artist_ids else set()
+
     conn = get_connection()
     try:
         rows = conn.execute("""
-            SELECT s.id, s.title, a.name as artist,
+            SELECT s.id, s.title, a.id as artist_id, a.name as artist,
                    s.lowest_note, s.highest_note, s.falsetto_note, s.source
             FROM songs s
             JOIN artists a ON s.artist_id = a.id
@@ -201,7 +216,9 @@ def recommend_songs(
         if falsetto_max_hz and falsetto_max_hz > chest_max_hz:
             effective_max = falsetto_max_hz
 
-        candidates = []
+        fav_candidates: list[dict] = []
+        normal_candidates: list[dict] = []
+
         for row in rows:
             r = dict(row)
             lo_hz = label_to_hz(r["lowest_note"])
@@ -224,47 +241,95 @@ def recommend_songs(
 
             # スコア計算
             score = 100.0
-            score -= low_penalty * 6.0       # 低音はみ出し
-            score -= high_penalty * 8.0      # 高音はみ出し（厳しめ）
-            score -= center_diff * 2.0       # 中心ずれ
+            score -= low_penalty * 6.0
+            score -= high_penalty * 8.0
+            score -= center_diff * 2.0
 
-            # 完全に範囲内ボーナス
             if low_penalty == 0 and high_penalty == 0:
                 score += 5.0
 
-            if score > 30:
-                candidates.append({
-                    "id": r["id"],
-                    "title": r["title"],
-                    "artist": r["artist"],
-                    "lowest_note": r["lowest_note"],
-                    "highest_note": r["highest_note"],
-                    "match_score": round(min(100.0, score), 1),
-                })
-
-        candidates.sort(key=lambda x: x["match_score"], reverse=True)
-
-        # アーティスト多様性: 同一アーティストは最大2曲まで
-        result_list = []
-        artist_count: dict[str, int] = {}
-        for c in candidates:
-            name = c["artist"]
-            if artist_count.get(name, 0) >= 2:
+            if score <= 30:
                 continue
-            artist_count[name] = artist_count.get(name, 0) + 1
 
-            # 各曲にキー変更おすすめを追加
+            entry = {
+                "id": r["id"],
+                "title": r["title"],
+                "artist": r["artist"],
+                "artist_id": r["artist_id"],
+                "lowest_note": r["lowest_note"],
+                "highest_note": r["highest_note"],
+                "match_score": round(min(100.0, score), 1),
+            }
+
+            if fav_ids and r["artist_id"] in fav_ids:
+                fav_candidates.append(entry)
+            else:
+                normal_candidates.append(entry)
+
+        fav_candidates.sort(key=lambda x: x["match_score"], reverse=True)
+        normal_candidates.sort(key=lambda x: x["match_score"], reverse=True)
+
+        # --- 枠配分 ---
+        # お気に入りがない場合は全部 normal に
+        if not fav_ids:
+            fav_slots = 0
+        else:
+            fav_slots = min(FAV_MAX_SLOTS, limit - DISCOVERY_SLOTS)
+
+        discovery_slots = limit - fav_slots
+
+        def pick_with_diversity(candidates: list[dict], n: int) -> list[dict]:
+            """アーティスト多様性フィルタ付きで n 曲選ぶ"""
+            result_list: list[dict] = []
+            artist_count: dict[str, int] = {}
+            for c in candidates:
+                name = c["artist"]
+                if artist_count.get(name, 0) >= MAX_PER_ARTIST:
+                    continue
+                artist_count[name] = artist_count.get(name, 0) + 1
+                result_list.append(c)
+                if len(result_list) >= n:
+                    break
+            return result_list
+
+        # お気に入りアーティスト枠
+        fav_picks = pick_with_diversity(fav_candidates, fav_slots)
+        fav_artist_names_used = {c["artist"] for c in fav_picks}
+
+        # ディスカバリー枠: お気に入りアーティストを除外
+        discovery_pool = [c for c in normal_candidates if c["artist"] not in fav_artist_names_used]
+        discovery_picks = pick_with_diversity(discovery_pool, discovery_slots)
+
+        # お気に入り枠が埋まらなかった場合は normal で補完
+        shortfall = fav_slots - len(fav_picks)
+        if shortfall > 0:
+            extra_pool = [
+                c for c in normal_candidates
+                if c["artist"] not in fav_artist_names_used
+                and c not in discovery_picks
+            ]
+            extra_picks = pick_with_diversity(extra_pool, shortfall)
+            discovery_picks.extend(extra_picks)
+
+        combined = fav_picks + discovery_picks
+
+        # --- キー変更おすすめを付与、artist_id を削除 ---
+        result_final = []
+        for c in combined:
             key_info = recommend_key_for_song(
                 c.get("lowest_note"), c.get("highest_note"),
                 chest_min_hz, effective_max,
             )
             c.update(key_info)
+            c.pop("artist_id", None)
+            # お気に入りアーティストの曲かどうかフラグを付ける
+            c["is_favorite_artist"] = c["artist"] in {
+                name for entry in fav_picks for name in [entry["artist"]]
+            }
+            result_final.append(c)
 
-            result_list.append(c)
-            if len(result_list) >= limit:
-                break
+        return result_final[:limit]
 
-        return result_list
     finally:
         conn.close()
 
@@ -292,7 +357,6 @@ def find_similar_artists(
             WHERE s.lowest_note IS NOT NULL AND s.highest_note IS NOT NULL
         """).fetchall()
 
-        # アーティストごとに集約
         artists: dict[int, dict] = {}
         for row in rows:
             r = dict(row)
@@ -327,7 +391,6 @@ def find_similar_artists(
                 abs(_semitones(med_center, chest_avg_hz)) if chest_avg_hz > 0 else 99.0
             )
 
-            # 類似度: 差が小さいほど高い
             similarity = 100.0 - (low_diff * 3.0 + high_diff * 3.0 + center_diff * 4.0)
 
             if similarity > 20:
@@ -368,7 +431,6 @@ def classify_voice_type(
             "range_class":  "テノール" etc,
         }
     """
-    # 音域クラス（地声の中心音で判定）
     if chest_avg_hz >= 350:
         range_class = "ハイテノール"
     elif chest_avg_hz >= 280:
@@ -380,11 +442,10 @@ def classify_voice_type(
     else:
         range_class = "バス"
 
-    # 声質タイプ（音域の広さ＋裏声使用率で総合判定）
     range_st = _semitones(chest_min_hz, chest_max_hz) if chest_min_hz > 0 and chest_max_hz > 0 else 0
-    has_wide_range = range_st >= 15  # 15半音(1.25oct)以上 = 広い
-    uses_falsetto = chest_ratio < 85  # 裏声15%以上使用
-    high_voice = chest_max_hz >= 400  # mid2G#以上
+    has_wide_range = range_st >= 15
+    uses_falsetto = chest_ratio < 85
+    high_voice = chest_max_hz >= 400
 
     if high_voice and uses_falsetto:
         voice_type = "ハイトーン・ミックス"
@@ -447,11 +508,8 @@ def recommend_key_for_song(
         lo = song_lo * factor
         hi = song_hi * factor
 
-        # はみ出しペナルティ（半音単位）
         low_pen = _semitones(lo, user_min_hz) if lo < user_min_hz else 0.0
         high_pen = _semitones(user_max_hz, hi) if hi > user_max_hz else 0.0
-
-        # キー変更量のペナルティ（原曲に近いほど良い）
         shift_pen = abs(shift) * 2.0
 
         score = 100.0 - low_pen * 6.0 - high_pen * 10.0 - shift_pen

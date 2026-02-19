@@ -7,6 +7,7 @@ interface HeaderProps {
     onAnalysisClick: () => void;
     onSongListClick: () => void;
     onGuideClick: () => void;
+    onHistoryClick: () => void;
     currentView: string;
     searchQuery?: string;
     onSearchChange?: (query: string) => void;
@@ -22,13 +23,14 @@ const Header: React.FC<HeaderProps> = ({
     onAnalysisClick,
     onSongListClick,
     onGuideClick,
+    onHistoryClick,
     currentView,
     searchQuery = "",
     onSearchChange,
     isAuthenticated = false,
     userName = null,
     onLoginClick,
-    onLogoutClick
+    onLogoutClick,
 }) => {
     const navClass = (isActive: boolean) =>
         `${isActive ? 'text-cyan-400 font-bold drop-shadow-[0_0_5px_rgba(34,211,238,0.8)]' : 'hover:text-cyan-400 text-slate-400'} transition-all bg-transparent border-0 cursor-pointer`;
@@ -36,7 +38,6 @@ const Header: React.FC<HeaderProps> = ({
     return (
         <header className="hidden md:flex items-center justify-between px-8 py-4 bg-slate-900/80 backdrop-blur-md border-b border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.15)] sticky top-0 z-50">
             <div className="flex items-center gap-4 cursor-pointer group" onClick={onLogoClick || onMenuClick}>
-                {/* Logo Image */}
                 <img src={logo} alt="App Logo" className="w-10 h-10 rounded-lg shadow-lg object-cover ring-2 ring-cyan-500/50 group-hover:ring-cyan-400 transition-all" />
                 <h1 className="text-xl font-bold tracking-tight text-white group-hover:text-cyan-400 transition-colors drop-shadow-sm">ピッチスカウト</h1>
             </div>
@@ -55,12 +56,13 @@ const Header: React.FC<HeaderProps> = ({
                 <button type="button" onClick={onSongListClick} className={navClass(currentView === 'songList')}>
                     楽曲一覧
                 </button>
-                <button type="button" className={navClass(false)}>履歴</button>
+                <button type="button" onClick={onHistoryClick} className={navClass(currentView === 'history')}>
+                    履歴
+                </button>
             </nav>
 
             <div className="flex items-center gap-6">
                 {/* Search Bar */}
-                {/* 【修正】role="search"を追加してアクセシビリティを向上 */}
                 <div className="relative hidden lg:block" role="search">
                     <input
                         type="text"

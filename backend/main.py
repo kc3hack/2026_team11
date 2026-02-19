@@ -25,7 +25,10 @@ from database import get_all_songs, search_songs, init_db
 from database_supabase import (
     get_user_profile, update_user_profile, update_vocal_range,
     create_analysis_record, get_analysis_history,
-    add_favorite_song, remove_favorite_song, get_favorite_songs, is_favorite
+    add_favorite_song, remove_favorite_song, get_favorite_songs, is_favorite,
+    # お気に入りアーティスト
+    add_favorite_artist, remove_favorite_artist,
+    get_favorite_artists, is_favorite_artist, get_favorite_artist_ids,
 )
 
 # 認証関連
@@ -40,7 +43,8 @@ from models import (
     SignUpRequest, SignInRequest, RefreshTokenRequest,
     PasswordResetRequest, PasswordUpdateRequest,
     UserProfileUpdate, VocalRangeUpdate,
-    AnalysisCreate, FavoriteSongAdd
+    AnalysisCreate, FavoriteSongAdd,
+    FavoriteArtistAdd,
 )
 
 app = FastAPI(title="Voice Range Analysis API")
@@ -52,7 +56,7 @@ def on_startup():
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # TODO: 本番環境では具体的なオリジンに限定すること
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -152,7 +156,6 @@ def create_analysis(data: AnalysisCreate, user: dict = Depends(get_current_user)
         data.file_name
     )
 
-    # プロファイルの声域も更新
     update_vocal_range(
         user["id"],
         data.vocal_range_min,
@@ -204,6 +207,53 @@ def check_favorite(song_id: int, user: dict = Depends(get_current_user)):
 
 
 # ============================================================
+# お気に入りアーティスト
+# ============================================================
+
+@app.post("/favorite-artists")
+def add_favorite_artist_endpoint(
+    data: FavoriteArtistAdd,
+    user: dict = Depends(get_current_user),
+):
+    """
+    お気に入りアーティストを追加（上限10組）。
+    artist_id と artist_name は /songs?q= などで検索して取得してください。
+    """
+    result = add_favorite_artist(user["id"], data.artist_id, data.artist_name)
+    if result is None:
+        # 上限 or 重複
+        existing = is_favorite_artist(user["id"], data.artist_id)
+        if existing:
+            raise HTTPException(status_code=400, detail="既にお気に入りに登録されています")
+        raise HTTPException(status_code=400, detail="お気に入りアーティストは10組まで登録できます")
+    return result
+
+
+@app.delete("/favorite-artists/{artist_id}")
+def remove_favorite_artist_endpoint(
+    artist_id: int,
+    user: dict = Depends(get_current_user),
+):
+    """お気に入りアーティストを削除"""
+    success = remove_favorite_artist(user["id"], artist_id)
+    if success:
+        return {"message": "お気に入りから削除しました"}
+    raise HTTPException(status_code=404, detail="お気に入りに登録されていません")
+
+
+@app.get("/favorite-artists")
+def get_my_favorite_artists(user: dict = Depends(get_current_user)):
+    """自分のお気に入りアーティスト一覧を取得"""
+    return get_favorite_artists(user["id"])
+
+
+@app.get("/favorite-artists/check/{artist_id}")
+def check_favorite_artist(artist_id: int, user: dict = Depends(get_current_user)):
+    """アーティストがお気に入りに登録されているか確認"""
+    return {"is_favorite": is_favorite_artist(user["id"], artist_id)}
+
+
+# ============================================================
 # 楽曲検索（認証不要）
 # ============================================================
 
@@ -219,7 +269,6 @@ def read_songs(
     else:
         songs = get_all_songs(limit, offset)
 
-    # ユーザーの音域が指定されている場合、各曲にキー変更おすすめを追加
     if chest_min_hz and chest_max_hz:
         effective_max = chest_max_hz
         if falsetto_max_hz and falsetto_max_hz > chest_max_hz:
@@ -251,9 +300,14 @@ def get_recommendations(
     chest_avg_hz: float = Query(...),
     falsetto_max_hz: float | None = Query(None),
     limit: int = Query(10, ge=1, le=50),
+    user: dict | None = Depends(get_optional_user),
 ):
-    """音域Hzを指定しておすすめ曲を取得"""
-    return recommend_songs(chest_min_hz, chest_max_hz, chest_avg_hz, falsetto_max_hz, limit)
+    """音域Hzを指定しておすすめ曲を取得（ログイン済みならお気に入りアーティスト優先）"""
+    fav_ids = get_favorite_artist_ids(user["id"]) if user else []
+    return recommend_songs(
+        chest_min_hz, chest_max_hz, chest_avg_hz, falsetto_max_hz,
+        limit=limit, favorite_artist_ids=fav_ids,
+    )
 
 
 @app.get("/similar-artists")
@@ -291,7 +345,7 @@ def cleanup_files(*paths):
             print(f"[WARN] Cleanup failed for {path}: {e}")
 
 
-def _enrich_result(result: dict) -> dict:
+def _enrich_result(result: dict, user: dict | None = None) -> dict:
     """解析結果におすすめ曲・似てるアーティストを追加"""
     if "error" in result:
         return result
@@ -301,15 +355,23 @@ def _enrich_result(result: dict) -> dict:
     chest_avg_hz = result.get("chest_avg_hz", 0)
     falsetto_max_hz = result.get("falsetto_max_hz")
 
-    # デフォルト値を設定（フロントエンドでキー不在エラーを防止）
     result.setdefault("recommended_songs", [])
     result.setdefault("similar_artists", [])
     result.setdefault("voice_type", {})
 
     if chest_min_hz > 0 and chest_max_hz > 0:
+        # ログイン済みならお気に入りアーティストIDを取得
+        fav_ids: list[int] = []
+        if user:
+            try:
+                fav_ids = get_favorite_artist_ids(user["id"])
+            except Exception as e:
+                print(f"[WARN] お気に入りアーティストID取得失敗: {e}")
+
         try:
             result["recommended_songs"] = recommend_songs(
-                chest_min_hz, chest_max_hz, chest_avg_hz, falsetto_max_hz, limit=10
+                chest_min_hz, chest_max_hz, chest_avg_hz, falsetto_max_hz,
+                limit=10, favorite_artist_ids=fav_ids,
             )
         except Exception as e:
             print(f"[WARN] おすすめ曲取得失敗: {e}")
@@ -368,7 +430,6 @@ async def analyze_voice(
         print(f"\n[API] [3/3] 音域解析実行中...")
         result = analyze(converted_wav_path)
 
-        # ログイン済みの場合は履歴に自動保存
         if user and not result.get("error"):
             try:
                 create_analysis_record(
@@ -388,7 +449,7 @@ async def analyze_voice(
             except Exception as e:
                 print(f"[WARN] 履歴保存失敗: {e}")
 
-        result = _enrich_result(result)
+        result = _enrich_result(result, user)
 
         elapsed_time = time.time() - start_time
         print(f"\n[API] ✅ アカペラ音源分析完了! (処理時間: {elapsed_time:.2f}秒)")
@@ -444,7 +505,6 @@ async def analyze_karaoke(
         print(f"\n[API] [4/4] 音域解析実行中...")
         result = analyze(vocal_path, already_separated=True)
 
-        # ログイン済みの場合は履歴に自動保存
         if user and not result.get("error"):
             try:
                 create_analysis_record(
@@ -464,7 +524,7 @@ async def analyze_karaoke(
             except Exception as e:
                 print(f"[WARN] 履歴保存失敗: {e}")
 
-        result = _enrich_result(result)
+        result = _enrich_result(result, user)
 
         if vocal_path:
             demucs_folder = os.path.dirname(vocal_path)
