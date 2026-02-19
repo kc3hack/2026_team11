@@ -122,7 +122,7 @@ def search_songs(query: str, limit: int = 20, offset: int = 0) -> list[dict]:
             FROM songs s
             JOIN artists a ON s.artist_id = a.id
             WHERE s.title LIKE ? ESCAPE '\\' OR a.name LIKE ? ESCAPE '\\'
-            ORDER BY s.id
+            ORDER BY a.name COLLATE NOCASE, s.title COLLATE NOCASE
             LIMIT ? OFFSET ?
         """, (escaped, escaped, limit, offset)).fetchall()
         return [dict(r) for r in rows]
@@ -194,7 +194,7 @@ def get_artist_songs(artist_id: int) -> list[dict]:
 
 
 def get_all_songs(limit: int = 20, offset: int = 0) -> list[dict]:
-    """全曲を取得（ページネーション対応）"""
+    """全曲を取得（アーティスト名50音順 → 曲名順）"""
     conn = get_connection()
     try:
         rows = conn.execute("""
@@ -203,7 +203,7 @@ def get_all_songs(limit: int = 20, offset: int = 0) -> list[dict]:
                    s.source
             FROM songs s
             JOIN artists a ON s.artist_id = a.id
-            ORDER BY s.id
+            ORDER BY a.name COLLATE NOCASE, s.title COLLATE NOCASE
             LIMIT ? OFFSET ?
         """, (limit, offset)).fetchall()
         return [dict(r) for r in rows]

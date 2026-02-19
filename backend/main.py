@@ -12,13 +12,24 @@ from audio_converter import convert_to_wav, convert_to_wav_hq
 from analyzer import analyze
 from vocal_separator import separate_vocals
 
-# Supabase対応のデータベース関数をインポート
+# recommender 関数群（おすすめ曲・キー・声質タイプ）
+from recommender import (
+    recommend_songs, recommend_key_for_song,
+    find_similar_artists, classify_voice_type,
+)
+
+# 楽曲データはローカル SQLite（songs.db に5000曲入ってる）
+from database import get_all_songs, search_songs, init_db
+
+# 認証・ユーザー系は Supabase
 from database_supabase import (
-    get_all_songs, search_songs, get_song,
     get_user_profile, update_user_profile, update_vocal_range,
     create_analysis_record, get_analysis_history,
     add_favorite_song, remove_favorite_song, get_favorite_songs, is_favorite
 )
+
+# SQLite初期化（テーブル確認・マイグレーション）
+init_db()
 
 # 認証関連
 from auth import (
@@ -138,7 +149,7 @@ def create_analysis(data: AnalysisCreate, user: dict = Depends(get_current_user)
         data.source_type,
         data.file_name
     )
-    
+
     # プロファイルの声域も更新
     update_vocal_range(
         user["id"],
@@ -146,7 +157,7 @@ def create_analysis(data: AnalysisCreate, user: dict = Depends(get_current_user)
         data.vocal_range_max,
         data.falsetto_max
     )
-    
+
     return record
 
 
@@ -206,10 +217,6 @@ def read_songs(
     else:
         songs = get_all_songs(limit, offset)
 
-# ============================================================
-# 音声分析エンドポイント（認証オプショナル）
-# ============================================================
-
     # ユーザーの音域が指定されている場合、各曲にキー変更おすすめを追加
     if chest_min_hz and chest_max_hz:
         effective_max = chest_max_hz
@@ -233,8 +240,8 @@ def read_songs(
 
 # ============================================================
 # おすすめ曲・似てるアーティスト（単体エンドポイント）
-# フロントから解析済みHz値を渡して使う
 # ============================================================
+
 @app.get("/recommend")
 def get_recommendations(
     chest_min_hz: float = Query(...),
@@ -261,15 +268,18 @@ def get_similar_artists(
 # ============================================================
 # ファイル管理
 # ============================================================
+
 UPLOAD_DIR = "uploads"
 SEPARATED_DIR = "separated"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(SEPARATED_DIR, exist_ok=True)
 
+
 def cleanup_files(*paths):
     """一時ファイルを削除するタスク"""
     for path in paths:
-        if not path: continue
+        if not path:
+            continue
         try:
             if os.path.isfile(path):
                 os.remove(path)
@@ -322,63 +332,60 @@ def _enrich_result(result: dict) -> dict:
 
 
 # ============================================================
-# 解析エンドポイント
+# 音声分析エンドポイント（認証オプショナル）
 # ============================================================
+
 @app.post("/analyze")
 async def analyze_voice(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    user: dict = Depends(get_optional_user)
+    user: dict | None = Depends(get_optional_user),
 ):
-    """
-    アカペラ/マイク録音用 (Demucsなし)
-    ログイン済みの場合は自動的に履歴に保存
-    """
-async def analyze_voice(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
-    """アカペラ/マイク録音用 (Demucsなし)"""
+    """アカペラ/マイク録音用 (Demucsなし)。ログイン済みなら履歴に自動保存"""
     start_time = time.time()
     print(f"\n{'#'*60}")
     print(f"[API] 📥 アカペラ音源分析リクエスト受信: {file.filename}")
     print(f"{'#'*60}")
-    
+
     temp_input_path = None
     converted_wav_path = None
-    
+
     try:
         print(f"[API] [1/3] ファイル保存中...")
         ext = os.path.splitext(file.filename)[1] or ".tmp"
         temp_input_path = os.path.join(UPLOAD_DIR, f"{uuid.uuid4()}{ext}")
-        
+
         with open(temp_input_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         print(f"[API] ✅ 保存完了: {temp_input_path}")
 
         print(f"\n[API] [2/3] WAV変換中...")
-        # マイク録音は16kHz/モノラルで十分
         converted_wav_path = convert_to_wav(temp_input_path, output_dir=UPLOAD_DIR)
         print(f"[API] ✅ 変換完了: {converted_wav_path}")
 
         print(f"\n[API] [3/3] 音域解析実行中...")
         result = analyze(converted_wav_path)
-        
+
         # ログイン済みの場合は履歴に自動保存
-        if user and result.get("vocal_range"):
-            vocal_range = result["vocal_range"]
-            create_analysis_record(
-                user["id"],
-                vocal_range.get("lowest_note"),
-                vocal_range.get("highest_note"),
-                vocal_range.get("falsetto_max"),
-                "microphone",
-                file.filename
-            )
-            # プロファイルも更新
-            update_vocal_range(
-                user["id"],
-                vocal_range.get("lowest_note"),
-                vocal_range.get("highest_note"),
-                vocal_range.get("falsetto_max")
-            )
+        if user and not result.get("error"):
+            try:
+                create_analysis_record(
+                    user["id"],
+                    result.get("overall_min"),
+                    result.get("overall_max"),
+                    result.get("falsetto_max"),
+                    "microphone",
+                    file.filename,
+                )
+                update_vocal_range(
+                    user["id"],
+                    result.get("overall_min"),
+                    result.get("overall_max"),
+                    result.get("falsetto_max"),
+                )
+            except Exception as e:
+                print(f"[WARN] 履歴保存失敗: {e}")
+
         result = _enrich_result(result)
 
         elapsed_time = time.time() - start_time
@@ -394,28 +401,24 @@ async def analyze_voice(background_tasks: BackgroundTasks, file: UploadFile = Fi
         background_tasks.add_task(cleanup_files, temp_input_path, converted_wav_path)
         return {"error": f"エラーが発生しました: {str(e)}"}
 
+
 @app.post("/analyze-karaoke")
 async def analyze_karaoke(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    user: dict = Depends(get_optional_user)
+    user: dict | None = Depends(get_optional_user),
 ):
-    """
-    カラオケ音源用 (Demucsあり)
-    ログイン済みの場合は自動的に履歴に保存
-    """
-async def analyze_karaoke(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
-    """カラオケ音源用 (Demucsあり)"""
+    """カラオケ音源用 (Demucsあり)。ログイン済みなら履歴に自動保存"""
     start_time = time.time()
     print(f"\n{'#'*60}")
     print(f"[API] 📥 カラオケ音源分析リクエスト受信: {file.filename}")
     print(f"{'#'*60}")
-    
+
     temp_input_path = None
     converted_wav_path = None
     vocal_path = None
     demucs_folder = None
-    
+
     try:
         print(f"[API] [1/4] ファイル保存中...")
         ext = os.path.splitext(file.filename)[1] or ".tmp"
@@ -425,41 +428,38 @@ async def analyze_karaoke(background_tasks: BackgroundTasks, file: UploadFile = 
         print(f"[API] ✅ 保存完了: {temp_input_path}")
 
         print(f"\n[API] [2/4] 高品質WAV変換中...")
-        # ★修正: Demucs前は高品質変換(44100Hz/ステレオ)が必須
-        # 16kHz/モノラルだとDemucsのボーカル分離精度が大幅に落ちる
         converted_wav_path = convert_to_wav_hq(temp_input_path, output_dir=UPLOAD_DIR)
         print(f"[API] ✅ 変換完了: {converted_wav_path}")
 
         print(f"\n[API] [3/4] Demucsボーカル分離実行中...")
-        # Demucsでボーカル分離 (ultra_fast_mode=True で超高速化)
-        vocal_path = separate_vocals(converted_wav_path, output_dir=SEPARATED_DIR, ultra_fast_mode=True)
+        vocal_path = separate_vocals(converted_wav_path, output_dir=SEPARATED_DIR)
         print(f"[API] ✅ ボーカル分離完了: {vocal_path}")
-        
+
         print(f"\n[API] [4/4] 音域解析実行中...")
-        # 解析 (Demucs出力のvocals.wavはそのまま渡す)
         result = analyze(vocal_path, already_separated=True)
-        
+
         # ログイン済みの場合は履歴に自動保存
-        if user and result.get("vocal_range"):
-            vocal_range = result["vocal_range"]
-            create_analysis_record(
-                user["id"],
-                vocal_range.get("lowest_note"),
-                vocal_range.get("highest_note"),
-                vocal_range.get("falsetto_max"),
-                "karaoke",
-                file.filename
-            )
-            # プロファイルも更新
-            update_vocal_range(
-                user["id"],
-                vocal_range.get("lowest_note"),
-                vocal_range.get("highest_note"),
-                vocal_range.get("falsetto_max")
-            )
+        if user and not result.get("error"):
+            try:
+                create_analysis_record(
+                    user["id"],
+                    result.get("overall_min"),
+                    result.get("overall_max"),
+                    result.get("falsetto_max"),
+                    "karaoke",
+                    file.filename,
+                )
+                update_vocal_range(
+                    user["id"],
+                    result.get("overall_min"),
+                    result.get("overall_max"),
+                    result.get("falsetto_max"),
+                )
+            except Exception as e:
+                print(f"[WARN] 履歴保存失敗: {e}")
+
         result = _enrich_result(result)
 
-        # Demucs出力フォルダ全体を削除対象にする
         if vocal_path:
             demucs_folder = os.path.dirname(vocal_path)
 
@@ -468,12 +468,11 @@ async def analyze_karaoke(background_tasks: BackgroundTasks, file: UploadFile = 
         seconds = int(elapsed_time % 60)
         time_str = f"{minutes}分{seconds}秒" if minutes > 0 else f"{seconds}秒"
         print(f"\n[API] ✅ カラオケ音源分析完了! (処理時間: {time_str})")
-        if elapsed_time > 240:  # 4分以上
+        if elapsed_time > 240:
             print(f"[WARN] ⚠️ 処理時間が長いです ({time_str})")
         print(f"{'#'*60}\n")
-        
+
         background_tasks.add_task(cleanup_files, temp_input_path, converted_wav_path, demucs_folder)
-        
         return result
 
     except Exception as e:
