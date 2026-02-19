@@ -4,6 +4,7 @@ Supabaseデータベースの接続管理とクエリ関数
 import os
 from typing import Optional, List, Dict, Any
 from supabase import create_client, Client
+from database import get_song
 from dotenv import load_dotenv
 
 # 環境変数をロード
@@ -221,22 +222,27 @@ def remove_favorite_song(user_id: str, song_id: int) -> bool:
 def get_favorite_songs(user_id: str, limit: int = 100) -> List[Dict[str, Any]]:
     """ユーザーのお気に入り楽曲一覧を取得"""
     response = supabase.table("favorite_songs").select(
-        "*, songs(id, title, lowest_note, highest_note, falsetto_note, artists(name))"
+        "id, song_id, created_at"
     ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute()
 
     favorites = []
+    import database
     for fav in response.data:
-        song = fav.get("songs", {})
-        favorites.append({
-            "favorite_id": fav["id"],
-            "created_at": fav["created_at"],
-            "song_id": song.get("id"),
-            "title": song.get("title"),
-            "artist": song.get("artists", {}).get("name") if song.get("artists") else None,
-            "lowest_note": song.get("lowest_note"),
-            "highest_note": song.get("highest_note"),
-            "falsetto_note": song.get("falsetto_note"),
-        })
+        song = database.get_song(fav["song_id"])
+        
+        # SQLite側に曲が存在すればリストに追加
+        if song:
+            favorites.append({
+                "favorite_id": fav["id"],
+                "created_at": fav["created_at"],
+                "song_id": song.get("id"),
+                "title": song.get("title"),
+                "artist": song.get("artist"),
+                "lowest_note": song.get("lowest_note"),
+                "highest_note": song.get("highest_note"),
+                "falsetto_note": song.get("falsetto_note"),
+            })
+            
     return favorites
 
 
