@@ -131,9 +131,9 @@ const AnalysisResultPage: React.FC<AnalysisResultPageProps> = ({ result }) => {
     };
 
     return (
-        <div className="flex flex-col items-center w-full min-h-screen bg-slate-50 p-6 font-sans text-slate-800">
+        <div className="flex flex-col items-center w-full min-h-screen bg-transparent p-6 font-sans text-slate-200">
             {/* Page Title */}
-            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500 mb-8 self-start">
+            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-purple-400 mb-8 self-start drop-shadow-sm">
                 分析結果
             </h1>
 
@@ -141,48 +141,48 @@ const AnalysisResultPage: React.FC<AnalysisResultPageProps> = ({ result }) => {
                 {/* LEFT COLUMN (2/3) */}
                 <div className="lg:col-span-2 space-y-8">
                     {/* 音域カード */}
-                    <div className="bg-white rounded-2xl shadow-md p-8">
-                        <h2 className="text-xl font-bold mb-4 text-slate-700">音域チェック結果</h2>
+                    <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl shadow-xl border border-white/10 p-8">
+                        <h2 className="text-xl font-bold mb-4 text-white">音域チェック結果</h2>
 
                         <div className="flex items-center space-x-4 mb-4">
-                            <div className="px-4 py-2 bg-blue-100 text-blue-600 rounded-full font-bold text-sm">
+                            <div className="px-4 py-2 bg-cyan-900/50 text-cyan-400 border border-cyan-500/30 rounded-full font-bold text-sm">
                                 あなたの音域
                             </div>
-                            <div className="text-4xl font-extrabold text-slate-800">
-                                {overallMin} <span className="text-slate-400 mx-2">~</span> {overallMax}
+                            <div className="text-4xl font-extrabold text-white">
+                                {overallMin} <span className="text-slate-500 mx-2">~</span> {overallMax}
                             </div>
                         </div>
 
                         {/* 地声 / 裏声の詳細 */}
                         <div className="flex flex-wrap gap-4 mb-6 text-sm">
-                            <div className="flex items-center gap-2 bg-indigo-50 px-3 py-1.5 rounded-lg">
-                                <div className="w-2.5 h-2.5 bg-indigo-500 rounded-full"></div>
-                                <span className="text-slate-600">地声</span>
-                                <span className="font-bold text-slate-800">{chestMin} ~ {chestMax}</span>
+                            <div className="flex items-center gap-2 bg-indigo-900/30 border border-indigo-500/30 px-3 py-1.5 rounded-lg">
+                                <div className="w-2.5 h-2.5 bg-indigo-500 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.8)]"></div>
+                                <span className="text-slate-300">地声</span>
+                                <span className="font-bold text-slate-100">{chestMin} ~ {chestMax}</span>
                             </div>
                             {falsettoMin && falsettoMax && (
-                                <div className="flex items-center gap-2 bg-emerald-50 px-3 py-1.5 rounded-lg">
-                                    <div className="w-2.5 h-2.5 bg-emerald-400 rounded-full"></div>
-                                    <span className="text-slate-600">裏声</span>
-                                    <span className="font-bold text-slate-800">{falsettoMin} ~ {falsettoMax}</span>
+                                <div className="flex items-center gap-2 bg-emerald-900/30 border border-emerald-500/30 px-3 py-1.5 rounded-lg">
+                                    <div className="w-2.5 h-2.5 bg-emerald-400 rounded-full shadow-[0_0_8px_rgba(52,211,153,0.8)]"></div>
+                                    <span className="text-slate-300">裏声</span>
+                                    <span className="font-bold text-slate-100">{falsettoMin} ~ {falsettoMax}</span>
                                 </div>
                             )}
                         </div>
 
                         {/* Voice Type */}
                         {voiceType.voice_type && (
-                            <p className="text-slate-500 leading-relaxed mb-6">
-                                あなたの声質タイプ: <span className="font-bold text-slate-700">{voiceType.voice_type}</span>
-                                {voiceType.description && <span className="text-slate-400 ml-1">— {voiceType.description}</span>}
+                            <p className="text-slate-400 leading-relaxed mb-6">
+                                あなたの声質タイプ: <span className="font-bold text-white">{voiceType.voice_type}</span>
+                                {voiceType.description && <span className="text-slate-500 ml-1">— {voiceType.description}</span>}
                             </p>
                         )}
 
                         {/* Voice Type Ratio Bar */}
                         <div className="mb-2">
-                            <h3 className="text-sm font-bold text-slate-400 mb-2 uppercase tracking-wide">Voice Type Ratio</h3>
-                            <div className="w-full h-4 bg-slate-100 rounded-full overflow-hidden flex">
-                                <div className="h-full bg-indigo-500 transition-all" style={{ width: `${chestRatio}%` }}></div>
-                                <div className="h-full bg-emerald-400 transition-all" style={{ width: `${falsettoRatio}%` }}></div>
+                            <h3 className="text-sm font-bold text-slate-500 mb-2 uppercase tracking-wide">Voice Type Ratio</h3>
+                            <div className="w-full h-4 bg-slate-800 rounded-full overflow-hidden flex border border-white/5">
+                                <div className="h-full bg-indigo-500 transition-all opacity-80" style={{ width: `${chestRatio}%` }}></div>
+                                <div className="h-full bg-emerald-400 transition-all opacity-80" style={{ width: `${falsettoRatio}%` }}></div>
                             </div>
                             <div className="flex justify-between text-xs text-slate-500 mt-2">
                                 <span className="flex items-center">
@@ -199,16 +199,16 @@ const AnalysisResultPage: React.FC<AnalysisResultPageProps> = ({ result }) => {
 
                     {/* 似ているアーティスト */}
                     {artists.length > 0 && (
-                        <div className="bg-white rounded-2xl shadow-md p-6">
-                            <h2 className="text-lg font-bold text-slate-700 mb-4">声が似ているアーティスト</h2>
+                        <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl shadow-xl border border-white/10 p-6">
+                            <h2 className="text-lg font-bold text-white mb-4">声が似ているアーティスト</h2>
                             <div className="flex flex-wrap gap-3">
                                 {artists.slice(0, 6).map((a: any, i: number) => (
-                                    <div key={i} className="flex items-center gap-2 bg-slate-50 px-4 py-2 rounded-xl">
-                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-400 to-indigo-400 flex items-center justify-center text-white text-xs font-bold">
+                                    <div key={i} className="flex items-center gap-2 bg-slate-800/50 border border-slate-700/50 px-4 py-2 rounded-xl">
+                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-indigo-500 flex items-center justify-center text-white text-xs font-bold shadow-sm">
                                             {i + 1}
                                         </div>
-                                        <span className="text-sm font-bold text-slate-700">{a.name}</span>
-                                        <span className="text-xs text-slate-400">{Math.round(a.similarity_score)}%</span>
+                                        <span className="text-sm font-bold text-slate-200">{a.name}</span>
+                                        <span className="text-xs text-slate-500">{Math.round(a.similarity_score)}%</span>
                                     </div>
                                 ))}
                             </div>
@@ -219,26 +219,26 @@ const AnalysisResultPage: React.FC<AnalysisResultPageProps> = ({ result }) => {
                 {/* RIGHT COLUMN (1/3) */}
                 <div className="space-y-8">
                     {/* レーダーチャート */}
-                    <div className="bg-white rounded-2xl shadow-md p-6 flex flex-col items-center">
-                        <h2 className="text-lg font-bold text-slate-700 mb-4 self-start">歌唱力分析</h2>
+                    <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl shadow-xl border border-white/10 p-6 flex flex-col items-center">
+                        <h2 className="text-lg font-bold text-white mb-4 self-start">歌唱力分析</h2>
                         {radarData.length > 0 ? (
                             <>
-                                <div className="w-full flex justify-center">
+                                <div className="w-full flex justify-center opacity-90">
                                     <RadarChart data={radarData} />
                                 </div>
                                 <div className="text-center mt-2">
-                                    <span className={`text-3xl font-extrabold ${rankColor(computedRank)}`}>
+                                    <span className={`text-3xl font-extrabold ${rankColor(computedRank)} drop-shadow-md`}>
                                         {computedRank}
                                     </span>
                                     <span className="text-slate-400 text-sm ml-1">Rank</span>
                                     {singing.overall_score !== undefined && (
-                                        <p className="text-xs text-slate-400 mt-1">{Math.round(singing.overall_score)}点</p>
+                                        <p className="text-xs text-slate-500 mt-1">{Math.round(singing.overall_score)}点</p>
                                     )}
                                 </div>
                             </>
                         ) : (
-                            <div className="w-full h-[250px] flex items-center justify-center bg-slate-50 rounded-lg">
-                                <div className="text-slate-400 text-sm text-center">
+                            <div className="w-full h-[250px] flex items-center justify-center bg-slate-800/30 rounded-lg border border-slate-700/30">
+                                <div className="text-slate-500 text-sm text-center">
                                     歌唱力データなし
                                 </div>
                             </div>
@@ -246,18 +246,18 @@ const AnalysisResultPage: React.FC<AnalysisResultPageProps> = ({ result }) => {
                     </div>
 
                     {/* おすすめの曲 */}
-                    <div className="bg-white rounded-2xl shadow-md p-6">
-                        <h2 className="text-lg font-bold text-slate-700 mb-4">おすすめの曲</h2>
+                    <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl shadow-xl border border-white/10 p-6">
+                        <h2 className="text-lg font-bold text-white mb-4">おすすめの曲</h2>
                         {songs.length > 0 ? (
                             <div className="space-y-3">
                                 {songs.slice(0, 8).map((song: any, index: number) => (
-                                    <div key={song.id || index} className="flex items-center justify-between group cursor-pointer hover:bg-slate-50 p-2 rounded-lg transition-colors">
+                                    <div key={song.id || index} className="flex items-center justify-between group cursor-pointer hover:bg-white/5 p-2 rounded-lg transition-colors border border-transparent hover:border-slate-700/50">
                                         <div className="flex items-center space-x-3 min-w-0">
-                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-400 flex items-center justify-center text-white font-bold text-sm shadow-sm group-hover:scale-110 transition-transform flex-shrink-0">
+                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-sm group-hover:scale-110 transition-transform flex-shrink-0">
                                                 {index + 1}
                                             </div>
                                             <div className="min-w-0">
-                                                <div className="font-bold text-slate-800 text-sm truncate">{song.title}</div>
+                                                <div className="font-bold text-slate-200 text-sm truncate">{song.title}</div>
                                                 <div className="text-xs text-slate-500 truncate">{song.artist}</div>
                                             </div>
                                         </div>
@@ -269,7 +269,7 @@ const AnalysisResultPage: React.FC<AnalysisResultPageProps> = ({ result }) => {
                                 ))}
                             </div>
                         ) : (
-                            <p className="text-slate-400 text-sm text-center py-4">おすすめ曲データなし</p>
+                            <p className="text-slate-500 text-sm text-center py-4">おすすめ曲データなし</p>
                         )}
                     </div>
                 </div>
