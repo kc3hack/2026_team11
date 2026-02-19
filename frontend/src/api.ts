@@ -1,4 +1,5 @@
 import axios from "axios";
+import { supabase } from "./supabaseClient";
 
 const TIMEOUT_MS = 300000; // 5分
 
@@ -7,14 +8,14 @@ const API = axios.create({
   timeout: TIMEOUT_MS,
 });
 
-/**
- * リクエストインターセプター
- * 全てのリクエストのヘッダーに Authorization: Bearer <トークン> を自動付与します
- */
-API.interceptors.request.use((config) => {
-  const token = localStorage.getItem("accessToken");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+// Supabaseのセッショントークンを自動でAuthorizationヘッダーに付与
+API.interceptors.request.use(async (config) => {
+  if (supabase) {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
   }
   return config;
 });
@@ -85,15 +86,15 @@ export interface AnalysisResult {
   overall_max: string;
   overall_min_hz: number;
   overall_max_hz: number;
-  
+
   // 地声詳細
   chest_min?: string;
   chest_max?: string;
   chest_min_hz?: number;
   chest_max_hz?: number;
-  chest_count?: number; 
+  chest_count?: number;
   chest_ratio?: number;
-  
+
   // 裏声詳細
   falsetto_min?: string;
   falsetto_max?: string;
@@ -101,7 +102,7 @@ export interface AnalysisResult {
   falsetto_max_hz?: number;
   falsetto_count?: number;
   falsetto_ratio?: number;
-  
+
   singing_analysis?: SingingAnalysis;
   voice_type?: VoiceType;
   recommended_songs?: RecommendedSong[];

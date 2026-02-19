@@ -10,12 +10,13 @@ import { MicrophoneIcon as MicrophoneIconSolid } from "@heroicons/react/24/solid
 interface BottomNavProps {
   currentView: string;
   onViewChange: (view: any) => void;
+  isAuthenticated?: boolean;
 }
 
 // 録音関連のビューをまとめて判定
 const RECORDING_VIEWS = new Set(["menu", "recorder", "uploader"]);
 
-const BottomNav: React.FC<BottomNavProps> = ({ currentView, onViewChange }) => {
+const BottomNav: React.FC<BottomNavProps> = ({ currentView, onViewChange, isAuthenticated = false }) => {
   const getItemClass = (viewName: string) =>
     currentView === viewName
       ? "text-blue-600"
@@ -84,13 +85,15 @@ const BottomNav: React.FC<BottomNavProps> = ({ currentView, onViewChange }) => {
           <span className="text-[10px] font-medium">分析結果</span>
         </button>
 
-        {/* 5. マイページ */}
+        {/* 5. マイページ / ログイン */}
         <button
-          onClick={() => onViewChange("mypage")}
-          className={`flex-1 flex flex-col items-center justify-end h-full py-1 ${getItemClass("mypage")}`}
+          onClick={() => onViewChange(isAuthenticated ? "mypage" : "login")}
+          className={`flex-1 flex flex-col items-center justify-end h-full py-1 ${getItemClass(isAuthenticated ? "mypage" : "login")}`}
         >
           <UserCircleIcon className="w-6 h-6 mb-1" />
-          <span className="text-[10px] font-medium">マイページ</span>
+          <span className="text-[10px] font-medium">
+            {isAuthenticated ? "マイページ" : "ログイン"}
+          </span>
         </button>
       </div>
     </div>

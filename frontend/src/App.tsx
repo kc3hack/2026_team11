@@ -1,18 +1,22 @@
 import React, { useState, useEffect } from "react";
-import RecordingSelectionPage from "./RecordingSelectionPage";
+import Home from "./Home";
+import Landing from "./Landing";
 import Recorder from "./components/Recorder";
 import KaraokeUploader from "./components/KaraokeUploader";
 import ResultView from "./components/ResultView";
 import AnalysisResultPage from "./AnalysisResultPage";
 import Header from "./components/Header";
 import GuidePage from "./GuidePage";
+import LoginPage from "./LoginPage";
 import SongListPage from "./SongListPage";
 import PlaceholderPage from "./PlaceholderPage";
 import BottomNav from "./components/BottomNav";
 import { AnalysisResult, UserRange } from "./api";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 
 // 画面の状態を定義
 type ViewState =
+  | "landing"
   | "menu"
   | "recorder"
   | "uploader"
@@ -21,7 +25,8 @@ type ViewState =
   | "songList"
   | "history"
   | "mypage"
-  | "guide";
+  | "guide"
+  | "login";
 
 // localStorageキー
 const RANGE_STORAGE_KEY = "voiceRange";
@@ -40,8 +45,9 @@ function saveRange(range: UserRange) {
   localStorage.setItem(RANGE_STORAGE_KEY, JSON.stringify(range));
 }
 
-export default function App() {
-  const [view, setView] = useState<ViewState>("menu");
+function AppContent() {
+  const { user, isAuthenticated, logout } = useAuth();
+  const [view, setView] = useState<ViewState>("landing");
   const [isKaraokeMode, setIsKaraokeMode] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -74,6 +80,15 @@ export default function App() {
     if (query && view !== "songList") {
       setView("songList");
     }
+  };
+
+  const handleLanding = () => {
+    setView("landing");
+  };
+
+  const handleMenu = () => {
+    setSearchQuery("");
+    setView("menu");
   };
 
   const handleNormalRecording = () => {
@@ -124,101 +139,139 @@ export default function App() {
   };
 
   return (
-    <div className="pb-24 md:pb-0 min-h-screen relative">
-      <Header
-        onMenuClick={handleBackToMenu}
-        onAnalysisClick={handleAnalysis}
-        onSongListClick={handleSongList}
-        onGuideClick={handleGuide}
-        onHistoryClick={handleHistory}
-        currentView={view}
-        searchQuery={searchQuery}
-        onSearchChange={handleSearch}
-      />
+    <div className="pb-24 md:pb-0 min-h-[100dvh] relative bg-slate-900 overflow-hidden font-sans selection:bg-pink-500 selection:text-white text-slate-200">
+      {/* Dynamic Background Elements (Global) */}
+      <div className="fixed inset-0 z-0 opacity-20 pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[40%] bg-gradient-to-r from-red-600 to-transparent -skew-y-3 transform" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[120%] h-[40%] bg-gradient-to-l from-cyan-600 to-transparent skew-y-3 transform" />
+        <div className="absolute top-[20%] right-[-20%] w-[800px] h-[800px] border-[50px] border-white/5 rounded-full" />
+      </div>
 
-      {/* メニュー画面 */}
-      {view === "menu" && (
-        <RecordingSelectionPage
-          onNormalClick={handleNormalRecording}
-          onKaraokeClick={handleKaraokeRecording}
-          onUploadClick={handleUpload}
+      <div className="relative z-10">
+        <Header
+          onLogoClick={handleLanding}
+          onMenuClick={handleBackToMenu}
+          onAnalysisClick={handleAnalysis}
+          onSongListClick={handleSongList}
+          onGuideClick={handleGuide}
+          onHistoryClick={handleHistory}
+          currentView={view}
+          searchQuery={searchQuery}
+          onSearchChange={handleSearch}
+          isAuthenticated={isAuthenticated}
+          userName={user?.user_metadata?.full_name || user?.email || null}
+          onLoginClick={() => setView("login")}
+          onLogoutClick={logout}
         />
-      )}
 
-      {/* 録音画面 (Recorder) */}
-      {view === "recorder" && (
-        <div className="min-h-screen bg-slate-50 p-8">
-          <button
-            onClick={handleBackToMenu}
-            className="mb-6 text-slate-500 hover:text-blue-600 font-bold flex items-center gap-2 transition-colors"
-          >
-            ← メニューに戻る
-          </button>
+        {/* ランディング画面 (Landing) */}
+        {view === "landing" && (
+          <Landing
+            onRecordClick={handleMenu}
+            onHistoryClick={handleHistory}
+          />
+        )}
 
-          <div className="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-lg">
-            <h2 className="text-2xl font-bold text-slate-800 mb-6 text-center">
-              {isKaraokeMode ? "🎤 カラオケで録音 (BGM除去)" : "🎙️ マイクで録音"}
-            </h2>
-            <Recorder onResult={handleResult} initialUseDemucs={isKaraokeMode} />
+        {/* メニュー画面 (Grid Menu) */}
+        {view === "menu" && (
+          <Home
+            onNormalClick={handleNormalRecording}
+            onKaraokeClick={handleKaraokeRecording}
+            onUploadClick={handleUpload}
+            onHistoryClick={handleHistory}
+          />
+        )}
+
+        {/* 録音画面 (Recorder) */}
+        {view === "recorder" && (
+          <div className="min-h-screen bg-transparent p-8">
+            <button
+              onClick={handleBackToMenu}
+              className="mb-6 text-slate-500 hover:text-blue-600 font-bold flex items-center gap-2 transition-colors"
+            >
+              ← メニューに戻る
+            </button>
+
+            <div className="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-lg">
+              <h2 className="text-2xl font-bold text-slate-800 mb-6 text-center">
+                {isKaraokeMode ? "🎤 カラオケで録音 (BGM除去)" : "🎙️ マイクで録音"}
+              </h2>
+              <Recorder onResult={handleResult} initialUseDemucs={isKaraokeMode} />
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* アップロード画面 (KaraokeUploader) */}
-      {view === "uploader" && (
-        <div className="min-h-screen bg-slate-50 p-8">
-          <button
-            onClick={handleBackToMenu}
-            className="mb-6 text-slate-500 hover:text-blue-600 font-bold flex items-center gap-2 transition-colors"
-          >
-            ← メニューに戻る
-          </button>
+        {/* アップロード画面 (KaraokeUploader) */}
+        {view === "uploader" && (
+          <div className="min-h-screen bg-transparent p-8">
+            <button
+              onClick={handleBackToMenu}
+              className="mb-6 text-slate-500 hover:text-blue-600 font-bold flex items-center gap-2 transition-colors"
+            >
+              ← メニューに戻る
+            </button>
 
-          <div className="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-lg">
-            <KaraokeUploader onResult={handleResult} />
+            <div className="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-lg">
+              <KaraokeUploader onResult={handleResult} />
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* 結果表示画面 (ResultView) */}
-      {view === "result" && (
-        <div className="min-h-screen bg-slate-50 p-8">
-          <button
-            onClick={handleBackToMenu}
-            className="mb-6 text-slate-500 hover:text-blue-600 font-bold flex items-center gap-2 transition-colors"
-          >
-            ← トップへ戻る
-          </button>
+        {/* 結果表示画面 (ResultView) */}
+        {view === "result" && (
+          <div className="min-h-screen bg-transparent p-8">
+            <button
+              onClick={handleBackToMenu}
+              className="mb-6 text-slate-500 hover:text-blue-600 font-bold flex items-center gap-2 transition-colors"
+            >
+              ← トップへ戻る
+            </button>
 
-          <div className="max-w-3xl mx-auto bg-white p-8 rounded-2xl shadow-lg">
-            {result && <ResultView result={result} />}
+            <div className="max-w-3xl mx-auto bg-transparent p-0 rounded-2xl">
+              {result && <ResultView result={result} />}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* 分析結果画面 (AnalysisResultPage) */}
-      {view === "analysis" && (
-        <div className="min-h-screen bg-slate-50">
-          <AnalysisResultPage result={result} />
-        </div>
-      )}
+        {/* 分析結果画面 (AnalysisResultPage) */}
+        {view === "analysis" && (
+          <div className="min-h-screen bg-transparent">
+            <AnalysisResultPage result={result} />
+          </div>
+        )}
 
-      {/* 楽曲一覧画面 (SongListPage) */}
-      {view === "songList" && (
-        <SongListPage searchQuery={searchQuery} userRange={userRange} />
-      )}
+        {/* 楽曲一覧画面 (SongListPage) */}
+        {view === "songList" && (
+          <SongListPage searchQuery={searchQuery} userRange={userRange} />
+        )}
 
-      {/* 使い方ガイド */}
-      {view === "guide" && <GuidePage />}
+        {/* 使い方ガイド */}
+        {view === "guide" && <GuidePage />}
 
-      {/* 履歴画面 (Placeholder) */}
-      {view === "history" && <PlaceholderPage title="履歴" />}
+        {/* 履歴画面 (Placeholder) */}
+        {view === "history" && <PlaceholderPage title="履歴" />}
 
-      {/* マイページ画面 (Placeholder) */}
-      {view === "mypage" && <PlaceholderPage title="マイページ" />}
+        {/* マイページ画面 (Placeholder) */}
+        {view === "mypage" && <PlaceholderPage title="マイページ" />}
 
-      {/* Bottom Navigation (Mobile Only) */}
-      <BottomNav currentView={view} onViewChange={setView} />
+        {/* ログイン画面 */}
+        {view === "login" && <LoginPage />}
+
+        {/* Bottom Navigation (Mobile Only) */}
+        <BottomNav
+          currentView={view}
+          onViewChange={setView}
+          isAuthenticated={isAuthenticated}
+        />
+      </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }

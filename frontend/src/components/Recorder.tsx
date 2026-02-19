@@ -233,7 +233,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
 
   return (
     <div className="flex flex-col items-center w-full">
-      <div className="relative w-full max-w-4xl h-[500px] bg-slate-500 rounded-3xl overflow-hidden shadow-inner flex flex-col items-center justify-center">
+      <div className="relative w-full max-w-4xl h-[500px] bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-3xl overflow-hidden shadow-inner flex flex-col items-center justify-center">
         {recording && (
           <canvas
             ref={canvasRef}
