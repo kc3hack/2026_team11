@@ -117,7 +117,8 @@ def _compute_hnr(y: np.ndarray, sr: int, f0: float) -> float:
 # ============================================================
 # ML推論
 # ============================================================
-def _classify_ml(y: np.ndarray, sr: int, f0: float) -> str | None:
+def _classify_ml(y: np.ndarray, sr: int, f0: float,
+                  crepe_conf: float = 1.0) -> str | None:
     """MLモデルで判定。モデルがないか特徴抽出に失敗したら None を返す"""
     _load_model_if_needed()  # モデル更新チェック（mtime比較のみ、軽量）
 
@@ -136,7 +137,15 @@ def _classify_ml(y: np.ndarray, sr: int, f0: float) -> str | None:
         confidence = float(proba[pred])
 
         # 信頼度が低い場合はルールベースにフォールバック
-        if confidence < 0.6:
+        # 遷移帯域（<500Hz）では地声/裏声の音響特徴が類似するため高い信頼度を要求
+        if f0 < 500:
+            threshold = 0.75
+        elif crepe_conf < 0.55:
+            # CREPE信頼度低 + 高f0 → ノイズの可能性高い。ML確信を強く要求
+            threshold = 0.80
+        else:
+            threshold = 0.70
+        if confidence < threshold:
             return None
 
         return label
@@ -148,7 +157,8 @@ def _classify_ml(y: np.ndarray, sr: int, f0: float) -> str | None:
 # ============================================================
 # ルールベース判定（フォールバック）
 # ============================================================
-def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float) -> str:
+def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float,
+                    crepe_conf: float = 1.0) -> str:
     """従来のルールベース判定"""
     # FFT
     n_fft    = 8192
@@ -178,6 +188,11 @@ def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float) -> st
     # スコア判定
     chest_score    = 0.0
     falsetto_score = 0.0
+
+    # CREPE信頼度ペナルティ: 低信頼度フレームはノイズの可能性が高く、
+    # ノイズは裏声に偏りがち（低HNR、少ない倍音）なので地声方向に補正
+    if crepe_conf < 0.55:
+        chest_score += 1.5
 
     # H1-H2
     if h1_h2 >= 7:
@@ -242,15 +257,18 @@ def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float) -> st
     elif cr > 6.5:
         chest_score += 1.5
 
-    # f0補正
+    # f0補正（高音バイアスを半減: ノイズの裏声誤判定を抑制）
     if f0 > 600:
-        falsetto_score += 2.0
-    elif f0 > 500:
         falsetto_score += 1.0
+    elif f0 > 500:
+        falsetto_score += 0.5
+    # f0>400（遷移帯域）: 削除 — スペクトル特徴に委ねる
     elif f0 < 220:
         chest_score += 3.0
     elif f0 < 295:
         chest_score += 1.5
+    elif f0 < 350:
+        chest_score += 0.5      # 下位遷移帯域: 地声寄り
 
     # 判定
     total = chest_score + falsetto_score
@@ -275,16 +293,18 @@ def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float) -> st
 # メインAPI（analyzer.pyから呼ばれる）
 # ============================================================
 def classify_register(y: np.ndarray, sr: int, f0: float, median_freq: float = 0,
-                      already_separated: bool = False) -> str:
+                      already_separated: bool = False,
+                      crepe_conf: float = 1.0) -> str:
     """
     地声/裏声を判定する。
 
-    1. f0 < 270Hz → 地声確定
-    2. MLモデルがあればMLで判定
-    3. MLがないか低信頼度ならルールベースにフォールバック
+    1. crepe_conf < 0.35 → unknown（ノイズゲート）
+    2. f0 < 270Hz → 地声確定
+    3. MLモデルがあればMLで判定
+    4. MLがないか低信頼度ならルールベースにフォールバック
     """
     global _ML_STATUS_LOGGED
-    
+
     # 初回のみMLモデル状態をログ出力
     if not _ML_STATUS_LOGGED:
         _load_model_if_needed()
@@ -297,17 +317,21 @@ def classify_register(y: np.ndarray, sr: int, f0: float, median_freq: float = 0,
                 print(f"[INFO] MLモデル: ロード失敗または特徴抽出器なし")
             print(f"[INFO] ルールベース判定を使用します")
         _ML_STATUS_LOGGED = True
-    
+
     if f0 <= 0 or len(y) < 512:
+        return "unknown"
+
+    # CREPE信頼度ノイズゲート: ピッチ推定自体が不確かなフレームは判定しない
+    if crepe_conf < 0.35:
         return "unknown"
 
     if f0 < FALSETTO_HARD_MIN_HZ:
         return "chest"
 
-    # ML判定を試行
-    ml_result = _classify_ml(y, sr, f0)
+    # ML判定を試行（crepe_confを伝搬）
+    ml_result = _classify_ml(y, sr, f0, crepe_conf=crepe_conf)
     if ml_result is not None:
         return ml_result
 
-    # フォールバック: ルールベース
-    return _classify_rules(y, sr, f0, median_freq)
+    # フォールバック: ルールベース（crepe_confを伝搬）
+    return _classify_rules(y, sr, f0, median_freq, crepe_conf=crepe_conf)
