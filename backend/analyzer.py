@@ -27,6 +27,10 @@ def fix_octave_errors(f0: np.ndarray, conf: np.ndarray) -> np.ndarray:
     for i, freq in enumerate(f0_fixed):
         if freq <= 0:
             continue
+        # 高音保護: 中央値の2倍以上かつ人声範囲内かつ高信頼度 → 正当な高音跳躍なので補正しない
+        # ノイズフレーム(conf<0.5)は保護せずオクターブ補正の対象に残す
+        if freq > reference * 2 and VOICE_MIN <= freq <= VOICE_MAX and conf[i] >= 0.5:
+            continue
         doubled, halved = freq * 2, freq / 2
         can_up   = VOICE_MIN <= doubled <= VOICE_MAX
         can_down = VOICE_MIN <= halved  <= VOICE_MAX
@@ -40,17 +44,47 @@ def fix_octave_errors(f0: np.ndarray, conf: np.ndarray) -> np.ndarray:
 
 # ============================================================
 # remove_unrealistic_range
-# 中央値±1.5オクターブ超を除去（レジスター判定用）
-# ★ min/maxには使わない
+# 非対称フィルタ: 下限は厳格（サブハーモニクス除去）、上限は緩和（高音保持）
 # ============================================================
 def remove_unrealistic_range(f0: np.ndarray, conf: np.ndarray) -> tuple:
     if len(f0) < 5:
         return f0.copy(), conf.copy()
     hc     = conf >= 0.3
     median = np.median(f0[hc]) if hc.sum() >= 3 else np.median(f0)
-    factor = 2 ** 1.5  # ≒2.83
-    mask   = (f0 >= median / factor) & (f0 <= median * factor)
+    lower_factor = 2 ** 1.5   # 下限: 1.5オクターブ下（サブハーモニクス誤検出を除去）
+    upper_factor = 2 ** 2.0   # 上限: 2.0オクターブ上（高音保持しつつノイズ抑制）
+    mask = (f0 >= median / lower_factor) & (f0 <= median * upper_factor)
     return f0[mask], conf[mask]
+
+
+# ============================================================
+# remove_isolated_extremes
+# 孤立した極端な高音フレームを除去（ノイズ対策の最終防衛線）
+# ============================================================
+def remove_isolated_extremes(notes, min_neighbors=4):
+    """孤立した極端値を除去。1半音以内にmin_neighbors未満のフレームは除外"""
+    if len(notes) < min_neighbors:
+        return notes
+    arr = np.array(notes)
+    median_val = np.median(arr)
+    # 中央値の1.5倍以上のフレームのみチェック（低音側は対象外）
+    high_threshold = median_val * 1.5
+    semitone = 2 ** (1 / 12)  # ≈1.0595
+    result = []
+    removed = 0
+    for f in notes:
+        if f < high_threshold:
+            result.append(f)
+            continue
+        # 1半音以内の近傍フレーム数をカウント
+        neighbors = sum(1 for x in notes if f / semitone <= x <= f * semitone)
+        if neighbors >= min_neighbors:
+            result.append(f)
+        else:
+            removed += 1
+    if removed > 0:
+        print(f"[DEBUG] 孤立フレーム除去: {removed}フレーム削除 (閾値={high_threshold:.1f}Hz以上, 近傍{min_neighbors}未満)")
+    return result if result else notes  # 全除去を防止
 
 
 # ============================================================
@@ -269,18 +303,19 @@ def analyze(wav_path: str, already_separated: bool = False) -> dict:
 
     print(f"\n[STEP 5/7] 📊 音域データ処理中...")
     # --- レジスター判定用フィルタ（min/maxとは独立） ---
-    print(f"[INFO] 異常値除去中 (中央値±1.5オクターブ)...")
+    print(f"[INFO] 異常値除去中 (下1.5oct / 上2.0oct)...")
     f0_reg, conf_reg = remove_unrealistic_range(f0_v, conf_v)
     if len(f0_reg) == 0:
         return {"error": "有効な音域データが残りませんでした。"}
     print(f"[DEBUG] ✅ 残留フレーム: {len(f0_reg)}個")
 
     # remove_unrealistic_range後もvalid_indicesを対応させる
-    # remove_unrealistic_rangeの戻り値はマスク適用後なので再計算
-    factor  = 2 ** 1.5
+    # remove_unrealistic_rangeの戻り値はマスク適用後なので再計算（非対称フィルタに合わせる）
+    lower_factor = 2 ** 1.5
+    upper_factor = 2 ** 2.0
     hc      = conf_v >= 0.3
     median0 = np.median(f0_v[hc]) if hc.sum() >= 3 else np.median(f0_v)
-    reg_mask = (f0_v >= median0 / factor) & (f0_v <= median0 * factor)
+    reg_mask = (f0_v >= median0 / lower_factor) & (f0_v <= median0 * upper_factor)
     valid_indices_reg = valid_indices_filtered[reg_mask]
 
     print(f"[INFO] オクターブエラー修正中...")
@@ -319,7 +354,8 @@ def analyze(wav_path: str, already_separated: bool = False) -> dict:
         if len(frame) < 512:
             continue
         try:
-            reg = classify_register(frame, sr_crepe, freq, median_freq, already_separated)
+            reg = classify_register(frame, sr_crepe, freq, median_freq, already_separated,
+                                    crepe_conf=float(conf_reg[i]))
             if reg == "falsetto":
                 falsetto_notes.append(freq)
             elif reg == "chest":
@@ -353,21 +389,36 @@ def analyze(wav_path: str, already_separated: bool = False) -> dict:
             if high_chest and high_falsetto:
                 print(f"[DEBUG] → 地声最高: {max(high_chest):.1f}Hz, 裏声最高: {max(high_falsetto):.1f}Hz")
 
+    # === 孤立した極端値を除去（ノイズ最終防衛線） ===
+    chest_notes = remove_isolated_extremes(chest_notes)
+    falsetto_notes = remove_isolated_extremes(falsetto_notes)
+
     # === 最高音付近の混在判定を解消 ===
-    # 最高音から20Hz以内に地声と裏声が両方存在する場合、フレーム数が少ない方を除外
+    # 半音ベースの除外: 2半音分（音名が異なることを保証）
     if chest_notes and falsetto_notes:
         all_freqs = chest_notes + falsetto_notes
         max_freq = max(all_freqs)
-        high_range_threshold = max_freq - 20  # 最高音から20Hz以内
-        
+        cleanup_factor = 2 ** (2 / 12)  # 2半音 ≈ 1.1225
+        high_range_threshold = max_freq / cleanup_factor
+
         high_chest_frames = [f for f in chest_notes if f >= high_range_threshold]
         high_falsetto_frames = [f for f in falsetto_notes if f >= high_range_threshold]
-        
+
         # 両方存在する場合、最高音付近では裏声を優先（高音は裏声で出すのが自然）
         if high_chest_frames and high_falsetto_frames:
-            # 高音域の地声を除外し、裏声を最高音として採用
             chest_notes = [f for f in chest_notes if f < high_range_threshold]
             print(f"[INFO] 最高音付近の地声{len(high_chest_frames)}フレームを除外（裏声{len(high_falsetto_frames)}フレームを優先採用）")
+
+        # ラベル変換後の安全チェック: 量子化で同じ音名になるケースを防止
+        if chest_notes and falsetto_notes:
+            f_label, _ = hz_to_label_and_hz(max(falsetto_notes))
+            c_label, _ = hz_to_label_and_hz(max(chest_notes))
+            if c_label == f_label:
+                before_count = len(chest_notes)
+                chest_notes = [f for f in chest_notes
+                               if hz_to_label_and_hz(f)[0] != f_label]
+                removed = before_count - len(chest_notes)
+                print(f"[INFO] ラベル一致'{c_label}'の地声{removed}フレームを除外")
 
     print(f"\n[STEP 7/7] 📋 結果集計中...")
     # === overall_min/max はレジスター判定済みnotesから取る ===
