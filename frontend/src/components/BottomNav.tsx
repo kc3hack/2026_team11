@@ -5,9 +5,10 @@ import { MicrophoneIcon as MicrophoneIconSolid } from '@heroicons/react/24/solid
 interface BottomNavProps {
     currentView: string;
     onViewChange: (view: any) => void;
+    isAuthenticated?: boolean;
 }
 
-const BottomNav: React.FC<BottomNavProps> = ({ currentView, onViewChange }) => {
+const BottomNav: React.FC<BottomNavProps> = ({ currentView, onViewChange, isAuthenticated = false }) => {
     // Helper to determine active state style
     const getItemClass = (viewName: string) => {
         return currentView === viewName
@@ -61,13 +62,15 @@ const BottomNav: React.FC<BottomNavProps> = ({ currentView, onViewChange }) => {
                     <span className="text-[10px] font-medium">分析結果</span>
                 </button>
 
-                {/* 5. My Page */}
+                {/* 5. My Page / Login */}
                 <button
-                    onClick={() => onViewChange('mypage')} // Placeholder view
-                    className={`flex-1 flex flex-col items-center justify-end h-full py-1 ${getItemClass('mypage')}`}
+                    onClick={() => onViewChange(isAuthenticated ? 'mypage' : 'login')}
+                    className={`flex-1 flex flex-col items-center justify-end h-full py-1 ${getItemClass(isAuthenticated ? 'mypage' : 'login')}`}
                 >
                     <UserCircleIcon className="w-6 h-6 mb-1" />
-                    <span className="text-[10px] font-medium">マイページ</span>
+                    <span className="text-[10px] font-medium">
+                        {isAuthenticated ? 'マイページ' : 'ログイン'}
+                    </span>
                 </button>
             </div>
         </div>

@@ -6,11 +6,13 @@ import ResultView from "./components/ResultView";
 import AnalysisResultPage from "./AnalysisResultPage";
 import Header from "./components/Header";
 import GuidePage from "./GuidePage";
+import LoginPage from "./LoginPage";
 
 import SongListPage from "./SongListPage";
 import PlaceholderPage from "./PlaceholderPage";
 import BottomNav from "./components/BottomNav";
 import { UserRange } from "./api";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 
 // 画面の状態を定義
 type ViewState =
@@ -22,7 +24,8 @@ type ViewState =
   | "songList"
   | "history"
   | "mypage"
-  | "guide";
+  | "guide"
+  | "login";
 
 // localStorageキー
 const RANGE_STORAGE_KEY = "voiceRange";
@@ -56,7 +59,8 @@ function saveResult(result: any) {
   localStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify(result));
 }
 
-export default function App() {
+function AppContent() {
+  const { user, isAuthenticated, loginWithGoogle, logout } = useAuth();
   const [view, setView] = useState<ViewState>("menu");
   const [isKaraokeMode, setIsKaraokeMode] = useState(false);
   const [result, setResult] = useState<any>(loadSavedResult);
@@ -141,6 +145,10 @@ export default function App() {
         currentView={view}
         searchQuery={searchQuery}
         onSearchChange={handleSearch}
+        isAuthenticated={isAuthenticated}
+        userName={user?.user_metadata?.full_name || user?.email || null}
+        onLoginClick={() => setView("login")}
+        onLogoutClick={logout}
       />
 
       {/* メニュー画面 */}
@@ -229,8 +237,23 @@ export default function App() {
       {/* マイページ画面 (Placeholder) */}
       {view === "mypage" && <PlaceholderPage title="マイページ" />}
 
+      {/* ログイン画面 */}
+      {view === "login" && <LoginPage />}
+
       {/* Bottom Navigation (Mobile Only) */}
-      <BottomNav currentView={view} onViewChange={setView} />
+      <BottomNav
+        currentView={view}
+        onViewChange={setView}
+        isAuthenticated={isAuthenticated}
+      />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }

@@ -9,6 +9,10 @@ interface HeaderProps {
     currentView: string;
     searchQuery?: string;
     onSearchChange?: (query: string) => void;
+    isAuthenticated?: boolean;
+    userName?: string | null;
+    onLoginClick?: () => void;
+    onLogoutClick?: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -18,7 +22,11 @@ const Header: React.FC<HeaderProps> = ({
     onGuideClick,
     currentView,
     searchQuery = "",
-    onSearchChange
+    onSearchChange,
+    isAuthenticated = false,
+    userName = null,
+    onLoginClick,
+    onLogoutClick
 }) => {
     return (
         <header className="hidden md:flex items-center justify-between px-8 py-4 bg-white shadow-sm sticky top-0 z-50">
@@ -86,13 +94,29 @@ const Header: React.FC<HeaderProps> = ({
                     )}
                 </div>
 
-                {/* User Profile */}
-                <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium hidden sm:block text-slate-600">ユーザー名</span>
-                    <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center text-slate-500 text-xs shadow-sm border border-white">
-                        icon
+                {/* User Profile / Login */}
+                {isAuthenticated ? (
+                    <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium hidden sm:block text-slate-600">
+                            {userName || "ユーザー"}
+                        </span>
+                        <button
+                            type="button"
+                            onClick={onLogoutClick}
+                            className="text-xs text-slate-400 hover:text-red-500 transition-colors bg-transparent border-0 cursor-pointer"
+                        >
+                            ログアウト
+                        </button>
                     </div>
-                </div>
+                ) : (
+                    <button
+                        type="button"
+                        onClick={onLoginClick}
+                        className="text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-full px-5 py-2 transition-colors border-0 cursor-pointer"
+                    >
+                        ログイン
+                    </button>
+                )}
             </div>
         </header>
     );
