@@ -1,3 +1,4 @@
+import React from 'react'; // 【修正】Reactをインポート（これがないとビルドエラーになります）
 import logo from '../assets/logo.png';
 
 interface HeaderProps {
@@ -63,10 +64,12 @@ const Header: React.FC<HeaderProps> = ({
 
             <div className="flex items-center gap-6">
                 {/* Search Bar */}
-                <div className="relative hidden lg:block">
+                {/* 【修正】role="search"を追加してアクセシビリティを向上 */}
+                <div className="relative hidden lg:block" role="search">
                     <input
                         type="text"
                         placeholder="サイト内楽曲検索"
+                        aria-label="サイト内楽曲検索" /* 【修正】ラベルを追加 */
                         value={searchQuery}
                         onChange={(e) => onSearchChange?.(e.target.value)}
                         className="bg-slate-100 text-sm rounded-full px-5 py-2.5 pr-9 w-64 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white transition-all placeholder-slate-400 text-slate-700"

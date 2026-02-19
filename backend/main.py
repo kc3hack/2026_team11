@@ -28,9 +28,6 @@ from database_supabase import (
     add_favorite_song, remove_favorite_song, get_favorite_songs, is_favorite
 )
 
-# SQLite初期化（テーブル確認・マイグレーション）
-init_db()
-
 # 認証関連
 from auth import (
     get_current_user, get_optional_user,
@@ -47,6 +44,11 @@ from models import (
 )
 
 app = FastAPI(title="Voice Range Analysis API")
+
+# 【修正】DB初期化をサーバー起動時に実行するように変更
+@app.on_event("startup")
+def on_startup():
+    init_db()
 
 app.add_middleware(
     CORSMiddleware,
@@ -432,7 +434,11 @@ async def analyze_karaoke(
         print(f"[API] ✅ 変換完了: {converted_wav_path}")
 
         print(f"\n[API] [3/4] Demucsボーカル分離実行中...")
-        vocal_path = separate_vocals(converted_wav_path, output_dir=SEPARATED_DIR)
+        vocal_path = separate_vocals(
+            converted_wav_path,
+            output_dir=SEPARATED_DIR,
+            ultra_fast_mode=True,
+        )
         print(f"[API] ✅ ボーカル分離完了: {vocal_path}")
 
         print(f"\n[API] [4/4] 音域解析実行中...")
