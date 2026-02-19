@@ -215,9 +215,9 @@ def analyze(wav_path: str, already_separated: bool = False) -> dict:
     sr_crepe     = 16000
     print(f"[INFO] リサンプリング中: {sr}Hz → {sr_crepe}Hz")
     y_16k        = librosa.resample(y, orig_sr=sr, target_sr=sr_crepe) if sr != sr_crepe else y.copy()
-    hop_length   = 80   # 5ms
+    hop_length   = 160  # 10ms (高速化: フレーム数半減)
     device       = 'cuda' if torch.cuda.is_available() else 'cpu'
-    print(f"[INFO] デバイス: {device.upper()} (hop_length={hop_length})")
+    print(f"[INFO] デバイス: {device.upper()} (hop_length={hop_length}ms → フレーム数半減)")
     audio_tensor = torch.tensor(np.copy(y_16k)).unsqueeze(0)
     print(f"[DEBUG] ✅ 前処理完了: tensor shape={audio_tensor.shape}")
 
