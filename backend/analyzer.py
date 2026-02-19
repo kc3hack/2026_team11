@@ -164,9 +164,10 @@ def run_crepe(audio_tensor, sr, hop_length, device, model_size='tiny'):
         fmin=65, fmax=1400, model=model_size,
         batch_size=2048, device=device, return_periodicity=True,
     )
+    # 高速化: weighted_argmax優先（viterbiより2-3倍高速）
     for name, get_dec in [
-        ("viterbi",         lambda: torchcrepe.decode.viterbi),
         ("weighted_argmax", lambda: torchcrepe.decode.weighted_argmax),
+        ("viterbi",         lambda: torchcrepe.decode.viterbi),
         ("none",            None),
     ]:
         try:
@@ -340,6 +341,34 @@ def analyze(wav_path: str, already_separated: bool = False) -> dict:
         print(f"[WARN] レジスター判定結果なし。全フレームを地声として処理")
         chest_notes = f0_reg_fixed.tolist()
 
+    # デバッグ: 最高音付近（上位10Hz）の判定状況を確認
+    if chest_notes or falsetto_notes:
+        all_freqs = chest_notes + falsetto_notes
+        if all_freqs:
+            max_freq = max(all_freqs)
+            high_threshold = max_freq - 10  # 最高音から10Hz以内
+            high_chest = [f for f in chest_notes if f >= high_threshold]
+            high_falsetto = [f for f in falsetto_notes if f >= high_threshold]
+            print(f"[DEBUG] 最高音付近（{high_threshold:.1f}Hz以上）: 地声{len(high_chest)}フレーム, 裏声{len(high_falsetto)}フレーム")
+            if high_chest and high_falsetto:
+                print(f"[DEBUG] → 地声最高: {max(high_chest):.1f}Hz, 裏声最高: {max(high_falsetto):.1f}Hz")
+
+    # === 最高音付近の混在判定を解消 ===
+    # 最高音から20Hz以内に地声と裏声が両方存在する場合、フレーム数が少ない方を除外
+    if chest_notes and falsetto_notes:
+        all_freqs = chest_notes + falsetto_notes
+        max_freq = max(all_freqs)
+        high_range_threshold = max_freq - 20  # 最高音から20Hz以内
+        
+        high_chest_frames = [f for f in chest_notes if f >= high_range_threshold]
+        high_falsetto_frames = [f for f in falsetto_notes if f >= high_range_threshold]
+        
+        # 両方存在する場合、最高音付近では裏声を優先（高音は裏声で出すのが自然）
+        if high_chest_frames and high_falsetto_frames:
+            # 高音域の地声を除外し、裏声を最高音として採用
+            chest_notes = [f for f in chest_notes if f < high_range_threshold]
+            print(f"[INFO] 最高音付近の地声{len(high_chest_frames)}フレームを除外（裏声{len(high_falsetto_frames)}フレームを優先採用）")
+
     print(f"\n[STEP 7/7] 📋 結果集計中...")
     # === overall_min/max はレジスター判定済みnotesから取る ===
     # get_min_max_from_crepeはconf閾値が異なるため「どこから来たか分からない数字」になる
@@ -372,6 +401,14 @@ def analyze(wav_path: str, already_separated: bool = False) -> dict:
 
     add_range(chest_notes,    "chest")
     add_range(falsetto_notes, "falsetto")
+
+    # デバッグ: 地声と裏声の最高音Hz値を出力
+    if chest_notes and falsetto_notes:
+        chest_max_hz = float(np.max(chest_notes))
+        falsetto_max_hz = float(np.max(falsetto_notes))
+        print(f"[DEBUG] 地声最高音: {chest_max_hz:.1f}Hz, 裏声最高音: {falsetto_max_hz:.1f}Hz")
+        if abs(chest_max_hz - falsetto_max_hz) < 5:
+            print(f"[WARN] ⚠️ 地声と裏声の最高音が近い（差: {abs(chest_max_hz - falsetto_max_hz):.1f}Hz）")
 
     ovr_min_label, ovr_min_hz = to_label(overall_min)
     ovr_max_label, ovr_max_hz = to_label(overall_max)
