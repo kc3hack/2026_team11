@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { getSongs, UserRange } from './api';
 
 interface Song {
@@ -14,6 +14,11 @@ interface Song {
     fit?: string;
 }
 
+interface ArtistSummary {
+    name: string;
+    songCount: number;
+}
+
 interface SongListPageProps {
     searchQuery?: string;
     userRange?: UserRange | null;
@@ -22,14 +27,12 @@ interface SongListPageProps {
 /* キーバッジの色 */
 const keyBadge = (key: number, fit?: string) => {
     const label = key === 0 ? "±0" : key > 0 ? `+${key}` : `${key}`;
-
     let color: string;
     if (fit === "perfect") color = "bg-emerald-100 text-emerald-700";
     else if (fit === "good") color = "bg-sky-100 text-sky-700";
     else if (fit === "ok") color = "bg-amber-100 text-amber-700";
     else if (fit === "hard") color = "bg-rose-100 text-rose-600";
     else color = "bg-slate-100 text-slate-400";
-
     return (
         <span className={`inline-flex items-center justify-center min-w-[2.5rem] h-6 rounded-full text-xs font-bold ${color}`}>
             {label}
@@ -43,12 +46,15 @@ const SongListPage: React.FC<SongListPageProps> = ({ searchQuery = "", userRange
     const [error, setError] = useState<string | null>(null);
     const [page, setPage] = useState(0);
     const [debouncedQuery, setDebouncedQuery] = useState("");
-    const LIMIT = 20;
+    const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
+    const LIMIT = 500;
 
+    // 検索デバウンス
     useEffect(() => {
         const timer = setTimeout(() => {
             setDebouncedQuery(searchQuery);
             setPage(0);
+            setSelectedArtist(null); // 検索したらアーティスト選択解除
         }, 500);
         return () => clearTimeout(timer);
     }, [searchQuery]);
@@ -72,6 +78,34 @@ const SongListPage: React.FC<SongListPageProps> = ({ searchQuery = "", userRange
         }
     };
 
+    // アーティスト別にグループ化（50音順）
+    const artistList: ArtistSummary[] = useMemo(() => {
+        const map = new Map<string, number>();
+        for (const song of songs) {
+            const artist = song.artist || "不明";
+            map.set(artist, (map.get(artist) || 0) + 1);
+        }
+        return Array.from(map.entries())
+            .sort(([a], [b]) => a.localeCompare(b, "ja"))
+            .map(([name, songCount]) => ({ name, songCount }));
+    }, [songs]);
+
+    // 選択中アーティストの曲
+    const artistSongs: Song[] = useMemo(() => {
+        if (!selectedArtist) return [];
+        return songs
+            .filter(s => s.artist === selectedArtist)
+            .sort((a, b) => a.title.localeCompare(b.title, "ja"));
+    }, [songs, selectedArtist]);
+
+    const handleArtistClick = (artistName: string) => {
+        setSelectedArtist(artistName);
+    };
+
+    const handleBack = () => {
+        setSelectedArtist(null);
+    };
+
     const handleNext = () => {
         if (songs.length === LIMIT) setPage(p => p + 1);
     };
@@ -81,71 +115,126 @@ const SongListPage: React.FC<SongListPageProps> = ({ searchQuery = "", userRange
 
     const hasKeyData = userRange && songs.some(s => s.recommended_key !== undefined);
 
+    // =========================================================
+    // アーティスト詳細ビュー（曲一覧）
+    // =========================================================
+    if (selectedArtist) {
+        return (
+            <div className="flex flex-col items-center min-h-[calc(100vh-80px)] bg-slate-50 p-4 sm:p-8">
+                {/* 戻るボタン + アーティスト名 */}
+                <div className="w-full max-w-5xl mb-6">
+                    <button
+                        onClick={handleBack}
+                        className="text-slate-500 hover:text-blue-600 font-bold flex items-center gap-2 transition-colors mb-4"
+                    >
+                        ← アーティスト一覧に戻る
+                    </button>
+                    <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-md">
+                            {selectedArtist.charAt(0)}
+                        </div>
+                        <div>
+                            <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">{selectedArtist}</h1>
+                            <p className="text-sm text-slate-400">{artistSongs.length}曲</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 曲テーブル */}
+                <div className="w-full max-w-5xl bg-white shadow-md rounded-xl overflow-hidden">
+                    <table className="w-full text-left">
+                        <thead>
+                            <tr className="bg-slate-50 text-xs text-slate-400 uppercase border-b border-slate-100">
+                                <th className="py-3 px-5 font-medium">#</th>
+                                <th className="py-3 px-4 font-medium">Title</th>
+                                <th className="py-3 px-4 font-medium">Lowest</th>
+                                <th className="py-3 px-4 font-medium">Highest</th>
+                                <th className="py-3 px-4 font-medium hidden sm:table-cell">Falsetto</th>
+                                {hasKeyData && <th className="py-3 px-4 font-medium text-center">Key</th>}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {artistSongs.map((song, i) => (
+                                <tr key={song.id} className="border-b border-slate-50 hover:bg-blue-50/30 transition-colors text-sm">
+                                    <td className="py-3 px-5 text-slate-400 text-xs">{i + 1}</td>
+                                    <td className="py-3 px-4 text-slate-800 font-medium">{song.title}</td>
+                                    <td className="py-3 px-4 text-slate-500 whitespace-nowrap">{song.lowest_note || '-'}</td>
+                                    <td className="py-3 px-4 text-slate-500 whitespace-nowrap">{song.highest_note || '-'}</td>
+                                    <td className="py-3 px-4 text-slate-500 whitespace-nowrap hidden sm:table-cell">{song.falsetto_note || '-'}</td>
+                                    {hasKeyData && (
+                                        <td className="py-3 px-4 text-center">
+                                            {song.recommended_key !== undefined
+                                                ? keyBadge(song.recommended_key, song.fit)
+                                                : <span className="text-slate-300">-</span>}
+                                        </td>
+                                    )}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    }
+
+    // =========================================================
+    // アーティスト一覧ビュー（デフォルト）
+    // =========================================================
     return (
         <div className="flex flex-col items-center min-h-[calc(100vh-80px)] bg-slate-50 p-4 sm:p-8">
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-2">楽曲一覧</h1>
 
             {userRange && (
-                <p className="text-xs text-slate-400 mb-4">
+                <p className="text-xs text-slate-400 mb-1">
                     あなたの音域に合わせたキーおすすめを表示中
                 </p>
             )}
             {!userRange && (
-                <p className="text-xs text-slate-400 mb-4">
+                <p className="text-xs text-slate-400 mb-1">
                     録音するとキーおすすめが表示されます
+                </p>
+            )}
+
+            {debouncedQuery && (
+                <p className="text-sm text-blue-500 mb-3">
+                    「{debouncedQuery}」の検索結果 — 表示中: {songs.length}件
                 </p>
             )}
 
             {error && <p className="text-red-500 mb-4">{error}</p>}
 
-            <div className="w-full max-w-5xl bg-white shadow-md rounded-lg overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="bg-slate-100 text-slate-600 uppercase text-xs leading-normal">
-                                <th className="py-3 px-4 text-left">Title</th>
-                                <th className="py-3 px-4 text-left">Artist</th>
-                                <th className="py-3 px-4 text-left">Lowest</th>
-                                <th className="py-3 px-4 text-left">Highest</th>
-                                <th className="py-3 px-4 text-left hidden sm:table-cell">Falsetto</th>
-                                {hasKeyData && (
-                                    <th className="py-3 px-4 text-center">Key</th>
-                                )}
-                            </tr>
-                        </thead>
-                        <tbody className="text-slate-600 text-sm">
-                            {songs.map((song) => (
-                                <tr key={song.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                                    <td className="py-3 px-4 font-bold text-slate-800 max-w-[180px] truncate">{song.title}</td>
-                                    <td className="py-3 px-4 text-slate-500 max-w-[140px] truncate">{song.artist}</td>
-                                    <td className="py-3 px-4 whitespace-nowrap">{song.lowest_note || '-'}</td>
-                                    <td className="py-3 px-4 whitespace-nowrap">{song.highest_note || '-'}</td>
-                                    <td className="py-3 px-4 whitespace-nowrap hidden sm:table-cell">{song.falsetto_note || '-'}</td>
-                                    {hasKeyData && (
-                                        <td className="py-3 px-4 text-center">
-                                            {song.recommended_key !== undefined
-                                                ? keyBadge(song.recommended_key, song.fit)
-                                                : <span className="text-slate-300">-</span>
-                                            }
-                                        </td>
-                                    )}
-                                </tr>
-                            ))}
-                            {songs.length === 0 && !loading && (
-                                <tr>
-                                    <td colSpan={hasKeyData ? 6 : 5} className="py-6 text-center text-slate-400">
-                                        表示する楽曲がありません
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+            {/* アーティストカードグリッド */}
+            <div className="w-full max-w-5xl grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+                {artistList.map((artist) => (
+                    <button
+                        key={artist.name}
+                        onClick={() => handleArtistClick(artist.name)}
+                        className="group bg-white rounded-xl shadow-sm hover:shadow-md border border-slate-100 hover:border-blue-200 p-4 text-left transition-all duration-200 hover:-translate-y-0.5"
+                    >
+                        {/* アイコン */}
+                        <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full flex items-center justify-center text-white font-bold text-sm mb-3 group-hover:scale-110 transition-transform shadow-sm">
+                            {artist.name.charAt(0)}
+                        </div>
+                        {/* アーティスト名 */}
+                        <p className="font-bold text-slate-800 text-sm leading-tight truncate group-hover:text-blue-600 transition-colors">
+                            {artist.name}
+                        </p>
+                        {/* 曲数 */}
+                        <p className="text-xs text-slate-400 mt-1">{artist.songCount}曲</p>
+                    </button>
+                ))}
             </div>
 
-            {loading && <p className="mt-4 text-slate-500">読み込み中...</p>}
+            {songs.length === 0 && !loading && (
+                <div className="text-center py-12 text-slate-400">
+                    表示する楽曲がありません
+                </div>
+            )}
 
-            <div className="flex gap-4 mt-6">
+            {loading && <p className="mt-6 text-slate-500">読み込み中...</p>}
+
+            {/* ページネーション */}
+            <div className="flex gap-4 mt-8">
                 <button
                     onClick={handlePrev}
                     disabled={page === 0 || loading}
