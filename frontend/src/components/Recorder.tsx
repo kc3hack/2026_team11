@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { analyzeVoice, analyzeKaraoke } from "../api";
+import { analyzeVoice, analyzeKaraoke, AnalysisResult } from "../api";
 import { MicrophoneIcon, StopIcon } from "@heroicons/react/24/solid";
 
 interface Props {
-  onResult: (data: any) => void;
+  onResult: (data: AnalysisResult) => void;
   initialUseDemucs?: boolean;
 }
 
@@ -17,7 +17,7 @@ const STEPS = [
 const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
   const [recording, setRecording] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [useDemucs, setUseDemucs] = useState(initialUseDemucs);
+  // initialUseDemucs はマウント時に確定するため、useEffect による同期は不要
   const [progress, setProgress] = useState(0);
   const [stepLabel, setStepLabel] = useState("");
 
@@ -34,13 +34,9 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
   const animationIdRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  useEffect(() => {
-    setUseDemucs(initialUseDemucs);
-  }, [initialUseDemucs]);
-
   // Loading animation logic
   useEffect(() => {
-    if (loading && useDemucs) {
+    if (loading && initialUseDemucs) {
       let stepIndex = 0;
       setProgress(STEPS[0].progress);
       setStepLabel(STEPS[0].label);
@@ -52,7 +48,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
           setStepLabel(STEPS[stepIndex].label);
         }
       }, 8000);
-    } else if (loading && !useDemucs) {
+    } else if (loading && !initialUseDemucs) {
       setProgress(50);
       setStepLabel("解析中...");
     } else {
@@ -64,7 +60,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [loading, useDemucs]);
+  }, [loading, initialUseDemucs]);
 
   // クリーンアップ処理
   useEffect(() => {
@@ -75,9 +71,8 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
       if (mediaRecorder.current && mediaRecorder.current.state !== "inactive") {
         mediaRecorder.current.stop();
       }
-      // マイクを確実に停止
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
       }
       if (sourceRef.current) {
@@ -95,7 +90,6 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
   const drawVisualizer = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas || !analyserRef.current || !dataArrayRef.current) {
-      // refs が無い場合はループを停止（再開は startRecording 時）
       return;
     }
 
@@ -105,47 +99,38 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
     const WIDTH = canvas.width;
     const HEIGHT = canvas.height;
 
-    if (dataArrayRef.current) {
-      analyserRef.current.getByteFrequencyData(dataArrayRef.current);
+    analyserRef.current.getByteFrequencyData(dataArrayRef.current);
 
-      // 背景クリア
-      ctx.fillStyle = "rgb(100, 116, 139)";
-      ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    ctx.fillStyle = "rgb(100, 116, 139)";
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-      // グラデーション作成
-      const gradient = ctx.createLinearGradient(0, HEIGHT, 0, 0);
-      gradient.addColorStop(0, '#38bdf8');
-      gradient.addColorStop(1, '#a78bfa');
-      ctx.fillStyle = gradient;
+    const gradient = ctx.createLinearGradient(0, HEIGHT, 0, 0);
+    gradient.addColorStop(0, "#38bdf8");
+    gradient.addColorStop(1, "#a78bfa");
+    ctx.fillStyle = gradient;
 
-      const totalBins = dataArrayRef.current.length;
-      const maxBinIndex = Math.floor(totalBins * 0.4);
+    const totalBins = dataArrayRef.current.length;
+    const maxBinIndex = Math.floor(totalBins * 0.4);
+    const barCount = 80;
+    const barWidth = (WIDTH / barCount) * 0.8;
+    const gap = (WIDTH / barCount) * 0.2;
+    let x = 0;
 
-      const barCount = 80;
-      const barWidth = (WIDTH / barCount) * 0.8;
-      const gap = (WIDTH / barCount) * 0.2;
-
-      let x = 0;
-
-      for (let i = 0; i < barCount; i++) {
-        const percent = i / barCount;
-        const indexMapping = Math.pow(percent, 2.0);
-        const rawIndex = Math.floor(indexMapping * maxBinIndex);
-        const valueIndex = Math.min(rawIndex, totalBins - 1);
-        const v = dataArrayRef.current[valueIndex];
-
-        let barHeight = (v / 255) * HEIGHT * 0.95;
-        if (barHeight < 5) barHeight = 5;
-
-        ctx.fillRect(x, HEIGHT - barHeight, barWidth, barHeight);
-        x += barWidth + gap;
-      }
+    for (let i = 0; i < barCount; i++) {
+      const percent = i / barCount;
+      const indexMapping = Math.pow(percent, 2.0);
+      const rawIndex = Math.floor(indexMapping * maxBinIndex);
+      const valueIndex = Math.min(rawIndex, totalBins - 1);
+      const v = dataArrayRef.current[valueIndex];
+      const barHeight = Math.max((v / 255) * HEIGHT * 0.95, 5);
+      ctx.fillRect(x, HEIGHT - barHeight, barWidth, barHeight);
+      x += barWidth + gap;
     }
 
     animationIdRef.current = requestAnimationFrame(drawVisualizer);
   }, []);
 
-  // 録音開始時の処理
+  // 録音開始
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -162,35 +147,33 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
         if (animationIdRef.current) cancelAnimationFrame(animationIdRef.current);
         const blob = new Blob(chunks.current, { type: "audio/webm" });
 
-
         setLoading(true);
         setProgress(0);
 
         try {
-          let data;
-          if (useDemucs) {
-            data = await analyzeKaraoke(blob, "recording.webm");
-          } else {
-            data = await analyzeVoice(blob);
-          }
-
+          const data = initialUseDemucs
+            ? await analyzeKaraoke(blob, "recording.webm")
+            : await analyzeVoice(blob);
 
           setProgress(100);
           setStepLabel("完了！");
           onResult(data);
-
-
-        } catch (err: any) {
-          // タイムアウトエラーの特別処理
+        } catch (err: unknown) {
+          const axiosErr = err as { code?: string; message?: string; response?: { data?: { error?: string } } };
           let errorMsg: string;
-          if (err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')) {
-            errorMsg = "⏱️ 処理時間が5分を超えたため、タイムアウトしました。録音が長すぎるか、サーバーの負荷が高い可能性があります。もう一度お試しください。";
+          if (
+            axiosErr?.code === "ECONNABORTED" ||
+            axiosErr?.message?.includes("timeout")
+          ) {
+            errorMsg =
+              "⏱️ 処理時間が5分を超えたため、タイムアウトしました。録音が長すぎるか、サーバーの負荷が高い可能性があります。もう一度お試しください。";
           } else {
-            errorMsg = err?.response?.data?.error ||
-              err?.message ||
+            errorMsg =
+              axiosErr?.response?.data?.error ||
+              axiosErr?.message ||
               "解析に失敗しました。もう一度お試しください。";
           }
-          onResult({ error: errorMsg });
+          onResult({ error: errorMsg } as AnalysisResult);
         } finally {
           setTimeout(() => {
             setLoading(false);
@@ -201,26 +184,18 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
       };
 
       if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        audioContextRef.current = new (
+          window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext!
+        )();
       }
 
       const audioCtx = audioContextRef.current;
-
-      if (!audioCtx) {
-        console.error("AudioContextの初期化に失敗しました");
-        return;
-      }
-
       analyserRef.current = audioCtx.createAnalyser();
       analyserRef.current.fftSize = 1024;
 
       if (sourceRef.current) sourceRef.current.disconnect();
-
-
       sourceRef.current = audioCtx.createMediaStreamSource(stream);
       sourceRef.current.connect(analyserRef.current);
-
-
       dataArrayRef.current = new Uint8Array(analyserRef.current.frequencyBinCount);
 
       mediaRecorder.current.start();
@@ -231,7 +206,6 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
           drawVisualizer();
         }
       }, 100);
-
     } catch (e) {
       console.error("録音開始エラー:", e);
       alert("マイクの使用が許可されていないか、エラーが発生しました。");
@@ -242,9 +216,8 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
     if (mediaRecorder.current && mediaRecorder.current.state !== "inactive") {
       mediaRecorder.current.stop();
     }
-    // マイクを停止（ブラウザのマイクインジケータをOFFにする）
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
     if (sourceRef.current) {
@@ -261,7 +234,6 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
   return (
     <div className="flex flex-col items-center w-full">
       <div className="relative w-full max-w-4xl h-[500px] bg-slate-500 rounded-3xl overflow-hidden shadow-inner flex flex-col items-center justify-center">
-
         {recording && (
           <canvas
             ref={canvasRef}
@@ -281,7 +253,9 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
           <div className="absolute inset-0 bg-black/50 z-20 flex flex-col items-center justify-center p-8">
             <div className="w-full max-w-md h-2 bg-slate-700 rounded-full overflow-hidden mb-4">
               <div
-                className={`h-full transition-all duration-1000 ease-out ${progress >= 100 ? 'bg-emerald-500' : 'bg-blue-500'}`}
+                className={`h-full transition-all duration-1000 ease-out ${
+                  progress >= 100 ? "bg-emerald-500" : "bg-blue-500"
+                }`}
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -290,13 +264,17 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
         )}
 
         {!loading && (
-          <div className={`absolute z-20 transition-all duration-500 ease-in-out ${recording ? 'bottom-10' : 'inset-0 flex items-center justify-center'}`}>
+          <div
+            className={`absolute z-20 transition-all duration-500 ease-in-out ${
+              recording ? "bottom-10" : "inset-0 flex items-center justify-center"
+            }`}
+          >
             {!recording ? (
               <button
                 onClick={startRecording}
                 className="w-24 h-24 bg-slate-600 hover:bg-slate-700 rounded-full flex items-center justify-center transition-all transform hover:scale-110 shadow-2xl border-4 border-slate-400 group relative"
               >
-                <span className="absolute inset-0 rounded-full border border-white/30 animate-ping"></span>
+                <span className="absolute inset-0 rounded-full border border-white/30 animate-ping" />
                 <div className="flex flex-col items-center justify-center text-white">
                   <MicrophoneIcon className="w-10 h-10 group-hover:text-blue-300 transition-colors" />
                   <span className="text-xs mt-1 font-bold">START</span>

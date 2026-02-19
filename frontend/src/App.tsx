@@ -6,24 +6,33 @@ import ResultView from "./components/ResultView";
 import AnalysisResultPage from "./AnalysisResultPage";
 import Header from "./components/Header";
 import GuidePage from "./GuidePage";
-
 import SongListPage from "./SongListPage";
 import PlaceholderPage from "./PlaceholderPage";
 import BottomNav from "./components/BottomNav";
-import { UserRange } from "./api";
+import { AnalysisResult, UserRange } from "./api";
 
 // 画面の状態を定義
-type ViewState = "menu" | "recorder" | "uploader" | "result" | "analysis" | "songList" | "history" | "mypage" | "guide";
+type ViewState =
+  | "menu"
+  | "recorder"
+  | "uploader"
+  | "result"
+  | "analysis"
+  | "songList"
+  | "history"
+  | "mypage"
+  | "guide";
 
 // localStorageキー
 const RANGE_STORAGE_KEY = "voiceRange";
-const RESULT_STORAGE_KEY = "lastResult";
 
 function loadSavedRange(): UserRange | null {
   try {
     const saved = localStorage.getItem(RANGE_STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
-  } catch { /* ignore */ }
+    if (saved) return JSON.parse(saved) as UserRange;
+  } catch {
+    /* ignore */
+  }
   return null;
 }
 
@@ -31,28 +40,21 @@ function saveRange(range: UserRange) {
   localStorage.setItem(RANGE_STORAGE_KEY, JSON.stringify(range));
 }
 
-function loadSavedResult(): any | null {
-  try {
-    const saved = localStorage.getItem(RESULT_STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
-  } catch { /* ignore */ }
-  return null;
-}
-
-function saveResult(result: any) {
-  localStorage.setItem(RESULT_STORAGE_KEY, JSON.stringify(result));
-}
-
 export default function App() {
   const [view, setView] = useState<ViewState>("menu");
   const [isKaraokeMode, setIsKaraokeMode] = useState(false);
-  const [result, setResult] = useState<any>(loadSavedResult);
+  const [result, setResult] = useState<AnalysisResult | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [userRange, setUserRange] = useState<UserRange | null>(loadSavedRange);
 
   // 解析結果から音域を抽出して保存
   useEffect(() => {
-    if (result && !result.error && result.chest_min_hz && result.chest_max_hz) {
+    if (
+      result &&
+      !result.error &&
+      result.chest_min_hz &&
+      result.chest_max_hz
+    ) {
       const range: UserRange = {
         chest_min_hz: result.chest_min_hz,
         chest_max_hz: result.chest_max_hz,
@@ -62,7 +64,6 @@ export default function App() {
       }
       setUserRange(range);
       saveRange(range);
-      saveResult(result);
     }
   }, [result]);
 
@@ -94,7 +95,7 @@ export default function App() {
   };
 
   const handleSongList = () => {
-    setSearchQuery("");   // ← 検索クリア（全曲一覧に戻る）
+    setSearchQuery("");
     setView("songList");
   };
 
@@ -102,13 +103,17 @@ export default function App() {
     setView("guide");
   };
 
-  const handleResult = (data: any) => {
+  const handleHistory = () => {
+    setView("history");
+  };
+
+  const handleResult = (data: AnalysisResult) => {
     setResult(data);
     setView("result");
   };
 
   const handleBackToMenu = () => {
-    setSearchQuery("");   // ← 検索もクリア
+    setSearchQuery("");
     setView("menu");
   };
 
@@ -125,6 +130,7 @@ export default function App() {
         onAnalysisClick={handleAnalysis}
         onSongListClick={handleSongList}
         onGuideClick={handleGuide}
+        onHistoryClick={handleHistory}
         currentView={view}
         searchQuery={searchQuery}
         onSearchChange={handleSearch}
@@ -153,10 +159,7 @@ export default function App() {
             <h2 className="text-2xl font-bold text-slate-800 mb-6 text-center">
               {isKaraokeMode ? "🎤 カラオケで録音 (BGM除去)" : "🎙️ マイクで録音"}
             </h2>
-            <Recorder
-              onResult={handleResult}
-              initialUseDemucs={isKaraokeMode}
-            />
+            <Recorder onResult={handleResult} initialUseDemucs={isKaraokeMode} />
           </div>
         </div>
       )}
@@ -172,7 +175,7 @@ export default function App() {
           </button>
 
           <div className="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-lg">
-            <KaraokeUploader />
+            <KaraokeUploader onResult={handleResult} />
           </div>
         </div>
       )}
@@ -188,7 +191,7 @@ export default function App() {
           </button>
 
           <div className="max-w-3xl mx-auto bg-white p-8 rounded-2xl shadow-lg">
-            <ResultView result={result} />
+            {result && <ResultView result={result} />}
           </div>
         </div>
       )}
@@ -206,19 +209,13 @@ export default function App() {
       )}
 
       {/* 使い方ガイド */}
-      {view === "guide" && (
-        <GuidePage />
-      )}
+      {view === "guide" && <GuidePage />}
 
       {/* 履歴画面 (Placeholder) */}
-      {view === "history" && (
-        <PlaceholderPage title="履歴" />
-      )}
+      {view === "history" && <PlaceholderPage title="履歴" />}
 
       {/* マイページ画面 (Placeholder) */}
-      {view === "mypage" && (
-        <PlaceholderPage title="マイページ" />
-      )}
+      {view === "mypage" && <PlaceholderPage title="マイページ" />}
 
       {/* Bottom Navigation (Mobile Only) */}
       <BottomNav currentView={view} onViewChange={setView} />

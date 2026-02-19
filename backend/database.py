@@ -1,12 +1,10 @@
 """
-楽曲音域データベースの接続管理とクエリ関数
-SQLite を使用（Python標準ライブラリ）
+database.py — 楽曲音域データベースの接続管理とクエリ関数
 """
 import sqlite3
 import os
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "songs.db")
-
 
 def get_connection(db_path: str = DB_PATH) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
@@ -14,9 +12,12 @@ def get_connection(db_path: str = DB_PATH) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
+def _escape_like(query: str) -> str:
+    """LIKE句の特殊文字（%, _）をエスケープするヘルパー"""
+    return query.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
 
 def init_db(db_path: str = DB_PATH):
-    """テーブルを作成する（既に存在する場合はスキップ）"""
+    """データベースの初期化とマイグレーション"""
     conn = get_connection(db_path)
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS artists (
@@ -102,6 +103,20 @@ def init_db(db_path: str = DB_PATH):
     """)
     conn.commit()
 
+    # データクレンジング・整合性維持
+    conn.execute("""
+        DELETE FROM songs WHERE id NOT IN (
+            SELECT MIN(id) FROM songs GROUP BY artist_id, title, source
+        )
+    """)
+    conn.execute("UPDATE songs SET note = 'mid2A' WHERE note = 'mmid2A'")
+    conn.execute("""
+        UPDATE artists SET song_count = (
+            SELECT COUNT(*) FROM songs WHERE songs.artist_id = artists.id
+        )
+    """)
+    
+    conn.commit()
     conn.close()
 
 
@@ -161,7 +176,7 @@ def get_artist(artist_id: int) -> dict | None:
 
 
 def get_artists(limit: int = 100, offset: int = 0) -> list[dict]:
-    """アーティスト一覧を取得"""
+    """アーティスト一覧の取得"""
     conn = get_connection()
     try:
         rows = conn.execute("""
@@ -174,9 +189,8 @@ def get_artists(limit: int = 100, offset: int = 0) -> list[dict]:
     finally:
         conn.close()
 
-
 def get_artist_songs(artist_id: int) -> list[dict]:
-    """アーティストの全曲を取得"""
+    """特定のアーティストの楽曲一覧取得"""
     conn = get_connection()
     try:
         rows = conn.execute("""
