@@ -267,7 +267,7 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
       <div className="w-full max-w-3xl flex flex-col mb-4 gap-4">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 drop-shadow-md">楽曲一覧</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 drop-shadow-md">アーティスト一覧</h1>
             <p className="text-xs text-slate-400">{userRange ? "音域に合わせたキーおすすめを表示中" : "録音するとキーおすすめが表示されます"}</p>
           </div>
           {/* あかさたなジャンプボタン */}
