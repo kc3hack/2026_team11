@@ -1,4 +1,5 @@
 import axios from "axios";
+import { supabase } from "./supabaseClient";
 
 // タイムアウト設定: 5分 (300秒)
 // Demucsのボーカル分離は2-4分かかることがあります
@@ -7,6 +8,18 @@ const TIMEOUT_MS = 300000;
 const API = axios.create({
   baseURL: "http://127.0.0.1:8000",
   timeout: TIMEOUT_MS,
+});
+
+// Supabaseのセッショントークンを自動でAuthorizationヘッダーに付与
+API.interceptors.request.use(async (config) => {
+  if (supabase) {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  return config;
 });
 
 // マイク録音用
