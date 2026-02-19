@@ -32,6 +32,7 @@ FALSETTO_HARD_MIN_HZ = 270.0
 _ML_MODEL = None
 _MODEL_PATH = os.path.join(os.path.dirname(__file__), "ml", "models", "register_model.joblib")
 _MODEL_MTIME = 0.0  # モデルファイルの更新日時を記録
+_ML_STATUS_LOGGED = False  # MLモデルの初回状態ログ出力済みフラグ
 
 
 def _load_model_if_needed():
@@ -136,10 +137,8 @@ def _classify_ml(y: np.ndarray, sr: int, f0: float) -> str | None:
 
         # 信頼度が低い場合はルールベースにフォールバック
         if confidence < 0.6:
-            print(f"[REGISTER/ML] f0={f0:.0f}Hz → {label} conf={confidence:.2f} (低信頼度→ルールへ)")
             return None
 
-        print(f"[REGISTER/ML] f0={f0:.0f}Hz → {label} conf={confidence:.2f}")
         return label
     except Exception as e:
         print(f"[WARN] ML推論失敗: {e}")
@@ -286,6 +285,21 @@ def classify_register(y: np.ndarray, sr: int, f0: float, median_freq: float = 0,
     2. MLモデルがあればMLで判定
     3. MLがないか低信頼度ならルールベースにフォールバック
     """
+    global _ML_STATUS_LOGGED
+    
+    # 初回のみMLモデル状態をログ出力
+    if not _ML_STATUS_LOGGED:
+        _load_model_if_needed()
+        if _ML_MODEL is not None and extract_features is not None:
+            print(f"[INFO] 🎯 MLモデル使用中 (from {_MODEL_PATH})")
+        else:
+            if not os.path.exists(_MODEL_PATH):
+                print(f"[INFO] MLモデル: ファイルなし ({_MODEL_PATH})")
+            else:
+                print(f"[INFO] MLモデル: ロード失敗または特徴抽出器なし")
+            print(f"[INFO] ルールベース判定を使用します")
+        _ML_STATUS_LOGGED = True
+    
     if f0 <= 0 or len(y) < 512:
         return "unknown"
 
