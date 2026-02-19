@@ -57,6 +57,7 @@ const SongListPage: React.FC<SongListPageProps> = ({ searchQuery = "", userRange
 
     const [debouncedQuery, setDebouncedQuery] = useState("");
     const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
+
     
     const FETCH_LIMIT = 10000; 
 
