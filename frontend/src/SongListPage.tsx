@@ -52,9 +52,11 @@ const SongListPage: React.FC<SongListPageProps> = ({ searchQuery = "", userRange
 
     const [debouncedQuery, setDebouncedQuery] = useState("");
     const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
+
     
     // APIから一度に取得する上限（曲数制限を実質なくすため大きく設定）
     const FETCH_LIMIT = 10000; 
+
 
     // 検索デバウンス
     useEffect(() => {

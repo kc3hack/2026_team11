@@ -94,6 +94,7 @@ export default function App() {
   };
 
   const handleSongList = () => {
+    setSearchQuery("");   // ← 検索クリア（全曲一覧に戻る）
     setView("songList");
   };
 
@@ -107,7 +108,7 @@ export default function App() {
   };
 
   const handleBackToMenu = () => {
-    setResult(null);
+    setSearchQuery("");   // ← 検索もクリア
     setView("menu");
   };
 
