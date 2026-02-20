@@ -16,6 +16,17 @@ def _escape_like(query: str) -> str:
     """LIKE句の特殊文字（%, _）をエスケープするヘルパー"""
     return query.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
 
+def _hiragana_normalize(text: str) -> str:
+    """カタカナをひらがなに変換して正規化
+    例: "ミセス" -> "みせす"
+    """
+    katakana = "ァィゥェォカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン"
+    hiragana = "ぁぃぅぇぉかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん"
+    
+    # カタカナをひらがなに変換
+    trans_table = str.maketrans(katakana, hiragana)
+    return text.translate(trans_table)
+
 def init_db(db_path: str = DB_PATH):
     """データベースの初期化とマイグレーション"""
     conn = get_connection(db_path)
@@ -129,10 +140,12 @@ def init_db(db_path: str = DB_PATH):
 
 
 def search_songs(query: str, limit: int = 20, offset: int = 0) -> list[dict]:
-    """曲名またはアーティスト名、ふりがなであいまい検索"""
+    """曲名またはアーティスト名、ふりがなであいまい検索（カタカナ対応）"""
     conn = get_connection()
     try:
-        escaped = f"%{_escape_like(query)}%"
+        # カタカナをひらがなに正規化してから検索
+        normalized_query = _hiragana_normalize(query)
+        escaped = f"%{_escape_like(normalized_query)}%"
         # 変更点： a.reading LIKE ? ESCAPE '\\' を追加し、ふりがなも検索対象に！
         rows = conn.execute("""
             SELECT s.id, s.title, a.name as artist,
@@ -200,11 +213,13 @@ def get_artists(limit: int = 100, offset: int = 0) -> list[dict]:
 
 
 def count_artists(query: str = "") -> int:
-    """アーティスト総数を取得"""
+    """アーティスト総数を取得（カタカナ対応）"""
     conn = get_connection()
     try:
         if query:
-            escaped = f"%{_escape_like(query)}%"
+            # カタカナをひらがなに正規化してから検索
+            normalized_query = _hiragana_normalize(query)
+            escaped = f"%{_escape_like(normalized_query)}%"
             row = conn.execute(
                 "SELECT COUNT(*) FROM artists WHERE song_count > 0 AND (name LIKE ? ESCAPE '\\' OR reading LIKE ? ESCAPE '\\')",
                 (escaped, escaped),
@@ -219,10 +234,12 @@ def count_artists(query: str = "") -> int:
 
 
 def search_artists(query: str, limit: int = 100, offset: int = 0) -> list[dict]:
-    """アーティスト名またはふりがなであいまい検索"""
+    """アーティスト名またはふりがなであいまい検索（カタカナ対応）"""
     conn = get_connection()
     try:
-        escaped = f"%{_escape_like(query)}%"
+        # カタカナをひらがなに正規化してから検索
+        normalized_query = _hiragana_normalize(query)
+        escaped = f"%{_escape_like(normalized_query)}%"
         rows = conn.execute("""
             SELECT id, name, slug, song_count, reading
             FROM artists
