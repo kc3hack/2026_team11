@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import logo from '../assets/logo.png';
@@ -20,6 +20,12 @@ const Header: React.FC<HeaderProps> = ({
 }) => {
     const navigate = useNavigate();
     const { logout } = useAuth();
+    const [inputValue, setInputValue] = useState(searchQuery);
+
+    // 外部からsearchQueryが更新された時(クリアボタン等)、inputValueを同期
+    React.useEffect(() => {
+        setInputValue(searchQuery);
+    }, [searchQuery]);
 
     const isActive = (paths: string[]) => paths.some(p => currentPath === p || currentPath.startsWith(p + "/"));
 
@@ -62,14 +68,22 @@ const Header: React.FC<HeaderProps> = ({
                         type="text"
                         placeholder="サイト内楽曲検索"
                         aria-label="サイト内楽曲検索"
-                        value={searchQuery}
-                        onChange={(e) => onSearchChange?.(e.target.value)}
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                onSearchChange?.(inputValue);
+                            }
+                        }}
                         className="bg-slate-800/80 text-sm rounded-full px-5 py-2.5 pr-9 w-64 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:bg-slate-800 transition-all placeholder-slate-500 text-slate-200 border border-slate-700 hover:border-slate-600"
                     />
-                    {searchQuery && (
+                    {inputValue && (
                         <button
                             type="button"
-                            onClick={() => onSearchChange?.("")}
+                            onClick={() => {
+                                setInputValue("");
+                                onSearchChange?.("");
+                            }}
                             className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 bg-transparent border-0 cursor-pointer p-0 leading-none"
                             aria-label="検索をクリア"
                         >

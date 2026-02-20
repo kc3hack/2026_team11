@@ -206,8 +206,8 @@ def count_artists(query: str = "") -> int:
         if query:
             escaped = f"%{_escape_like(query)}%"
             row = conn.execute(
-                "SELECT COUNT(*) FROM artists WHERE song_count > 0 AND name LIKE ? ESCAPE '\\'",
-                (escaped,),
+                "SELECT COUNT(*) FROM artists WHERE song_count > 0 AND (name LIKE ? ESCAPE '\\' OR reading LIKE ? ESCAPE '\\')",
+                (escaped, escaped),
             ).fetchone()
         else:
             row = conn.execute(
@@ -219,17 +219,17 @@ def count_artists(query: str = "") -> int:
 
 
 def search_artists(query: str, limit: int = 100, offset: int = 0) -> list[dict]:
-    """アーティスト名であいまい検索"""
+    """アーティスト名またはふりがなであいまい検索"""
     conn = get_connection()
     try:
         escaped = f"%{_escape_like(query)}%"
         rows = conn.execute("""
             SELECT id, name, slug, song_count, reading
             FROM artists
-            WHERE song_count > 0 AND name LIKE ? ESCAPE '\\'
+            WHERE song_count > 0 AND (name LIKE ? ESCAPE '\\' OR reading LIKE ? ESCAPE '\\')
             ORDER BY reading
             LIMIT ? OFFSET ?
-        """, (escaped, limit, offset)).fetchall()
+        """, (escaped, escaped, limit, offset)).fetchall()
         return [dict(r) for r in rows]
     finally:
         conn.close()

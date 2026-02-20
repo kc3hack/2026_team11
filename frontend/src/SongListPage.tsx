@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { getArtists, getArtistSongs, Artist, UserRange, getFavoriteArtists, addFavoriteArtist, removeFavoriteArtist, getFavorites, addFavorite, removeFavorite, Song } from './api';
+import { getArtists, getArtistSongs, Artist, UserRange, getFavoriteArtists, addFavoriteArtist, removeFavoriteArtist, getFavorites, addFavorite, removeFavorite, Song, getSongs } from './api';
 import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
 import { StarIcon as StarOutline } from '@heroicons/react/24/outline';
 import { HeartIcon } from '@heroicons/react/24/outline';
@@ -178,6 +178,13 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // 楽曲検索結果
+  const [searchSongs, setSearchSongs] = useState<Song[]>([]);
+  const [totalSearchSongs, setTotalSearchSongs] = useState(0);
+  const [searchPage, setSearchPage] = useState(0);
+  const [searchPageInput, setSearchPageInput] = useState("1");
+  const [searchLoading, setSearchLoading] = useState(false);
+
   // 選択中のアーティスト
   const [selectedArtist, setSelectedArtist] = useState<Artist | null>(null);
   const [artistSongs, setArtistSongs] = useState<Song[]>([]);
@@ -207,18 +214,58 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
     }
   }, [searchQuery]);
 
+  // 楽曲検索
+  const fetchSearchSongs = useCallback(async (page: number) => {
+    if (!searchQuery) {
+      setSearchSongs([]);
+      setTotalSearchSongs(0);
+      return;
+    }
+    setSearchLoading(true);
+    try {
+      const songs = await getSongs(10, page * 10, searchQuery, userRange);
+      setSearchSongs(songs);
+      // getSongs はページング情報を返さないので、実際の総数は推測
+      setTotalSearchSongs(Math.max(songs.length, (page + 1) * 10));
+      setError(null);
+    } catch (err: any) {
+      setError("\u697d\u66f2\u691c\u7d22\u306b\u5931\u6557\u3057\u307e\u3057\u305f");
+      setSearchSongs([]);
+      setTotalSearchSongs(0);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, [searchQuery, userRange]);
+
   // 検索クエリが変わったらページをリセット
   useEffect(() => {
-    setArtistPage(0);
-    setSelectedArtist(null);
-    fetchArtists(0);
-  }, [fetchArtists]);
+    if (searchQuery) {
+      setSearchPage(0);
+      setSearchPageInput("1");
+      fetchSearchSongs(0);
+    } else {
+      setArtistPage(0);
+      setPageInput("1");
+      setSelectedArtist(null);
+      fetchArtists(0);
+    }
+  }, [searchQuery, fetchArtists, fetchSearchSongs]);
 
-  // ページが変わったら取得
+  // ページが変わったら取得（アーティスト）
   useEffect(() => {
-    fetchArtists(artistPage);
-    setPageInput((artistPage + 1).toString());
-  }, [artistPage, fetchArtists]);
+    if (!searchQuery) {
+      fetchArtists(artistPage);
+      setPageInput((artistPage + 1).toString());
+    }
+  }, [artistPage, fetchArtists, searchQuery]);
+
+  // ページが変わったら取得（楽曲検索）
+  useEffect(() => {
+    if (searchQuery) {
+      fetchSearchSongs(searchPage);
+      setSearchPageInput((searchPage + 1).toString());
+    }
+  }, [searchPage, fetchSearchSongs, searchQuery]);
 
   // お気に入りアーティスト取得
   useEffect(() => {
@@ -307,15 +354,41 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
   }, [isAuthenticated, onLoginClick]);
 
   const totalPages = Math.ceil(totalArtists / ARTISTS_PER_PAGE);
-  const handleNext = () => { if (artistPage + 1 < totalPages) setArtistPage(p => p + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-  const handlePrev = () => { if (artistPage > 0) setArtistPage(p => p - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-  const handlePageJump = () => {
-    let p = parseInt(pageInput, 10);
-    if (isNaN(p)) { setPageInput((artistPage + 1).toString()); return; }
-    if (p < 1) p = 1; if (p > totalPages) p = totalPages;
-    setArtistPage(p - 1); setPageInput(p.toString());
+  const totalSearchPages = Math.ceil(totalSearchSongs / 10);
+
+  const handleNext = () => {
+    if (searchQuery) {
+      if (searchPage + 1 < totalSearchPages) setSearchPage(p => p + 1);
+    } else {
+      if (artistPage + 1 < totalPages) setArtistPage(p => p + 1);
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  const handlePrev = () => {
+    if (searchQuery) {
+      if (searchPage > 0) setSearchPage(p => p - 1);
+    } else {
+      if (artistPage > 0) setArtistPage(p => p - 1);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handlePageJump = () => {
+    if (searchQuery) {
+      let p = parseInt(searchPageInput, 10);
+      if (isNaN(p)) { setSearchPageInput((searchPage + 1).toString()); return; }
+      if (p < 1) p = 1; if (p > totalSearchPages) p = totalSearchPages;
+      setSearchPage(p - 1); setSearchPageInput(p.toString());
+    } else {
+      let p = parseInt(pageInput, 10);
+      if (isNaN(p)) { setPageInput((artistPage + 1).toString()); return; }
+      if (p < 1) p = 1; if (p > totalPages) p = totalPages;
+      setArtistPage(p - 1); setPageInput(p.toString());
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleIndexJump = (char: string) => {
     const targetRow = INDEX_KANA.indexOf(char);
     if (targetRow === -1) return;
@@ -422,85 +495,203 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
       <div className="w-full max-w-3xl flex flex-col mb-4 gap-4">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 drop-shadow-md">{'\u30a2\u30fc\u30c6\u30a3\u30b9\u30c8\u4e00\u89a7'}</h1>
-            <p className="text-xs text-slate-400">{userRange ? "\u97f3\u57df\u306b\u5408\u308f\u305b\u305f\u30ad\u30fc\u304a\u3059\u3059\u3081\u3092\u8868\u793a\u4e2d" : "\u9332\u97f3\u3059\u308b\u3068\u30ad\u30fc\u304a\u3059\u3059\u3081\u304c\u8868\u793a\u3055\u308c\u307e\u3059"}</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 drop-shadow-md">
+              {searchQuery ? '楽曲検索結果' : 'アーティスト一覧'}
+            </h1>
+            <p className="text-xs text-slate-400">
+              {searchQuery
+                ? `"${searchQuery}" の検索結果`
+                : (userRange ? "音域に合わせたキーおすすめを表示中" : "録音すると、キーおすすめが表示されます")
+              }
+            </p>
           </div>
-          <div className="flex flex-wrap gap-1 justify-end">
-            {INDEX_KANA.map(char => (
-              <button
-                key={char}
-                onClick={() => handleIndexJump(char)}
-                className="w-8 h-8 flex items-center justify-center text-sm font-bold text-slate-400 bg-slate-800/60 border border-slate-700/50 rounded hover:bg-cyan-900/30 hover:text-cyan-400 hover:border-cyan-500/30 transition-colors shadow-sm"
-              >
-                {char}
-              </button>
-            ))}
-          </div>
+          {!searchQuery && (
+            <div className="flex flex-wrap gap-1 justify-end">
+              {INDEX_KANA.map(char => (
+                <button
+                  key={char}
+                  onClick={() => handleIndexJump(char)}
+                  className="w-8 h-8 flex items-center justify-center text-sm font-bold text-slate-400 bg-slate-800/60 border border-slate-700/50 rounded hover:bg-cyan-900/30 hover:text-cyan-400 hover:border-cyan-500/30 transition-colors shadow-sm"
+                >
+                  {char}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
       {error && <p className="text-rose-400 mb-4">{error}</p>}
-      {loading && <p className="mt-6 text-slate-500">{'\u8aad\u307f\u8fbc\u307f\u4e2d...'}</p>}
 
-      <div className="w-full max-w-3xl bg-slate-900/60 backdrop-blur-md rounded-xl shadow-xl border border-white/10 overflow-hidden">
-        {artists.map((artist) => (
-          <div key={artist.id} className="flex items-center w-full border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors">
-            <button
-              onClick={() => handleSelectArtist(artist)}
-              className="flex-1 flex items-center justify-between p-4 text-left group"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm ring-1 ring-white/10">
-                  {artist.name.charAt(0)}
-                </div>
-                <p className="font-bold text-slate-200 group-hover:text-cyan-400 transition-colors">{artist.name}</p>
+      {searchQuery ? (
+        // 楽曲検索結果表示
+        <>
+          {searchLoading ? (
+            <p className="mt-6 text-slate-500">{'読み込み中...'}</p>
+          ) : searchSongs.length === 0 ? (
+            <p className="mt-6 text-slate-400 text-center">該当する楽曲が見つかりません</p>
+          ) : (
+            <div className="w-full max-w-5xl bg-slate-900/60 backdrop-blur-md shadow-xl rounded-xl overflow-hidden border border-white/10">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-slate-800/50 text-xs text-slate-400 uppercase border-b border-white/5">
+                    <th className="py-3 px-5 font-medium">#</th>
+                    <th className="py-3 px-4 font-medium">楽曲</th>
+                    <th className="py-3 px-4 font-medium">アーティスト</th>
+                    <th className="py-3 px-4 font-medium">Lowest</th>
+                    <th className="py-3 px-4 font-medium">Highest</th>
+                    <th className="py-3 px-4 font-medium hidden sm:table-cell">Falsetto</th>
+                    {userRange && <th className="py-3 px-4 font-medium text-center">Key</th>}
+                    <th className="py-3 px-2 font-medium w-10"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {searchSongs.map((song, i) => (
+                    <tr key={song.id} className="border-b border-white/5 hover:bg-white/5 transition-colors text-sm group">
+                      <td className="py-3 px-5 text-slate-500 text-xs">{i + 1}</td>
+                      <td className="py-3 px-4 font-medium">
+                        <a
+                          href={`https://www.google.com/search?q=${encodeURIComponent(`${song.artist} ${song.title} 歌詞`)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-slate-200 hover:text-cyan-400 transition-colors inline-flex items-center gap-1 group/link"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {song.title}
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3 text-slate-500 group-hover/link:text-cyan-400 transition-colors">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                          </svg>
+                        </a>
+                      </td>
+                      <td className="py-3 px-4 text-slate-400 whitespace-nowrap">{song.artist}</td>
+                      <td className="py-3 px-4 text-slate-400 whitespace-nowrap">{song.lowest_note || '-'}</td>
+                      <td className="py-3 px-4 text-slate-400 whitespace-nowrap">{song.highest_note || '-'}</td>
+                      <td className="py-3 px-4 text-slate-400 whitespace-nowrap hidden sm:table-cell">{song.falsetto_note || '-'}</td>
+                      {userRange && (
+                        <td className="py-3 px-4 text-center">
+                          {song.recommended_key !== undefined
+                            ? keyBadge(song.recommended_key, song.fit)
+                            : <span className="text-slate-600">-</span>}
+                        </td>
+                      )}
+                      <td className="py-3 px-2 text-center">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleToggleFavoriteSong(song.id); }}
+                          disabled={togglingIds.has(song.id)}
+                          className="p-1 rounded-full hover:bg-white/10 transition-colors disabled:opacity-50"
+                        >
+                          {favoriteSongIds.has(song.id)
+                            ? <HeartIconSolid className="w-5 h-5 text-rose-500" />
+                            : <HeartIcon className="w-5 h-5 text-slate-500 hover:text-rose-400" />}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      ) : (
+        // アーティスト一覧表示
+        <>
+          {loading && <p className="mt-6 text-slate-500">{'読み込み中...'}</p>}
+
+          <div className="w-full max-w-3xl bg-slate-900/60 backdrop-blur-md rounded-xl shadow-xl border border-white/10 overflow-hidden">
+            {artists.map((artist) => (
+              <div key={artist.id} className="flex items-center w-full border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors">
+                <button
+                  onClick={() => handleSelectArtist(artist)}
+                  className="flex-1 flex items-center justify-between p-4 text-left group"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm ring-1 ring-white/10">
+                      {artist.name.charAt(0)}
+                    </div>
+                    <p className="font-bold text-slate-200 group-hover:text-cyan-400 transition-colors">{artist.name}</p>
+                  </div>
+                  <span className="text-xs text-slate-500 bg-slate-800 px-2 py-1 rounded-full border border-slate-700">{artist.song_count}{'\u66f2'}</span>
+                </button>
+
+                <button
+                  onClick={(e) => toggleFavorite(e, artist.id, artist.name)}
+                  className="p-4 transition-transform hover:scale-125"
+                >
+                  {favoriteIds.includes(artist.id) ? (
+                    <StarSolid className="w-6 h-6 text-amber-400" />
+                  ) : (
+                    <StarOutline className="w-6 h-6 text-slate-600" />
+                  )}
+                </button>
               </div>
-              <span className="text-xs text-slate-500 bg-slate-800 px-2 py-1 rounded-full border border-slate-700">{artist.song_count}{'\u66f2'}</span>
-            </button>
-
-            <button
-              onClick={(e) => toggleFavorite(e, artist.id, artist.name)}
-              className="p-4 transition-transform hover:scale-125"
-            >
-              {favoriteIds.includes(artist.id) ? (
-                <StarSolid className="w-6 h-6 text-amber-400" />
-              ) : (
-                <StarOutline className="w-6 h-6 text-slate-600" />
-              )}
-            </button>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {/* ページネーション */}
-      {!loading && totalArtists > ARTISTS_PER_PAGE && (
-        <div className="flex items-center justify-center gap-4 mt-8">
-          <button
-            onClick={handlePrev}
-            disabled={artistPage === 0}
-            className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors shadow-sm text-sm"
-          >
-            {'\u524d\u306e\u30da\u30fc\u30b8'}
-          </button>
-          <div className="flex items-center gap-2 text-slate-400 text-sm font-medium">
-            <input
-              type="text"
-              value={pageInput}
-              onChange={(e) => setPageInput(e.target.value)}
-              onBlur={handlePageJump}
-              onKeyDown={(e) => e.key === 'Enter' && handlePageJump()}
-              className="w-12 h-9 text-center bg-slate-800 border border-slate-700 rounded-lg focus:ring-2 focus:ring-cyan-500/50 text-slate-200"
-            />
-            <span>/ {totalPages}</span>
-          </div>
-          <button
-            onClick={handleNext}
-            disabled={artistPage + 1 >= totalPages}
-            className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors shadow-sm text-sm"
-          >
-            {'\u6b21\u306e\u30da\u30fc\u30b8'}
-          </button>
-        </div>
+          {/* ページネーション */}
+          {searchQuery ? (
+            // 楽曲検索結果のページネーション
+            !searchLoading && totalSearchSongs > 10 && (
+              <div className="flex items-center justify-center gap-4 mt-8">
+                <button
+                  onClick={handlePrev}
+                  disabled={searchPage === 0}
+                  className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors shadow-sm text-sm"
+                >
+                  {'前のページ'}
+                </button>
+                <div className="flex items-center gap-2 text-slate-400 text-sm font-medium">
+                  <input
+                    type="text"
+                    value={searchPageInput}
+                    onChange={(e) => setSearchPageInput(e.target.value)}
+                    onBlur={handlePageJump}
+                    onKeyDown={(e) => e.key === 'Enter' && handlePageJump()}
+                    className="w-12 h-9 text-center bg-slate-800 border border-slate-700 rounded-lg focus:ring-2 focus:ring-cyan-500/50 text-slate-200"
+                  />
+                  <span>/ {totalSearchPages}</span>
+                </div>
+                <button
+                  onClick={handleNext}
+                  disabled={searchPage + 1 >= totalSearchPages}
+                  className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors shadow-sm text-sm"
+                >
+                  {'次のページ'}
+                </button>
+              </div>
+            )
+          ) : (
+            // アーティスト一覧のページネーション
+            !loading && totalArtists > ARTISTS_PER_PAGE && (
+              <div className="flex items-center justify-center gap-4 mt-8">
+                <button
+                  onClick={handlePrev}
+                  disabled={artistPage === 0}
+                  className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors shadow-sm text-sm"
+                >
+                  {'\u524d\u306e\u30da\u30fc\u30b8'}
+                </button>
+                <div className="flex items-center gap-2 text-slate-400 text-sm font-medium">
+                  <input
+                    type="text"
+                    value={pageInput}
+                    onChange={(e) => setPageInput(e.target.value)}
+                    onBlur={handlePageJump}
+                    onKeyDown={(e) => e.key === 'Enter' && handlePageJump()}
+                    className="w-12 h-9 text-center bg-slate-800 border border-slate-700 rounded-lg focus:ring-2 focus:ring-cyan-500/50 text-slate-200"
+                  />
+                  <span>/ {totalPages}</span>
+                </div>
+                <button
+                  onClick={handleNext}
+                  disabled={artistPage + 1 >= totalPages}
+                  className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors shadow-sm text-sm"
+                >
+                  {'\u6b21\u306e\u30da\u30fc\u30b8'}
+                </button>
+              </div>
+            )
+          )}
+        </>
       )}
     </div>
   );
