@@ -232,62 +232,117 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
   };
 
   return (
-    <div className="flex flex-col items-center w-full">
-      <div className="relative w-full max-w-4xl h-[500px] bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-3xl overflow-hidden shadow-inner flex flex-col items-center justify-center">
-        {recording && (
-          <canvas
-            ref={canvasRef}
-            width={800}
-            height={500}
-            className="absolute inset-0 w-full h-full"
-          />
-        )}
+    <div className="flex flex-col items-center w-full font-sans">
+      <div className="relative w-full max-w-4xl h-[500px] bg-slate-900/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col items-center justify-center group">
 
-        {!recording && !loading && (
-          <div className="absolute inset-0 flex items-center justify-center text-white/20 text-4xl font-bold tracking-widest select-none pointer-events-none">
-            READY
+        {/* Visualizer Canvas during recording */}
+        {recording && (
+          <div className="absolute inset-0 w-full h-full opacity-60">
+            <canvas
+              ref={canvasRef}
+              width={800}
+              height={500}
+              className="absolute inset-0 w-full h-full"
+            />
           </div>
         )}
 
+        {/* Ambient background glow (idle) */}
+        {!recording && !loading && (
+          <>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-cyan-500/20 rounded-full blur-[80px] pointer-events-none"></div>
+            <div className="absolute inset-0 flex items-center justify-center text-cyan-400/10 text-6xl sm:text-8xl md:text-[10rem] font-black italic tracking-widest select-none pointer-events-none drop-shadow-[0_0_15px_rgba(34,211,238,0.3)] z-0 mix-blend-screen">
+              READY
+            </div>
+          </>
+        )}
+
+        {/* Loading State */}
         {loading && (
-          <div className="absolute inset-0 bg-black/50 z-20 flex flex-col items-center justify-center p-8">
-            <div className="w-full max-w-md h-2 bg-slate-700 rounded-full overflow-hidden mb-4">
+          <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-md z-20 flex flex-col items-center justify-center p-8">
+            <div className="w-24 h-24 border-t-4 border-b-4 border-cyan-400 rounded-full animate-spin mb-8 shadow-[0_0_15px_rgba(34,211,238,0.5)]"></div>
+            <div className="w-full max-w-md h-2 bg-slate-800 rounded-full overflow-hidden mb-4 shadow-inner border border-slate-700">
               <div
-                className={`h-full transition-all duration-1000 ease-out ${
-                  progress >= 100 ? "bg-emerald-500" : "bg-blue-500"
-                }`}
+                className={`h-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(34,211,238,0.8)] ${progress >= 100 ? "bg-emerald-400" : "bg-cyan-400"
+                  }`}
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <p className="text-white font-medium animate-pulse">{stepLabel}</p>
+            <p className="text-cyan-300 font-bold italic tracking-wide animate-pulse drop-shadow-[0_0_5px_rgba(34,211,238,0.8)]">{stepLabel}</p>
           </div>
         )}
 
+        {/* Recording Controls */}
         {!loading && (
-          <div
-            className={`absolute z-20 transition-all duration-500 ease-in-out ${
-              recording ? "bottom-10" : "inset-0 flex items-center justify-center"
+          <div className={`absolute z-20 transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${recording ? "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 scale-110" : "inset-0 flex items-center justify-center"
             }`}
           >
             {!recording ? (
+              // --- Idle State Button ---
               <button
                 onClick={startRecording}
-                className="w-24 h-24 bg-slate-600 hover:bg-slate-700 rounded-full flex items-center justify-center transition-all transform hover:scale-110 shadow-2xl border-4 border-slate-400 group relative"
+                className="relative w-28 h-28 bg-slate-800 hover:bg-slate-700 rounded-full flex flex-col items-center justify-center transition-all duration-300 transform hover:scale-110 shadow-[0_0_30px_rgba(34,211,238,0.3)] hover:shadow-[0_0_50px_rgba(34,211,238,0.6)] border-2 border-cyan-500/50 hover:border-cyan-400 group z-10"
               >
-                <span className="absolute inset-0 rounded-full border border-white/30 animate-ping" />
-                <div className="flex flex-col items-center justify-center text-white">
-                  <MicrophoneIcon className="w-10 h-10 group-hover:text-blue-300 transition-colors" />
-                  <span className="text-xs mt-1 font-bold">START</span>
-                </div>
+                {/* Ripple Effect 1 */}
+                <span className="absolute inset-0 rounded-full border-2 border-cyan-400/50 animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite] pointer-events-none" />
+                {/* Ripple Effect 2 (Delayed) */}
+                <span className="absolute inset-0 rounded-full border-2 border-cyan-400/30 animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite_0.5s] pointer-events-none" />
+
+                <MicrophoneIcon className="w-12 h-12 text-slate-300 group-hover:text-cyan-300 transition-colors drop-shadow-[0_0_8px_rgba(34,211,238,0)] group-hover:drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
+                <span className="text-xs mt-1 font-black italic text-cyan-400 tracking-wider">START</span>
               </button>
             ) : (
-              <button
-                onClick={stopRecording}
-                className="w-20 h-20 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center transition-all transform hover:scale-105 shadow-xl border-4 border-red-300 animate-pulse"
-                aria-label="録音を停止"
-              >
-                <StopIcon className="w-10 h-10 text-white" />
-              </button>
+              // --- Recording State Button ---
+              <div className="relative flex items-center justify-center group">
+                {/* 15s Progress Ring SVG */}
+                <svg className="absolute w-[180px] h-[180px] -rotate-90 pointer-events-none drop-shadow-[0_0_10px_rgba(232,121,249,0.8)]">
+                  <circle
+                    cx="90"
+                    cy="90"
+                    r="84"
+                    fill="none"
+                    className="stroke-slate-800"
+                    strokeWidth="6"
+                  />
+                  <circle
+                    cx="90"
+                    cy="90"
+                    r="84"
+                    fill="none"
+                    className="stroke-fuchsia-400 transition-all duration-100 ease-linear"
+                    strokeWidth="6"
+                    strokeDasharray="528" // 2 * PI * 84 roughly 528
+                    strokeDashoffset="528"
+                    style={{
+                      animation: "progressRing 15s linear forwards"
+                    }}
+                  />
+                </svg>
+                {/* Embedded CSS for animation */}
+                <style>{`
+                  @keyframes progressRing {
+                    from { stroke-dashoffset: 528; }
+                    to { stroke-dashoffset: 0; }
+                  }
+                  @keyframes pulseShadow {
+                    0% { box-shadow: 0 0 20px rgba(232,121,249,0.4), inset 0 0 10px rgba(0,0,0,0.5); }
+                    50% { box-shadow: 0 0 50px rgba(232,121,249,0.8), inset 0 0 10px rgba(0,0,0,0.5); }
+                    100% { box-shadow: 0 0 20px rgba(232,121,249,0.4), inset 0 0 10px rgba(0,0,0,0.5); }
+                  }
+                `}</style>
+
+                <button
+                  onClick={stopRecording}
+                  className="w-24 h-24 bg-fuchsia-600 hover:bg-fuchsia-500 rounded-full flex items-center justify-center transition-all transform hover:scale-105 border-4 border-fuchsia-300 relative z-10"
+                  style={{ animation: "pulseShadow 1.5s infinite" }}
+                  aria-label="録音を停止"
+                >
+                  <StopIcon className="w-12 h-12 text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.8)]" />
+
+                  {/* Subtle record indicator icon inside */}
+                  <div className="absolute top-2 right-2 w-3 h-3 bg-white rounded-full animate-ping"></div>
+                </button>
+              </div>
             )}
           </div>
         )}

@@ -200,9 +200,13 @@ function AppContent() {
               ← メニューに戻る
             </button>
 
-            <div className="max-w-2xl mx-auto bg-slate-900/60 backdrop-blur-md p-8 rounded-2xl shadow-xl border border-white/10">
-              <h2 className="text-2xl font-bold text-white mb-6 text-center">
-                {isKaraokeMode ? "🎤 カラオケで録音 (BGM除去)" : "🎙️ マイクで録音"}
+            <div className="max-w-3xl mx-auto bg-slate-900/80 backdrop-blur-xl p-8 sm:p-12 rounded-3xl shadow-[0_0_30px_rgba(0,0,0,0.8)] border border-slate-700/50 relative overflow-hidden">
+              {/* Decoration rings */}
+              <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+              <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-fuchsia-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+              <h2 className="text-3xl sm:text-4xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-400 mb-8 text-center drop-shadow-[0_0_8px_rgba(34,211,238,0.8)] tracking-wider">
+                {isKaraokeMode ? "🎤 KARAOKE RECORDING" : "🎙️ MIC RECORDING"}
               </h2>
               <Recorder onResult={handleResult} initialUseDemucs={isKaraokeMode} />
             </div>
@@ -219,7 +223,11 @@ function AppContent() {
               ← メニューに戻る
             </button>
 
-            <div className="max-w-2xl mx-auto bg-slate-900/60 backdrop-blur-md p-8 rounded-2xl shadow-xl border border-white/10">
+            <div className="max-w-3xl mx-auto bg-slate-900/80 backdrop-blur-xl p-8 sm:p-12 rounded-3xl shadow-[0_0_30px_rgba(0,0,0,0.8)] border border-slate-700/50 relative overflow-hidden">
+              {/* Decoration rings */}
+              <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+              <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-fuchsia-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
               <KaraokeUploader onResult={handleResult} />
             </div>
           </div>
