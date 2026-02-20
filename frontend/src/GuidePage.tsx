@@ -5,6 +5,7 @@ const steps = [
     {
         icon: MicrophoneIcon,
         color: "text-cyan-400",
+        decorationColor: "border-cyan-400",
         borderGlow: "border-cyan-500/50 shadow-[0_0_15px_rgba(34,211,238,0.2)] group-hover:shadow-[0_0_30px_rgba(34,211,238,0.6)] group-hover:border-cyan-400",
         textGlow: "drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]",
         title: "声を録音する",
