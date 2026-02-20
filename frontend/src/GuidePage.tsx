@@ -19,6 +19,7 @@ const steps = [
     {
         icon: ChartBarIcon,
         color: "text-fuchsia-400",
+        decorationColor: "border-fuchsia-400",
         borderGlow: "border-fuchsia-500/50 shadow-[0_0_15px_rgba(232,121,249,0.2)] group-hover:shadow-[0_0_30px_rgba(232,121,249,0.6)] group-hover:border-fuchsia-400",
         textGlow: "drop-shadow-[0_0_8px_rgba(232,121,249,0.8)]",
         title: "解析結果を見る",
