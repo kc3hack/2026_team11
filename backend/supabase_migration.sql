@@ -29,6 +29,12 @@ CREATE TABLE IF NOT EXISTS user_profiles (
 -- RLS (Row Level Security) を有効化
 ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
 
+-- プロファイル用ポリシー（重複エラーを防ぐためドロップしてから作成）
+DO $$ BEGIN
+    DROP POLICY IF EXISTS "Users can view own profile" ON user_profiles;
+    DROP POLICY IF EXISTS "Users can update own profile" ON user_profiles;
+END $$;
+
 -- 自分のプロファイルは自分だけが読み書き可能
 CREATE POLICY "Users can view own profile" 
     ON user_profiles FOR SELECT 
@@ -48,13 +54,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- ============================================================
 -- 2. 分析履歴テーブル
---    声域の変化を時系列で追跡
+--    声域の変化を時系列で追跡 / JSON結果の保存に対応
 -- ============================================================
 CREATE TABLE IF NOT EXISTS analysis_history (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -64,6 +71,7 @@ CREATE TABLE IF NOT EXISTS analysis_history (
     vocal_range_min TEXT,
     vocal_range_max TEXT,
     falsetto_max TEXT,
+    result_json JSONB, -- 分析結果の詳細データ保存用
     
     -- 測定メタデータ
     source_type TEXT NOT NULL CHECK (source_type IN ('microphone', 'karaoke', 'file')),
@@ -73,11 +81,18 @@ CREATE TABLE IF NOT EXISTS analysis_history (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+ALTER TABLE analysis_history ADD COLUMN IF NOT EXISTS result_json JSONB;
+
 -- インデックス
-CREATE INDEX idx_analysis_user_date ON analysis_history(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_analysis_user_date ON analysis_history(user_id, created_at DESC);
 
 -- RLS
 ALTER TABLE analysis_history ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+    DROP POLICY IF EXISTS "Users can view own analysis history" ON analysis_history;
+    DROP POLICY IF EXISTS "Users can insert own analysis" ON analysis_history;
+END $$;
 
 CREATE POLICY "Users can view own analysis history" 
     ON analysis_history FOR SELECT 
@@ -89,7 +104,6 @@ CREATE POLICY "Users can insert own analysis"
 
 -- ============================================================
 -- 3. 楽曲テーブル（artists, songs）
---    お気に入りテーブルより先に作成が必要
 -- ============================================================
 
 -- アーティストテーブル
@@ -116,12 +130,17 @@ CREATE TABLE IF NOT EXISTS songs (
 );
 
 -- インデックス
-CREATE INDEX idx_songs_title ON songs(title);
-CREATE INDEX idx_songs_artist ON songs(artist_id);
+CREATE INDEX IF NOT EXISTS idx_songs_title ON songs(title);
+CREATE INDEX IF NOT EXISTS idx_songs_artist ON songs(artist_id);
 
 -- RLS（楽曲データは全員が閲覧可能）
 ALTER TABLE artists ENABLE ROW LEVEL SECURITY;
 ALTER TABLE songs ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+    DROP POLICY IF EXISTS "Anyone can view artists" ON artists;
+    DROP POLICY IF EXISTS "Anyone can view songs" ON songs;
+END $$;
 
 CREATE POLICY "Anyone can view artists" 
     ON artists FOR SELECT 
@@ -133,7 +152,6 @@ CREATE POLICY "Anyone can view songs"
 
 -- ============================================================
 -- 4. お気に入り楽曲テーブル
---    songs テーブルの後に作成
 -- ============================================================
 CREATE TABLE IF NOT EXISTS favorite_songs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -146,21 +164,56 @@ CREATE TABLE IF NOT EXISTS favorite_songs (
 );
 
 -- インデックス
-CREATE INDEX idx_favorites_user ON favorite_songs(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_favorites_user ON favorite_songs(user_id, created_at DESC);
 
 -- RLS
 ALTER TABLE favorite_songs ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+    DROP POLICY IF EXISTS "Users can view own favorites" ON favorite_songs;
+    DROP POLICY IF EXISTS "Users can manage own favorites" ON favorite_songs;
+END $$;
 
 CREATE POLICY "Users can view own favorites" 
     ON favorite_songs FOR SELECT 
     USING (auth.uid() = user_id);
 
+-- INSERT/UPDATEができるように WITH CHECK を追加
 CREATE POLICY "Users can manage own favorites" 
     ON favorite_songs FOR ALL 
-    USING (auth.uid() = user_id);
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
 
 -- ============================================================
--- 5. updated_atの自動更新トリガー
+-- 5. お気に入りアーティストテーブル
+-- ============================================================
+CREATE TABLE IF NOT EXISTS favorite_artists (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
+    artist_id INTEGER NOT NULL REFERENCES artists(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- 同じアーティストを重複してお気に入り登録できないように
+    UNIQUE(user_id, artist_id)
+);
+
+-- インデックス
+CREATE INDEX IF NOT EXISTS idx_favorite_artists_user ON favorite_artists(user_id, created_at DESC);
+
+-- RLS
+ALTER TABLE favorite_artists ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+    DROP POLICY IF EXISTS "Users can manage own favorite artists" ON favorite_artists;
+END $$;
+
+CREATE POLICY "Users can manage own favorite artists" 
+    ON favorite_artists FOR ALL 
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+
+-- ============================================================
+-- 6. updated_atの自動更新トリガー
 -- ============================================================
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -170,6 +223,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_user_profiles_updated_at ON user_profiles;
 CREATE TRIGGER update_user_profiles_updated_at
     BEFORE UPDATE ON user_profiles
     FOR EACH ROW

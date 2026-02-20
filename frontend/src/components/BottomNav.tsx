@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import {
   MusicalNoteIcon,
   HeartIcon,
@@ -8,30 +9,30 @@ import {
 import { MicrophoneIcon as MicrophoneIconSolid } from "@heroicons/react/24/solid";
 
 interface BottomNavProps {
-  currentView: string;
-  onViewChange: (view: any) => void;
+  currentPath: string;
   isAuthenticated?: boolean;
 }
 
-// 録音関連のビューをまとめて判定
-const RECORDING_VIEWS = new Set(["menu", "recorder", "uploader"]);
+const RECORDING_PATHS = new Set(["/menu", "/record", "/karaoke", "/upload"]);
 
-const BottomNav: React.FC<BottomNavProps> = ({ currentView, onViewChange, isAuthenticated = false }) => {
-  const getItemClass = (viewName: string) =>
-    currentView === viewName
-      ? "text-blue-600"
-      : "text-slate-500 hover:text-slate-700";
+const BottomNav: React.FC<BottomNavProps> = ({ currentPath, isAuthenticated = false }) => {
+  const navigate = useNavigate();
 
-  const isRecordingActive = RECORDING_VIEWS.has(currentView);
+  const getItemClass = (path: string) =>
+    currentPath === path
+      ? "text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]"
+      : "text-slate-500 hover:text-slate-400";
+
+  const isRecordingActive = RECORDING_PATHS.has(currentPath);
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 z-50 px-2 pb-safe">
+    <div className="md:hidden fixed bottom-0 left-0 w-full bg-slate-950 border-t border-slate-800 shadow-[0_-5px_20px_rgba(0,0,0,0.5)] z-50 px-2 pb-safe">
       <div className="flex justify-between items-end h-16 pb-2">
 
         {/* 1. 楽曲一覧 */}
         <button
-          onClick={() => onViewChange("songList")}
-          className={`flex-1 flex flex-col items-center justify-end h-full py-1 ${getItemClass("songList")}`}
+          onClick={() => navigate("/songs")}
+          className={`flex-1 flex flex-col items-center justify-end h-full py-1 ${getItemClass("/songs")}`}
         >
           <MusicalNoteIcon className="w-6 h-6 mb-1" />
           <span className="text-[10px] font-medium">楽曲一覧</span>
@@ -39,8 +40,8 @@ const BottomNav: React.FC<BottomNavProps> = ({ currentView, onViewChange, isAuth
 
         {/* 2. お気に入り */}
         <button
-          onClick={() => onViewChange("favorites")}
-          className={`flex-1 flex flex-col items-center justify-end h-full py-1 ${getItemClass("favorites")}`}
+          onClick={() => navigate("/favorites")}
+          className={`flex-1 flex flex-col items-center justify-end h-full py-1 ${getItemClass("/favorites")}`}
         >
           <HeartIcon className="w-6 h-6 mb-1" />
           <span className="text-[10px] font-medium">お気に入り</span>
@@ -49,23 +50,24 @@ const BottomNav: React.FC<BottomNavProps> = ({ currentView, onViewChange, isAuth
         {/* 3. 録音 (Center - Special) */}
         <div className="flex-1 flex justify-center h-full relative group">
           <button
-            onClick={() => onViewChange("menu")}
-            className={`absolute -top-6 w-14 h-14 rounded-full flex items-center justify-center shadow-lg border-4 active:scale-95 transition-all ${
-              isRecordingActive
-                ? "bg-blue-700 border-blue-200 scale-105"
-                : "bg-blue-600 border-slate-50"
-            }`}
+            onClick={() => navigate("/menu")}
+            className={`absolute -top-6 w-14 h-14 rounded-full flex items-center justify-center border-4 active:scale-95 transition-all duration-300 ${isRecordingActive
+                ? "bg-slate-900 border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.6)] scale-105"
+                : "bg-slate-900 border-slate-800 shadow-[0_0_15px_rgba(0,0,0,0.8)] hover:border-slate-700"
+              }`}
             aria-label="録音"
           >
-            <MicrophoneIconSolid className="w-8 h-8 text-white" />
+            <MicrophoneIconSolid className={`w-8 h-8 transition-colors ${isRecordingActive
+                ? "text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,1)] animate-pulse"
+                : "text-slate-400 group-hover:text-cyan-200"
+              }`} />
           </button>
           <div className="flex flex-col justify-end pb-1 h-full pt-8">
             <span
-              className={`text-[10px] font-medium transition-colors ${
-                isRecordingActive
-                  ? "text-blue-600"
-                  : "text-slate-500 group-hover:text-blue-600"
-              }`}
+              className={`text-[10px] font-medium transition-colors ${isRecordingActive
+                  ? "text-cyan-400 drop-shadow-[0_0_5px_rgba(34,211,238,0.8)]"
+                  : "text-slate-500 group-hover:text-cyan-400"
+                }`}
             >
               録音
             </span>
@@ -74,12 +76,11 @@ const BottomNav: React.FC<BottomNavProps> = ({ currentView, onViewChange, isAuth
 
         {/* 4. 分析結果 */}
         <button
-          onClick={() => onViewChange("analysis")}
-          className={`flex-1 flex flex-col items-center justify-end h-full py-1 ${
-            currentView === "analysis" || currentView === "result"
-              ? "text-blue-600"
-              : "text-slate-500 hover:text-slate-700"
-          }`}
+          onClick={() => navigate("/analysis")}
+          className={`flex-1 flex flex-col items-center justify-end h-full py-1 ${currentPath === "/analysis" || currentPath === "/result"
+              ? "text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]"
+              : "text-slate-500 hover:text-slate-400"
+            }`}
         >
           <ChartBarIcon className="w-6 h-6 mb-1" />
           <span className="text-[10px] font-medium">分析結果</span>
@@ -87,8 +88,8 @@ const BottomNav: React.FC<BottomNavProps> = ({ currentView, onViewChange, isAuth
 
         {/* 5. マイページ / ログイン */}
         <button
-          onClick={() => onViewChange(isAuthenticated ? "mypage" : "login")}
-          className={`flex-1 flex flex-col items-center justify-end h-full py-1 ${getItemClass(isAuthenticated ? "mypage" : "login")}`}
+          onClick={() => navigate(isAuthenticated ? "/history" : "/login")}
+          className={`flex-1 flex flex-col items-center justify-end h-full py-1 ${getItemClass(isAuthenticated ? "/history" : "/login")}`}
         >
           <UserCircleIcon className="w-6 h-6 mb-1" />
           <span className="text-[10px] font-medium">
@@ -100,4 +101,4 @@ const BottomNav: React.FC<BottomNavProps> = ({ currentView, onViewChange, isAuth
   );
 };
 
-export default BottomNav;
+export default React.memo(BottomNav);

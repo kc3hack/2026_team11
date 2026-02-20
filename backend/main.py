@@ -1,8 +1,9 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-from fastapi import FastAPI, File, UploadFile, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import FastAPI, File, UploadFile, BackgroundTasks, Depends, HTTPException, Query, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.encoders import jsonable_encoder
 import shutil
 import os
 import uuid
@@ -19,12 +20,12 @@ from recommender import (
 )
 
 # 楽曲データはローカル SQLite（songs.db に5000曲入ってる）
-from database import get_all_songs, search_songs, init_db
+from database import get_all_songs, search_songs, init_db, get_artists, get_artist_songs, count_artists, search_artists
 
 # 認証・ユーザー系は Supabase
 from database_supabase import (
     get_user_profile, update_user_profile, update_vocal_range,
-    create_analysis_record, get_analysis_history,
+    create_analysis_record, get_analysis_history,delete_analysis_record,
     add_favorite_song, remove_favorite_song, get_favorite_songs, is_favorite,
     # お気に入りアーティスト
     add_favorite_artist, remove_favorite_artist,
@@ -171,6 +172,14 @@ def get_my_analysis_history(user: dict = Depends(get_current_user), limit: int =
     """自分の分析履歴を取得"""
     return get_analysis_history(user["id"], limit)
 
+@app.delete("/analysis/history/{record_id}")
+def delete_my_analysis_history(record_id: str, user: dict = Depends(get_current_user)):
+    """自分の分析履歴を削除"""
+    success = delete_analysis_record(user["id"], record_id)
+    if success:
+        return {"message": "履歴を削除しました"}
+    raise HTTPException(status_code=400, detail="履歴の削除に失敗しました")
+
 
 # ============================================================
 # お気に入り楽曲
@@ -251,6 +260,52 @@ def get_my_favorite_artists(user: dict = Depends(get_current_user)):
 def check_favorite_artist(artist_id: int, user: dict = Depends(get_current_user)):
     """アーティストがお気に入りに登録されているか確認"""
     return {"is_favorite": is_favorite_artist(user["id"], artist_id)}
+
+
+# ============================================================
+# アーティスト一覧（認証不要）
+# ============================================================
+
+@app.get("/artists")
+def read_artists(
+    limit: int = 10, offset: int = 0, q: str | None = None,
+):
+    """アーティスト一覧を取得（ページネーション対応）"""
+    if q:
+        artists = search_artists(q, limit, offset)
+        total = count_artists(q)
+    else:
+        artists = get_artists(limit, offset)
+        total = count_artists()
+    return {"artists": artists, "total": total}
+
+
+@app.get("/artists/{artist_id}/songs")
+def read_artist_songs(
+    artist_id: int,
+    chest_min_hz: float | None = Query(None),
+    chest_max_hz: float | None = Query(None),
+    falsetto_max_hz: float | None = Query(None),
+):
+    """特定アーティストの楽曲一覧を取得"""
+    songs = get_artist_songs(artist_id)
+    if chest_min_hz and chest_max_hz:
+        effective_max = chest_max_hz
+        if falsetto_max_hz and falsetto_max_hz > chest_max_hz:
+            effective_max = falsetto_max_hz
+        for song in songs:
+            try:
+                key_info = recommend_key_for_song(
+                    song.get("lowest_note"),
+                    song.get("highest_note"),
+                    chest_min_hz,
+                    effective_max,
+                )
+                song.update(key_info)
+            except Exception:
+                song["recommended_key"] = 0
+                song["fit"] = "unknown"
+    return songs
 
 
 # ============================================================
@@ -403,6 +458,7 @@ def _enrich_result(result: dict, user: dict | None = None) -> dict:
 async def analyze_voice(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    no_falsetto: bool = Form(False),
     user: dict | None = Depends(get_optional_user),
 ):
     """アカペラ/マイク録音用 (Demucsなし)。ログイン済みなら履歴に自動保存"""
@@ -428,17 +484,22 @@ async def analyze_voice(
         print(f"[API] ✅ 変換完了: {converted_wav_path}")
 
         print(f"\n[API] [3/3] 音域解析実行中...")
-        result = analyze(converted_wav_path)
+        result = analyze(converted_wav_path, no_falsetto=no_falsetto)
 
+        # 2. その result におすすめ曲などを追加する
+        result = _enrich_result(result, user)
+
+        # 3. 最後に、完全な result を使って履歴を保存する
         if user and not result.get("error"):
             try:
                 create_analysis_record(
-                    user["id"],
-                    result.get("overall_min"),
-                    result.get("overall_max"),
-                    result.get("falsetto_max"),
-                    "microphone",
-                    file.filename,
+                    user_id=user["id"],
+                    vocal_min=result.get("overall_min"),
+                    vocal_max=result.get("overall_max"),
+                    falsetto=result.get("falsetto_max"),
+                    source_type="microphone",
+                    file_name=file.filename,
+                    result_json=jsonable_encoder(result)
                 )
                 update_vocal_range(
                     user["id"],
@@ -448,8 +509,6 @@ async def analyze_voice(
                 )
             except Exception as e:
                 print(f"[WARN] 履歴保存失敗: {e}")
-
-        result = _enrich_result(result, user)
 
         elapsed_time = time.time() - start_time
         print(f"\n[API] ✅ アカペラ音源分析完了! (処理時間: {elapsed_time:.2f}秒)")
@@ -469,6 +528,7 @@ async def analyze_voice(
 async def analyze_karaoke(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    no_falsetto: bool = Form(False),
     user: dict | None = Depends(get_optional_user),
 ):
     """カラオケ音源用 (Demucsあり)。ログイン済みなら履歴に自動保存"""
@@ -503,17 +563,22 @@ async def analyze_karaoke(
         print(f"[API] ✅ ボーカル分離完了: {vocal_path}")
 
         print(f"\n[API] [4/4] 音域解析実行中...")
-        result = analyze(vocal_path, already_separated=True)
+        result = analyze(vocal_path, already_separated=True, no_falsetto=no_falsetto)
 
+        # 2. その result におすすめ曲などを追加する
+        result = _enrich_result(result, user)
+
+        # 3. 最後に、完全な result を使って履歴を保存する
         if user and not result.get("error"):
             try:
                 create_analysis_record(
-                    user["id"],
-                    result.get("overall_min"),
-                    result.get("overall_max"),
-                    result.get("falsetto_max"),
-                    "karaoke",
-                    file.filename,
+                    user_id=user["id"],
+                    vocal_min=result.get("overall_min"),
+                    vocal_max=result.get("overall_max"),
+                    falsetto=result.get("falsetto_max"),
+                    source_type="karaoke",
+                    file_name=file.filename,
+                    result_json=jsonable_encoder(result)
                 )
                 update_vocal_range(
                     user["id"],
@@ -523,8 +588,6 @@ async def analyze_karaoke(
                 )
             except Exception as e:
                 print(f"[WARN] 履歴保存失敗: {e}")
-
-        result = _enrich_result(result, user)
 
         if vocal_path:
             demucs_folder = os.path.dirname(vocal_path)

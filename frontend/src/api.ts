@@ -133,9 +133,10 @@ export interface UserRange {
 // ── API 関数 ──────────────────────────────────────────
 
 /** マイク録音用 */
-export const analyzeVoice = async (blob: Blob): Promise<AnalysisResult> => {
+export const analyzeVoice = async (blob: Blob, noFalsetto: boolean = false): Promise<AnalysisResult> => {
   const formData = new FormData();
   formData.append("file", blob, "recording.webm");
+  if (noFalsetto) formData.append("no_falsetto", "true");
   const res = await API.post<AnalysisResult>("/analyze", formData);
   return res.data;
 };
@@ -144,9 +145,11 @@ export const analyzeVoice = async (blob: Blob): Promise<AnalysisResult> => {
 export const analyzeKaraoke = async (
   file: File | Blob,
   filename: string,
+  noFalsetto: boolean = false,
 ): Promise<AnalysisResult> => {
   const formData = new FormData();
   formData.append("file", file, filename);
+  if (noFalsetto) formData.append("no_falsetto", "true");
   const res = await API.post<AnalysisResult>("/analyze-karaoke", formData);
   return res.data;
 };
@@ -168,6 +171,50 @@ export const getSongs = async (
     }
   }
   const res = await API.get<Song[]>("/songs", { params });
+  return res.data;
+};
+
+/** アーティスト型 */
+export interface Artist {
+  id: number;
+  name: string;
+  slug: string;
+  song_count: number;
+  reading: string;
+}
+
+/** アーティスト一覧レスポンス */
+export interface ArtistsResponse {
+  artists: Artist[];
+  total: number;
+}
+
+/** アーティスト一覧取得（ページネーション対応） */
+export const getArtists = async (
+  limit: number = 10,
+  offset: number = 0,
+  query: string = "",
+): Promise<ArtistsResponse> => {
+  const params: Record<string, any> = { limit, offset };
+  if (query) params.q = query;
+  const res = await API.get<ArtistsResponse>("/artists", { params });
+  return res.data;
+};
+
+/** 特定アーティストの楽曲一覧取得 */
+export const getArtistSongs = async (
+  artistId: number,
+  userRange?: UserRange | null,
+): Promise<Song[]> => {
+  const params: Record<string, any> = {};
+  if (userRange) {
+    params.chest_min_hz = userRange.chest_min_hz;
+    params.chest_max_hz = userRange.chest_max_hz;
+    if (userRange.falsetto_max_hz) {
+      params.falsetto_max_hz = userRange.falsetto_max_hz;
+    }
+  }
+  const res = await API.get<Song[]>(`/artists/${artistId}/songs`, { params });
   return res.data;
 };
 
@@ -215,4 +262,28 @@ export const removeFavorite = async (songId: number) => {
 export const checkFavorite = async (songId: number): Promise<boolean> => {
   const res = await API.get(`/favorites/check/${songId}`);
   return res.data.is_favorite;
+};
+
+export interface AnalysisHistoryRecord {
+  id: string;
+  user_id: string;
+  vocal_range_min: string | null;
+  vocal_range_max: string | null;
+  falsetto_max: string | null;
+  source_type: string;
+  file_name: string | null;
+  created_at: string;
+  result_json?: AnalysisResult | null;
+}
+
+// 履歴取得API
+export const getAnalysisHistory = async (limit = 50): Promise<AnalysisHistoryRecord[]> => {
+  const res = await API.get<AnalysisHistoryRecord[]>("/analysis/history", { params: { limit } });
+  return res.data;
+};
+
+/** 履歴削除API */
+export const deleteAnalysisHistory = async (recordId: string): Promise<{ message: string }> => {
+  const res = await API.delete(`/analysis/history/${recordId}`);
+  return res.data;
 };

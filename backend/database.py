@@ -192,9 +192,46 @@ def get_artists(limit: int = 100, offset: int = 0) -> list[dict]:
         rows = conn.execute("""
             SELECT id, name, slug, song_count, reading
             FROM artists
+            WHERE song_count > 0
             ORDER BY reading
             LIMIT ? OFFSET ?
         """, (limit, offset)).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def count_artists(query: str = "") -> int:
+    """アーティスト総数を取得"""
+    conn = get_connection()
+    try:
+        if query:
+            escaped = f"%{_escape_like(query)}%"
+            row = conn.execute(
+                "SELECT COUNT(*) FROM artists WHERE song_count > 0 AND name LIKE ? ESCAPE '\\'",
+                (escaped,),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM artists WHERE song_count > 0"
+            ).fetchone()
+        return row[0]
+    finally:
+        conn.close()
+
+
+def search_artists(query: str, limit: int = 100, offset: int = 0) -> list[dict]:
+    """アーティスト名であいまい検索"""
+    conn = get_connection()
+    try:
+        escaped = f"%{_escape_like(query)}%"
+        rows = conn.execute("""
+            SELECT id, name, slug, song_count, reading
+            FROM artists
+            WHERE song_count > 0 AND name LIKE ? ESCAPE '\\'
+            ORDER BY reading
+            LIMIT ? OFFSET ?
+        """, (escaped, limit, offset)).fetchall()
         return [dict(r) for r in rows]
     finally:
         conn.close()

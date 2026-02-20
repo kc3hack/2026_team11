@@ -172,8 +172,9 @@ def create_analysis_record(
     vocal_max: Optional[str],
     falsetto: Optional[str],
     source_type: str,
-    file_name: Optional[str] = None
-) -> Dict[str, Any]:
+    file_name: Optional[str] = None,
+    result_json: Optional[Dict[str, Any]] = None
+) -> Optional[Dict[str, Any]]:
     """分析履歴を新規作成"""
     data = {
         "user_id": user_id,
@@ -181,7 +182,8 @@ def create_analysis_record(
         "vocal_range_max": vocal_max,
         "falsetto_max": falsetto,
         "source_type": source_type,
-        "file_name": file_name
+        "file_name": file_name,
+        "result_json": result_json
     }
     response = supabase.table("analysis_history").insert(data).execute()
     return response.data[0] if response.data else None
@@ -323,3 +325,14 @@ def get_favorite_artist_ids(user_id: str) -> List[int]:
     except Exception as e:
         print(f"[WARN] お気に入りアーティストID取得失敗: {e}")
         return []
+
+def delete_analysis_record(user_id: str, record_id: str) -> bool:
+    """分析履歴を削除"""
+    try:
+        supabase.table("analysis_history").delete().eq(
+            "id", record_id
+        ).eq("user_id", user_id).execute()
+        return True
+    except Exception as e:
+        print(f"履歴削除エラー: {e}")
+        return False

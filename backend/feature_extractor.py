@@ -20,8 +20,8 @@ FEATURE_NAMES = ["h1_h2", "hcount", "slope", "hnr", "centroid_r", "f0"]
 N_FEATURES = len(FEATURE_NAMES)
 
 
-def _get_peak_db(fft: np.ndarray, freqs: np.ndarray,
-                 target_hz: float, sr: int) -> float:
+def get_peak_db(fft: np.ndarray, freqs: np.ndarray,
+                target_hz: float, sr: int) -> float:
     if target_hz <= 0 or target_hz >= sr / 2 * 0.95:
         return -120.0
     half_win = max(10.0, target_hz * 0.035)
@@ -42,7 +42,7 @@ def _get_peak_db(fft: np.ndarray, freqs: np.ndarray,
     return 20.0 * np.log10(max(peak, 1e-10))
 
 
-def _compute_hnr(y: np.ndarray, sr: int, f0: float) -> float:
+def compute_hnr(y: np.ndarray, sr: int, f0: float) -> float:
     try:
         win = np.hanning(len(y))
         ac = np.correlate(y * win, y * win, mode='full')
@@ -82,7 +82,7 @@ def extract_features(y: np.ndarray, sr: int, f0: float) -> np.ndarray | None:
     freqs = np.fft.rfftfreq(n_fft, 1.0 / sr)
     noise_db = 20.0 * np.log10(float(np.percentile(fft, 5)) + 1e-12)
 
-    H = [_get_peak_db(fft, freqs, f0 * n, sr) for n in range(1, 11)]
+    H = [get_peak_db(fft, freqs, f0 * n, sr) for n in range(1, 11)]
     h1 = H[0]
 
     if h1 <= -60:
@@ -105,7 +105,7 @@ def extract_features(y: np.ndarray, sr: int, f0: float) -> np.ndarray | None:
         slope = -6.0  # デフォルト（中間的な値）
 
     # HNR
-    hnr = _compute_hnr(y, sr, f0)
+    hnr = compute_hnr(y, sr, f0)
 
     # スペクトル重心 / f0
     centroid = float(librosa.feature.spectral_centroid(y=y, sr=sr)[0, 0])
