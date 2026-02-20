@@ -1,3 +1,4 @@
+// frontend/src/App.tsx
 import { useState, useEffect } from "react";
 import Home from "./Home";
 import Landing from "./Landing";
@@ -55,6 +56,9 @@ function AppContent() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [userRange, setUserRange] = useState<UserRange | null>(loadSavedRange);
+  
+  // ★ 追加: 履歴画面から遷移してきたかを判定するフラグ
+  const [isFromHistory, setIsFromHistory] = useState(false);
 
   // 解析結果から音域を抽出して保存
   useEffect(() => {
@@ -131,6 +135,7 @@ function AppContent() {
 
   const handleResult = (data: AnalysisResult) => {
     setResult(data);
+    setIsFromHistory(false); // 新規録音時はフラグをオフ
     setView("result");
   };
 
@@ -233,14 +238,15 @@ function AppContent() {
           </div>
         )}
 
-        {/* 結果表示画面 (ResultView) */}
+        {/* ★ 変更: 結果表示画面 (ResultView) */}
         {view === "result" && (
           <div className="min-h-screen bg-transparent p-8">
             <button
-              onClick={handleBackToMenu}
+              // 履歴から来た場合は「履歴」へ戻り、録音直後の場合は「メニュー」へ戻る
+              onClick={isFromHistory ? handleHistory : handleBackToMenu}
               className="mb-6 text-slate-500 hover:text-cyan-400 font-bold flex items-center gap-2 transition-colors"
             >
-              ← トップへ戻る
+              {isFromHistory ? "← 履歴に戻る" : "← トップへ戻る"}
             </button>
 
             <div className="max-w-3xl mx-auto bg-transparent p-0 rounded-2xl">
@@ -252,6 +258,14 @@ function AppContent() {
         {/* 分析結果画面 (AnalysisResultPage) */}
         {view === "analysis" && (
           <div className="min-h-screen bg-transparent">
+            <div className="max-w-6xl mx-auto px-4 sm:px-8 pt-8 pb-2">
+              <button
+                onClick={handleHistory}
+                className="text-slate-500 hover:text-cyan-400 font-bold flex items-center gap-2 transition-colors"
+              >
+                ← 戻る
+              </button>
+            </div>
             <AnalysisResultPage result={result} />
           </div>
         )}
@@ -269,8 +283,32 @@ function AppContent() {
         {/* 使い方ガイド */}
         {view === "guide" && <GuidePage />}
 
-        {/* 履歴画面 (Placeholder) */}
-        {view === "history" && <HistoryPage onLoginClick={() => setView("login")} />}
+        {/* 履歴画面 (HistoryPage) */}
+        {view === "history" && (
+          <HistoryPage 
+            onLoginClick={() => setView("login")}
+            onSelectRecord={(record) => {
+              if (record.result_json) {
+                // DBに完全なデータが保存されている場合はそれをそのまま使う
+                setResult(record.result_json);
+              } else {
+                // （古い履歴など、詳細データがない場合のフォールバック）
+                const mockResult: AnalysisResult = {
+                  overall_min: record.vocal_range_min || "-",
+                  overall_max: record.vocal_range_max || "-",
+                  overall_min_hz: 0,
+                  overall_max_hz: 0,
+                  chest_min: record.vocal_range_min || undefined,
+                  chest_max: record.vocal_range_max || undefined,
+                  falsetto_max: record.falsetto_max || undefined,
+                };
+                setResult(mockResult);
+              }
+              setIsFromHistory(true); // 履歴から開いたフラグを立てる
+              setView("result"); // ★ analysisではなく result（元の画面）へ遷移
+            }}
+          />
+        )}
 
         {/* マイページ画面 (Placeholder) */}
         {view === "mypage" && <PlaceholderPage title="マイページ" />}

@@ -133,9 +133,10 @@ export interface UserRange {
 // ── API 関数 ──────────────────────────────────────────
 
 /** マイク録音用 */
-export const analyzeVoice = async (blob: Blob): Promise<AnalysisResult> => {
+export const analyzeVoice = async (blob: Blob, noFalsetto: boolean = false): Promise<AnalysisResult> => {
   const formData = new FormData();
   formData.append("file", blob, "recording.webm");
+  if (noFalsetto) formData.append("no_falsetto", "true");
   const res = await API.post<AnalysisResult>("/analyze", formData);
   return res.data;
 };
@@ -144,9 +145,11 @@ export const analyzeVoice = async (blob: Blob): Promise<AnalysisResult> => {
 export const analyzeKaraoke = async (
   file: File | Blob,
   filename: string,
+  noFalsetto: boolean = false,
 ): Promise<AnalysisResult> => {
   const formData = new FormData();
   formData.append("file", file, filename);
+  if (noFalsetto) formData.append("no_falsetto", "true");
   const res = await API.post<AnalysisResult>("/analyze-karaoke", formData);
   return res.data;
 };
@@ -226,6 +229,7 @@ export interface AnalysisHistoryRecord {
   source_type: string;
   file_name: string | null;
   created_at: string;
+  result_json?: AnalysisResult | null;
 }
 
 // 履歴取得API

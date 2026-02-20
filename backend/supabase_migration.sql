@@ -61,7 +61,7 @@ CREATE TRIGGER on_auth_user_created
 
 -- ============================================================
 -- 2. 分析履歴テーブル
---    声域の変化を時系列で追跡
+--    声域の変化を時系列で追跡 / JSON結果の保存に対応
 -- ============================================================
 CREATE TABLE IF NOT EXISTS analysis_history (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS analysis_history (
     vocal_range_min TEXT,
     vocal_range_max TEXT,
     falsetto_max TEXT,
+    result_json JSONB, -- 分析結果の詳細データ保存用
     
     -- 測定メタデータ
     source_type TEXT NOT NULL CHECK (source_type IN ('microphone', 'karaoke', 'file')),
@@ -79,6 +80,8 @@ CREATE TABLE IF NOT EXISTS analysis_history (
     -- タイムスタンプ
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE analysis_history ADD COLUMN IF NOT EXISTS result_json JSONB;
 
 -- インデックス
 CREATE INDEX IF NOT EXISTS idx_analysis_user_date ON analysis_history(user_id, created_at DESC);
@@ -101,7 +104,6 @@ CREATE POLICY "Users can insert own analysis"
 
 -- ============================================================
 -- 3. 楽曲テーブル（artists, songs）
---    お気に入りテーブルより先に作成が必要
 -- ============================================================
 
 -- アーティストテーブル
@@ -150,7 +152,6 @@ CREATE POLICY "Anyone can view songs"
 
 -- ============================================================
 -- 4. お気に入り楽曲テーブル
---    songs テーブルの後に作成
 -- ============================================================
 CREATE TABLE IF NOT EXISTS favorite_songs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -185,7 +186,6 @@ CREATE POLICY "Users can manage own favorites"
 
 -- ============================================================
 -- 5. お気に入りアーティストテーブル
---    artists テーブルの後に作成
 -- ============================================================
 CREATE TABLE IF NOT EXISTS favorite_artists (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
