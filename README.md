@@ -194,3 +194,67 @@ CREPEはオクターブ単位の誤検出が起きやすいため、用途に応
 - **音域データベースの拡充** — vocal-range.com からの追加スクレイピングで +2,000曲を目標
 - **歌唱力レーダーチャート** — 音域の広さ・安定性・地声/裏声バランスなどを多角的に可視化
 - **マイページ機能** — お気に入り曲の保存、分析履歴の管理
+
+---
+
+# 7. デプロイメント
+
+このアプリケーションを本番環境にデプロイするための詳細なドキュメントを用意しています。
+
+## 📚 デプロイメントガイド
+
+| ドキュメント | 内容 | 所要時間 | おすすめ度 |
+|-------------|------|---------|-----------|
+| **[GCP_DEPLOYMENT.md](GCP_DEPLOYMENT.md)** 🆕 | Google Cloud Platform完全ガイド | 60-90分 | ⭐⭐⭐⭐⭐ |
+| **[QUICKSTART.md](QUICKSTART.md)** | 最速デプロイ手順 | 30-60分 | ⭐⭐⭐⭐ |
+| **[DEPLOYMENT.md](DEPLOYMENT.md)** | 詳細なデプロイ・運用ガイド | - | ⭐⭐⭐⭐⭐ |
+| **[REQUIREMENTS.md](REQUIREMENTS.md)** | 要件定義書 | - | ⭐⭐⭐ |
+
+## 💻 推奨環境
+
+### GCP（Google Cloud Platform）
+
+- **インスタンス**: n2-standard-2 + NVIDIA T4
+- **月額**: 約¥24,000〜¥39,000
+- **クレジット**: 4万円で1〜2ヶ月運用可能
+- **詳細**: [GCP_DEPLOYMENT.md](GCP_DEPLOYMENT.md)
+
+### AWS（Amazon Web Services）
+
+- **インスタンス**: c5.2xlarge または g4dn.xlarge（GPU）
+- **月額**: $250〜$715
+- **詳細**: [DEPLOYMENT.md](DEPLOYMENT.md)
+
+### ローカル開発
+
+```bash
+# バックエンド
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+
+# フロントエンド（別ターミナル）
+cd frontend
+npm install
+npm start
+```
+
+---
+
+# 8. ライセンス・お問い合わせ
+
+## ライセンス
+
+このプロジェクトは [LICENSE](LICENSE) に基づいて公開されています。
+
+## お問い合わせ
+
+- **GitHub Issues**: バグ報告・機能要望
+- **プルリクエスト**: コントリビューション歓迎
+
+---
+
+**開発チーム**: 2026_team11  
+**最終更新**: 2026年2月20日
