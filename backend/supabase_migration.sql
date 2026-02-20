@@ -65,6 +65,9 @@ CREATE TABLE IF NOT EXISTS analysis_history (
     vocal_range_max TEXT,
     falsetto_max TEXT,
     
+    -- JSON形式の生データや追加の詳細結果を保存するカラム
+    result_json JSONB,
+
     -- 測定メタデータ
     source_type TEXT NOT NULL CHECK (source_type IN ('microphone', 'karaoke', 'file')),
     file_name TEXT,
@@ -174,3 +177,29 @@ CREATE TRIGGER update_user_profiles_updated_at
     BEFORE UPDATE ON user_profiles
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================================
+-- 6. アプリケーションから使いやすくするための便利なビュー (追加提案)
+-- ============================================================
+
+-- お気に入り楽曲の詳細（曲名やアーティスト名）を一度に取得できるビュー
+CREATE OR REPLACE VIEW user_favorite_songs_details AS
+SELECT 
+    fs.id AS favorite_id,
+    fs.user_id,
+    fs.created_at AS favorited_at,
+    s.id AS song_id,
+    s.title,
+    s.lowest_note,
+    s.highest_note,
+    s.falsetto_note,
+    a.name AS artist_name
+FROM 
+    favorite_songs fs
+JOIN 
+    songs s ON fs.song_id = s.id
+JOIN 
+    artists a ON s.artist_id = a.id;
+
+-- ビュー経由のアクセスでも元のテーブルのRLSポリシー（自分のデータしか見えない制限）を適用する
+ALTER VIEW user_favorite_songs_details SET (security_invoker = true);

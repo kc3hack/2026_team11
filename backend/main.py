@@ -436,17 +436,23 @@ async def analyze_voice(
         print(f"[API] ✅ 変換完了: {converted_wav_path}")
 
         print(f"\n[API] [3/3] 音域解析実行中...")
+        # 1. ここでまず analyze を実行して result を作成する（これが消えていた可能性があります！）
         result = analyze(converted_wav_path)
 
+        # 2. その result におすすめ曲などを追加する
+        result = _enrich_result(result, user)
+
+        # 3. 最後に、完全な result を使って履歴を保存する
         if user and not result.get("error"):
             try:
                 create_analysis_record(
-                    user["id"],
-                    result.get("overall_min"),
-                    result.get("overall_max"),
-                    result.get("falsetto_max"),
-                    "microphone",
-                    file.filename,
+                    user_id=user["id"],
+                    vocal_min=result.get("overall_min"),
+                    vocal_max=result.get("overall_max"),
+                    falsetto=result.get("falsetto_max"),
+                    source_type="microphone",
+                    file_name=file.filename,
+                    result_json=result
                 )
                 update_vocal_range(
                     user["id"],
@@ -456,8 +462,6 @@ async def analyze_voice(
                 )
             except Exception as e:
                 print(f"[WARN] 履歴保存失敗: {e}")
-
-        result = _enrich_result(result, user)
 
         elapsed_time = time.time() - start_time
         print(f"\n[API] ✅ アカペラ音源分析完了! (処理時間: {elapsed_time:.2f}秒)")
@@ -511,17 +515,23 @@ async def analyze_karaoke(
         print(f"[API] ✅ ボーカル分離完了: {vocal_path}")
 
         print(f"\n[API] [4/4] 音域解析実行中...")
+        # 1. ここでまず analyze を実行して result を作成する
         result = analyze(vocal_path, already_separated=True)
 
+        # 2. その result におすすめ曲などを追加する
+        result = _enrich_result(result, user)
+
+        # 3. 最後に、完全な result を使って履歴を保存する
         if user and not result.get("error"):
             try:
                 create_analysis_record(
-                    user["id"],
-                    result.get("overall_min"),
-                    result.get("overall_max"),
-                    result.get("falsetto_max"),
-                    "karaoke",
-                    file.filename,
+                    user_id=user["id"],
+                    vocal_min=result.get("overall_min"),
+                    vocal_max=result.get("overall_max"),
+                    falsetto=result.get("falsetto_max"),
+                    source_type="karaoke",
+                    file_name=file.filename,
+                    result_json=result
                 )
                 update_vocal_range(
                     user["id"],
@@ -531,8 +541,6 @@ async def analyze_karaoke(
                 )
             except Exception as e:
                 print(f"[WARN] 履歴保存失敗: {e}")
-
-        result = _enrich_result(result, user)
 
         if vocal_path:
             demucs_folder = os.path.dirname(vocal_path)

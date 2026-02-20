@@ -2,6 +2,7 @@
 Supabaseデータベースの接続管理とクエリ関数
 """
 import os
+import json
 from typing import Optional, List, Dict, Any
 from supabase import create_client, Client
 from database import get_song
@@ -172,7 +173,8 @@ def create_analysis_record(
     vocal_max: Optional[str],
     falsetto: Optional[str],
     source_type: str,
-    file_name: Optional[str] = None
+    file_name: Optional[str] = None,
+    result_json: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """分析履歴を新規作成"""
     data = {
@@ -181,7 +183,8 @@ def create_analysis_record(
         "vocal_range_max": vocal_max,
         "falsetto_max": falsetto,
         "source_type": source_type,
-        "file_name": file_name
+        "file_name": file_name,
+        "result_json": result_json
     }
     response = supabase.table("analysis_history").insert(data).execute()
     return response.data[0] if response.data else None

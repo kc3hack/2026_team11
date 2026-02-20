@@ -275,6 +275,10 @@ function AppContent() {
           <HistoryPage 
             onLoginClick={() => setView("login")}
             onSelectRecord={(record) => {
+              if (record.result_json) {
+                // ★ DBに完全なデータが保存されている場合はそれをそのまま使う
+                setResult(record.result_json);
+              } else {
               // 履歴データから擬似的な結果データを作成して結果画面へ遷移
               const mockResult: AnalysisResult = {
                 overall_min: record.vocal_range_min || "-",
@@ -286,6 +290,7 @@ function AppContent() {
                 falsetto_max: record.falsetto_max || undefined,
               };
               setResult(mockResult);
+              }
               setView("analysis");
             }}
           />

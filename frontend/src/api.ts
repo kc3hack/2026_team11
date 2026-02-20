@@ -226,6 +226,7 @@ export interface AnalysisHistoryRecord {
   source_type: string;
   file_name: string | null;
   created_at: string;
+  result_json?: AnalysisResult;
 }
 
 // 履歴取得API
