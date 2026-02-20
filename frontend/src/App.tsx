@@ -288,8 +288,8 @@ function AppContent() {
                 const mockResult: AnalysisResult = {
                   overall_min: record.vocal_range_min || "-",
                   overall_max: record.vocal_range_max || "-",
-                  overall_min_hz: undefined,
-                  overall_max_hz: undefined,
+                  overall_min_hz: 0,
+                  overall_max_hz: 0,
                   chest_min: record.vocal_range_min || undefined,
                   chest_max: record.vocal_range_max || undefined,
                   falsetto_max: record.falsetto_max || undefined,
