@@ -3,8 +3,9 @@ import { supabase } from "./supabaseClient";
 
 const TIMEOUT_MS = 300000; // 5分
 
+// 本番環境では /api を使用、開発環境では localhost:8000 を使用
 const API = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || "http://136.110.117.55:8000",
+  baseURL: process.env.REACT_APP_API_URL || (process.env.NODE_ENV === "production" ? "/api" : "http://127.0.0.1:8000"),
   timeout: TIMEOUT_MS,
 });
 
