@@ -171,7 +171,7 @@ const KaraokeUploader: React.FC<Props> = ({ onResult }) => {
 
           {/* Interaction Particle Scanlines Overlay */}
           <div className={`absolute inset-0 z-0 pointer-events-none transition-opacity duration-500 ${isDragging || (isHovered && !loading) ? 'opacity-100' : 'opacity-0'}`}>
-            <div className="w-full h-full bg-[linear-gradient(to_bottom,transparent_0%,rgba(232,121,249,0.2)_50%,transparent_100%)] bg-[length:100%_4px] animate-[scan_2s_linear_infinite]"></div>
+            <div className="w-full h-full bg-[linear-gradient(to_bottom,transparent_0%,rgba(232,121,249,0.2)_50%,transparent_100%)] bg-[length:100%_4px] animate-scan"></div>
           </div>
 
           {/* Giant Watermark */}
@@ -255,13 +255,6 @@ const KaraokeUploader: React.FC<Props> = ({ onResult }) => {
         </div>
       )}
 
-      {/* Embedded CSS for scanline animation */}
-      <style>{`
-        @keyframes scan {
-          0% { background-position: 0 -100vh; }
-          100% { background-position: 0 100vh; }
-        }
-      `}</style>
     </div>
   );
 };
