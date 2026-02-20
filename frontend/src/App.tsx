@@ -310,8 +310,6 @@ function AppContent() {
           />
         )}
 
-        {/* マイページ画面 (Placeholder) */}
-        {view === "mypage" && <PlaceholderPage title="マイページ" />}
 
         {/* ログイン画面 */}
         {view === "login" && <LoginPage />}
