@@ -141,7 +141,7 @@ const KaraokeUploader: React.FC<Props> = ({ onResult }) => {
       </div>
 
       {/* Cyberpunk Dropzone ("Data Transfer Gate") */}
-      <div className="w-full relative group perspective-1000 mt-4">
+      <div className="w-full relative group perspective-[1000px] mt-4">
         <label
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}

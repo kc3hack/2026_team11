@@ -99,7 +99,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
     const WIDTH = canvas.width;
     const HEIGHT = canvas.height;
 
-    analyserRef.current.getByteFrequencyData(dataArrayRef.current);
+    analyserRef.current.getByteFrequencyData(dataArrayRef.current as any);
 
     ctx.fillStyle = "rgb(100, 116, 139)";
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
@@ -274,26 +274,20 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
 
         {/* Recording Controls */}
         {!loading && (
-          <div className={`absolute z-20 transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${recording ? "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 scale-110" : "inset-0 flex items-center justify-center"
-            }`}
-          >
+          <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
             {!recording ? (
               // --- Idle State Button ---
               <button
                 onClick={startRecording}
-                className="relative w-28 h-28 bg-slate-800 hover:bg-slate-700 rounded-full flex flex-col items-center justify-center transition-all duration-300 transform hover:scale-110 shadow-[0_0_30px_rgba(34,211,238,0.3)] hover:shadow-[0_0_50px_rgba(34,211,238,0.6)] border-2 border-cyan-500/50 hover:border-cyan-400 group z-10"
+                className="pointer-events-auto relative w-28 h-28 bg-slate-800 hover:bg-slate-700 flex flex-col items-center justify-center rounded-full transition-all duration-300 transform hover:scale-110 shadow-[0_0_30px_rgba(34,211,238,0.3)] hover:shadow-[0_0_50px_rgba(34,211,238,0.6)] border-2 border-cyan-500/50 hover:border-cyan-400 group z-10"
               >
-                {/* Ripple Effect 1 */}
-                <span className="absolute inset-0 rounded-full border-2 border-cyan-400/50 animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite] pointer-events-none" />
-                {/* Ripple Effect 2 (Delayed) */}
-                <span className="absolute inset-0 rounded-full border-2 border-cyan-400/30 animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite_0.5s] pointer-events-none" />
 
                 <MicrophoneIcon className="w-12 h-12 text-slate-300 group-hover:text-cyan-300 transition-colors drop-shadow-[0_0_8px_rgba(34,211,238,0)] group-hover:drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
                 <span className="text-xs mt-1 font-black italic text-cyan-400 tracking-wider">START</span>
               </button>
             ) : (
               // --- Recording State Button ---
-              <div className="relative flex items-center justify-center group">
+              <div className="relative flex items-center justify-center group pointer-events-auto" style={{ animation: "fadeIn 0.3s ease-out forwards" }}>
                 {/* 15s Progress Ring SVG */}
                 <svg className="absolute w-[180px] h-[180px] -rotate-90 pointer-events-none drop-shadow-[0_0_10px_rgba(232,121,249,0.8)]">
                   <circle
@@ -311,23 +305,27 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
                     fill="none"
                     className="stroke-fuchsia-400 transition-all duration-100 ease-linear"
                     strokeWidth="6"
-                    strokeDasharray="528" // 2 * PI * 84 roughly 528
-                    strokeDashoffset="528"
+                    strokeDasharray="132 396"
+                    strokeDashoffset="0"
                     style={{
-                      animation: "progressRing 15s linear forwards"
+                      animation: "spinRing 2s linear infinite"
                     }}
                   />
                 </svg>
                 {/* Embedded CSS for animation */}
                 <style>{`
-                  @keyframes progressRing {
-                    from { stroke-dashoffset: 528; }
-                    to { stroke-dashoffset: 0; }
+                  @keyframes spinRing {
+                    from { transform: rotate(0deg); transform-origin: center; }
+                    to { transform: rotate(360deg); transform-origin: center; }
                   }
                   @keyframes pulseShadow {
                     0% { box-shadow: 0 0 20px rgba(232,121,249,0.4), inset 0 0 10px rgba(0,0,0,0.5); }
                     50% { box-shadow: 0 0 50px rgba(232,121,249,0.8), inset 0 0 10px rgba(0,0,0,0.5); }
                     100% { box-shadow: 0 0 20px rgba(232,121,249,0.4), inset 0 0 10px rgba(0,0,0,0.5); }
+                  }
+                  @keyframes fadeIn {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
                   }
                 `}</style>
 
@@ -338,9 +336,6 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
                   aria-label="録音を停止"
                 >
                   <StopIcon className="w-12 h-12 text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.8)]" />
-
-                  {/* Subtle record indicator icon inside */}
-                  <div className="absolute top-2 right-2 w-3 h-3 bg-white rounded-full animate-ping"></div>
                 </button>
               </div>
             )}
