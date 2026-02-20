@@ -236,33 +236,37 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
     }
   }, [searchQuery, userRange]);
 
-  // 検索クエリが変わったらページをリセット（フェッチはページ変更effectに任せる）
+  // 検索クエリが変わったらページをリセット＆初回フェッチ
   useEffect(() => {
     if (searchQuery) {
       setSearchPage(0);
       setSearchPageInput("1");
+      fetchSearchSongs(0);
     } else {
       setArtistPage(0);
       setPageInput("1");
       setSelectedArtist(null);
+      fetchArtists(0);
     }
-  }, [searchQuery]);
+  }, [searchQuery, fetchSearchSongs, fetchArtists]);
 
-  // ページが変わったら取得（アーティスト）
+  // ページが変わったら取得（アーティスト）- 2ページ目以降のみ
   useEffect(() => {
-    if (!searchQuery) {
+    if (!searchQuery && artistPage > 0) {
       fetchArtists(artistPage);
       setPageInput((artistPage + 1).toString());
     }
-  }, [artistPage, fetchArtists, searchQuery]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [artistPage, fetchArtists]);
 
-  // ページが変わったら取得（楽曲検索）
+  // ページが変わったら取得（楽曲検索）- 2ページ目以降のみ
   useEffect(() => {
-    if (searchQuery) {
+    if (searchQuery && searchPage > 0) {
       fetchSearchSongs(searchPage);
       setSearchPageInput((searchPage + 1).toString());
     }
-  }, [searchPage, fetchSearchSongs, searchQuery]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchPage, fetchSearchSongs]);
 
   // お気に入りアーティスト取得
   useEffect(() => {
@@ -588,7 +592,7 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
               </table>
             </div>
           )}
-          
+
           {/* 楽曲検索結果のページネーション */}
           {!searchLoading && totalSearchSongs > 10 && (
             <div className="flex items-center justify-center gap-4 mt-8">
