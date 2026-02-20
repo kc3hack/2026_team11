@@ -3,7 +3,7 @@ import soundfile as sf
 import torch
 import torchcrepe
 import librosa
-from register_classifier import classify_register
+from register_classifier import classify_register, reset_register_stats, print_register_summary
 from note_converter import hz_to_label_and_hz
 from config import (
     VOICE_MIN_HZ, VOICE_MAX_HZ, CREPE_SR, CREPE_HOP_LENGTH,
@@ -427,6 +427,7 @@ def _classify_frames(filtered: dict, y_16k: np.ndarray, sr_crepe: int,
     total_frames   = len(f0_reg_fixed)
     progress_interval = max(1, total_frames // 10)
 
+    reset_register_stats()  # 統計情報をリセット
     graduated_conf_filtered = 0
     print(f"[INFO] {total_frames}フレームを処理中...")
     for i in range(total_frames):
@@ -466,6 +467,8 @@ def _classify_frames(filtered: dict, y_16k: np.ndarray, sr_crepe: int,
             # reg == "unknown" はスキップ（無声音・異常データ）
         except Exception:
             continue
+
+    print_register_summary()  # レジスター判定のサマリーを出力
 
     if graduated_conf_filtered > 0:
         print(f"[DEBUG] 段階的信頼度フィルタ: {graduated_conf_filtered}フレーム除外")

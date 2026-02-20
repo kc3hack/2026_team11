@@ -30,6 +30,7 @@ from config import (
     ML_CONF_THRESHOLD_NOISY, ML_CONF_CHEST_HIGH_F0,
     CREPE_NOISE_GATE,
     FALSETTO_RATIO_HIGH, FALSETTO_RATIO_MID, FALSETTO_RATIO_DEFAULT,
+    REGISTER_LOG_LEVEL, REGISTER_LOG_INTERVAL,
 )
 
 # ============================================================
@@ -39,6 +40,10 @@ _ML_MODEL = None
 _MODEL_PATH = os.path.join(os.path.dirname(__file__), "ml", "models", "register_model.joblib")
 _MODEL_MTIME = 0.0  # モデルファイルの更新日時を記録
 _ML_STATUS_LOGGED = False  # MLモデルの初回状態ログ出力済みフラグ
+
+# ログカウンター（グローバル）
+_log_counter = 0
+_stats = {"ml_success": 0, "ml_fallback": 0, "rule_only": 0, "chest": 0, "falsetto": 0}
 
 
 def _load_model_if_needed():
@@ -87,6 +92,7 @@ except ImportError:
 def _classify_ml(y: np.ndarray, sr: int, f0: float,
                   crepe_conf: float = 1.0) -> str | None:
     """MLモデルで判定。モデルがないか特徴抽出に失敗したら None を返す"""
+    global _log_counter, _stats
     _load_model_if_needed()  # モデル更新チェック（mtime比較のみ、軽量）
 
     if _ML_MODEL is None or extract_features is None:
@@ -120,10 +126,15 @@ def _classify_ml(y: np.ndarray, sr: int, f0: float,
             threshold = max(threshold, ML_CONF_CHEST_HIGH_F0)
 
         if confidence < threshold:
-            print(f"[REGISTER/ML→RULE] f0={f0:.0f}Hz ML={label}({confidence:.3f}) < thresh={threshold:.2f} → ルールベースへ")
+            _stats["ml_fallback"] += 1
+            if REGISTER_LOG_LEVEL >= 3 or (REGISTER_LOG_LEVEL == 2 and _log_counter % REGISTER_LOG_INTERVAL == 0):
+                print(f"[REGISTER/ML→RULE] f0={f0:.0f}Hz ML={label}({confidence:.3f}) < thresh={threshold:.2f} → ルールベースへ")
             return None
 
-        print(f"[REGISTER/ML] f0={f0:.0f}Hz label={label} conf={confidence:.3f} thresh={threshold:.2f} crepe={crepe_conf:.2f}")
+        _stats["ml_success"] += 1
+        _stats[label] += 1
+        if REGISTER_LOG_LEVEL >= 3 or (REGISTER_LOG_LEVEL == 2 and _log_counter % REGISTER_LOG_INTERVAL == 0):
+            print(f"[REGISTER/ML] f0={f0:.0f}Hz label={label} conf={confidence:.3f} thresh={threshold:.2f} crepe={crepe_conf:.2f}")
         return label
     except Exception as e:
         print(f"[WARN] ML推論失敗: {e}")
@@ -136,6 +147,7 @@ def _classify_ml(y: np.ndarray, sr: int, f0: float,
 def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float,
                     crepe_conf: float = 1.0) -> str:
     """従来のルールベース判定"""
+    global _log_counter, _stats
     # FFT
     n_fft    = 8192
     win      = np.hanning(len(y))
@@ -158,7 +170,10 @@ def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float,
 
     # 地声即決（低音域のみ: f0>400ではdemucsによるH1-H2変質があるためスコア判定へ回す）
     if h1_h2 < -2.0 and f0 <= 400:
-        print(f"[REGISTER/RULE] f0={f0:.0f}Hz H1-H2={h1_h2:.1f}dB → 地声確定(即決)")
+        _stats["rule_only"] += 1
+        _stats["chest"] += 1
+        if REGISTER_LOG_LEVEL >= 3 or (REGISTER_LOG_LEVEL == 2 and _log_counter % REGISTER_LOG_INTERVAL == 0):
+            print(f"[REGISTER/RULE] f0={f0:.0f}Hz H1-H2={h1_h2:.1f}dB → 地声確定(即決)")
         return "chest"
 
     # スコア判定
@@ -268,14 +283,17 @@ def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float,
 
     # [FIX] f-string内で条件式をフォーマット指定子に使うとValueError → 事前に文字列変換
     slope_str = f"{slope:.1f}" if slope is not None else "N/A"
-    print(
-        f"[REGISTER/RULE] f0={f0:.0f}Hz "
-        f"H1-H2={h1_h2:.1f} hcount={hcount} "
-        f"slope={slope_str} "
-        f"HNR={hnr:.2f} cr={cr:.2f} "
-        f"C={chest_score:.1f} F={falsetto_score:.1f} ratio={falsetto_ratio:.2f} "
-        f"→ {result}"
-    )
+    _stats["rule_only"] += 1
+    _stats[result] += 1
+    if REGISTER_LOG_LEVEL >= 3 or (REGISTER_LOG_LEVEL == 2 and _log_counter % REGISTER_LOG_INTERVAL == 0):
+        print(
+            f"[REGISTER/RULE] f0={f0:.0f}Hz "
+            f"H1-H2={h1_h2:.1f} hcount={hcount} "
+            f"slope={slope_str} "
+            f"HNR={hnr:.2f} cr={cr:.2f} "
+            f"C={chest_score:.1f} F={falsetto_score:.1f} ratio={falsetto_ratio:.2f} "
+            f"→ {result}"
+        )
     return result
 
 
@@ -321,7 +339,39 @@ def classify_register(y: np.ndarray, sr: int, f0: float, median_freq: float = 0,
     # ML判定を試行（crepe_confを伝搬）
     ml_result = _classify_ml(y, sr, f0, crepe_conf=crepe_conf)
     if ml_result is not None:
+        _log_counter += 1
         return ml_result
 
     # フォールバック: ルールベース（crepe_confを伝搬）
+    _log_counter += 1
     return _classify_rules(y, sr, f0, median_freq, crepe_conf=crepe_conf)
+
+
+# ============================================================
+# ログ制御とサマリー
+# ============================================================
+def reset_register_stats():
+    """統計情報をリセット（分析開始時に呼ぶ）"""
+    global _log_counter, _stats
+    _log_counter = 0
+    _stats = {"ml_success": 0, "ml_fallback": 0, "rule_only": 0, "chest": 0, "falsetto": 0}
+
+
+def print_register_summary():
+    """レジスター判定のサマリーを出力"""
+    if REGISTER_LOG_LEVEL == 0:
+        return
+    
+    total = _stats["chest"] + _stats["falsetto"]
+    if total == 0:
+        return
+    
+    print(f"\n[REGISTER SUMMARY] 合計判定数: {total}フレーム")
+    print(f"  ├─ 地声: {_stats['chest']}フレーム ({_stats['chest']/total*100:.1f}%)")
+    print(f"  └─ 裏声: {_stats['falsetto']}フレーム ({_stats['falsetto']/total*100:.1f}%)")
+    
+    if _ML_MODEL is not None:
+        print(f"  判定方式:")
+        print(f"    ├─ ML判定成功: {_stats['ml_success']}フレーム")
+        print(f"    ├─ ML→ルール: {_stats['ml_fallback']}フレーム")
+        print(f"    └─ ルールのみ: {_stats['rule_only']}フレーム")
