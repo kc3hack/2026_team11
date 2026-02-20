@@ -52,21 +52,21 @@ const BottomNav: React.FC<BottomNavProps> = ({ currentPath, isAuthenticated = fa
           <button
             onClick={() => navigate("/menu")}
             className={`absolute -top-6 w-14 h-14 rounded-full flex items-center justify-center border-4 active:scale-95 transition-all duration-300 ${isRecordingActive
-                ? "bg-slate-900 border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.6)] scale-105"
-                : "bg-slate-900 border-slate-800 shadow-[0_0_15px_rgba(0,0,0,0.8)] hover:border-slate-700"
+              ? "bg-slate-900 border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.6)] scale-105"
+              : "bg-slate-900 border-slate-800 shadow-[0_0_15px_rgba(0,0,0,0.8)] hover:border-slate-700"
               }`}
             aria-label="録音"
           >
             <MicrophoneIconSolid className={`w-8 h-8 transition-colors ${isRecordingActive
-                ? "text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,1)] animate-pulse"
-                : "text-slate-400 group-hover:text-cyan-200"
+              ? "text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,1)] animate-pulse"
+              : "text-slate-400 group-hover:text-cyan-200"
               }`} />
           </button>
           <div className="flex flex-col justify-end pb-1 h-full pt-8">
             <span
               className={`text-[10px] font-medium transition-colors ${isRecordingActive
-                  ? "text-cyan-400 drop-shadow-[0_0_5px_rgba(34,211,238,0.8)]"
-                  : "text-slate-500 group-hover:text-cyan-400"
+                ? "text-cyan-400 drop-shadow-[0_0_5px_rgba(34,211,238,0.8)]"
+                : "text-slate-500 group-hover:text-cyan-400"
                 }`}
             >
               録音
@@ -74,16 +74,16 @@ const BottomNav: React.FC<BottomNavProps> = ({ currentPath, isAuthenticated = fa
           </div>
         </div>
 
-        {/* 4. 分析結果 */}
+        {/* 4. 声域分析 */}
         <button
           onClick={() => navigate("/analysis")}
           className={`flex-1 flex flex-col items-center justify-end h-full py-1 ${currentPath === "/analysis" || currentPath === "/result"
-              ? "text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]"
-              : "text-slate-500 hover:text-slate-400"
+            ? "text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]"
+            : "text-slate-500 hover:text-slate-400"
             }`}
         >
           <ChartBarIcon className="w-6 h-6 mb-1" />
-          <span className="text-[10px] font-medium">分析結果</span>
+          <span className="text-[10px] font-medium">声域分析</span>
         </button>
 
         {/* 5. マイページ / ログイン */}

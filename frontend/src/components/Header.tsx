@@ -42,7 +42,7 @@ const Header: React.FC<HeaderProps> = ({
                     録音
                 </button>
                 <button type="button" onClick={() => navigate("/analysis")} className={navClass(isActive(["/analysis", "/result"]))}>
-                    分析結果
+                    声域分析
                 </button>
                 <button type="button" onClick={() => navigate("/songs")} className={navClass(isActive(["/songs"]))}>
                     楽曲一覧
