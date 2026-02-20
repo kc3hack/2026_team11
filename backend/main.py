@@ -3,6 +3,7 @@ warnings.filterwarnings("ignore")
 
 from fastapi import FastAPI, File, UploadFile, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.encoders import jsonable_encoder
 import shutil
 import os
 import uuid
@@ -452,7 +453,7 @@ async def analyze_voice(
                     falsetto=result.get("falsetto_max"),
                     source_type="microphone",
                     file_name=file.filename,
-                    result_json=result
+                    result_json=jsonable_encoder(result)
                 )
                 update_vocal_range(
                     user["id"],
@@ -531,7 +532,7 @@ async def analyze_karaoke(
                     falsetto=result.get("falsetto_max"),
                     source_type="karaoke",
                     file_name=file.filename,
-                    result_json=result
+                    result_json=jsonable_encoder(result)
                 )
                 update_vocal_range(
                     user["id"],
