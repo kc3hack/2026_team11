@@ -113,8 +113,8 @@ const GuidePage: React.FC = () => {
                                     </div>
 
                                     {/* Decoration Lines */}
-                                    <div className={`absolute top-0 right-0 w-16 h-1 border-t-2 border-r-2 ${step.color} opacity-50`}></div>
-                                    <div className={`absolute bottom-0 left-0 w-16 h-1 border-b-2 border-l-2 ${step.color} opacity-50`}></div>
+                                    <div className={`absolute top-0 right-0 w-16 h-1 border-t-2 border-r-2 ${step.decorationColor} opacity-50`}></div>>
+                                    <div className={`absolute bottom-0 left-0 w-16 h-1 border-b-2 border-l-2 ${step.decorationColor} opacity-50`}></div>
                                 </div>
                             </div>
                         );
