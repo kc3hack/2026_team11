@@ -104,7 +104,7 @@ const GuidePage: React.FC = () => {
                                             <ul className="space-y-2">
                                                 {step.details.map((d, j) => (
                                                     <li key={j} className="flex items-start gap-2 text-sm sm:text-base text-slate-400">
-                                                        <span className={`${step.color} mt-0.5 animate-pulse`}>▶</span>
+                                                        <span className={`${step.color} mt-0.5`}>▶</span>
                                                         <span>{d}</span>
                                                     </li>
                                                 ))}
