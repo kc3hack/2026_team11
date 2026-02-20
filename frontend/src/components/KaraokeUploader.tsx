@@ -1,54 +1,27 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useRef } from "react";
 import { analyzeKaraoke, AnalysisResult } from "../api";
 import { CloudArrowUpIcon, DocumentArrowUpIcon } from "@heroicons/react/24/solid";
+import { useAnalysis } from '../contexts/AnalysisContext';
 
 interface Props {
   onResult: (data: AnalysisResult) => void;
 }
 
-const STEPS = [
-  { progress: 10, label: "⚡ 音源を読み込み中..." },
-  { progress: 35, label: "🎤 超高速ボーカル分離中..." },
-  { progress: 60, label: "🎵 もう少しで完了..." },
-  { progress: 85, label: "📊 音域を解析中..." },
-];
-
 const KaraokeUploader: React.FC<Props> = ({ onResult }) => {
-  const [loading, setLoading] = useState(false);
+  const { 
+    isAnalyzing: loading, setIsAnalyzing: setLoading, 
+    progress, setProgress, 
+    stepLabel, setStepLabel,
+    startAnalysisTimer, stopAnalysisTimer 
+  } = useAnalysis();
+
   const [error, setError] = useState("");
-  const [progress, setProgress] = useState(0);
-  const [stepLabel, setStepLabel] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [noFalsetto, setNoFalsetto] = useState(false);
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (loading) {
-      let stepIndex = 0;
-      setProgress(STEPS[0].progress);
-      setStepLabel(STEPS[0].label);
-
-      timerRef.current = setInterval(() => {
-        stepIndex++;
-        if (stepIndex < STEPS.length) {
-          setProgress(STEPS[stepIndex].progress);
-          setStepLabel(STEPS[stepIndex].label);
-        }
-      }, 8000);
-    } else {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [loading]);
 
   const processFile = async (file: File) => {
     // 対応フォーマットチェック
@@ -67,12 +40,15 @@ const KaraokeUploader: React.FC<Props> = ({ onResult }) => {
       return;
     }
 
-    setLoading(true);
     setError("");
     setFileName(file.name);
 
+    // Contextのタイマーを開始
+    startAnalysisTimer('upload');
+
     try {
       const data = await analyzeKaraoke(file, file.name, noFalsetto);
+      stopAnalysisTimer();
       setProgress(100);
       setStepLabel("完了！");
       if (data.error) {
@@ -81,6 +57,7 @@ const KaraokeUploader: React.FC<Props> = ({ onResult }) => {
         onResult(data);
       }
     } catch (err: unknown) {
+      stopAnalysisTimer();
       const axiosErr = err as { code?: string; message?: string; response?: { data?: { error?: string } } };
       if (axiosErr?.code === "ECONNABORTED" || axiosErr?.message?.includes("timeout")) {
         setError(
@@ -116,7 +93,6 @@ const KaraokeUploader: React.FC<Props> = ({ onResult }) => {
     e.preventDefault();
     const related = e.relatedTarget as Node | null;
     if (related && e.currentTarget.contains(related)) {
-      // Still inside the label (moved to a child element), do not reset dragging state
       return;
     }
     setIsDragging(false);

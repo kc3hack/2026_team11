@@ -1,4 +1,4 @@
-import type React from "react";
+import React from "react";
 import { useAuth } from "./contexts/AuthContext";
 
 const LoginPage: React.FC = () => {
@@ -47,4 +47,4 @@ const LoginPage: React.FC = () => {
   );
 };
 
-export default LoginPage;
+export default React.memo(LoginPage);

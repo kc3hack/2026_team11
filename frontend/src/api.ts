@@ -174,6 +174,50 @@ export const getSongs = async (
   return res.data;
 };
 
+/** アーティスト型 */
+export interface Artist {
+  id: number;
+  name: string;
+  slug: string;
+  song_count: number;
+  reading: string;
+}
+
+/** アーティスト一覧レスポンス */
+export interface ArtistsResponse {
+  artists: Artist[];
+  total: number;
+}
+
+/** アーティスト一覧取得（ページネーション対応） */
+export const getArtists = async (
+  limit: number = 10,
+  offset: number = 0,
+  query: string = "",
+): Promise<ArtistsResponse> => {
+  const params: Record<string, any> = { limit, offset };
+  if (query) params.q = query;
+  const res = await API.get<ArtistsResponse>("/artists", { params });
+  return res.data;
+};
+
+/** 特定アーティストの楽曲一覧取得 */
+export const getArtistSongs = async (
+  artistId: number,
+  userRange?: UserRange | null,
+): Promise<Song[]> => {
+  const params: Record<string, any> = {};
+  if (userRange) {
+    params.chest_min_hz = userRange.chest_min_hz;
+    params.chest_max_hz = userRange.chest_max_hz;
+    if (userRange.falsetto_max_hz) {
+      params.falsetto_max_hz = userRange.falsetto_max_hz;
+    }
+  }
+  const res = await API.get<Song[]>(`/artists/${artistId}/songs`, { params });
+  return res.data;
+};
+
 /** お気に入りアーティスト一覧取得 */
 export const getFavoriteArtists = async (): Promise<FavoriteArtist[]> => {
   const res = await API.get<FavoriteArtist[]>("/favorite-artists");

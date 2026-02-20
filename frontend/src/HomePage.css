@@ -82,9 +82,9 @@
   clip-path: polygon(0 0, 55% 0, 65% 100%, 0 100%);
   z-index: 20;
 
-  /* Intensify Glow / "Snap" effect */
+  /* Intensify Glow / "Snap" effect — single shadow for performance */
   filter:
-    drop-shadow(0 0 3px rgba(var(--neon-red), 1)) drop-shadow(0 0 15px rgba(var(--neon-red), 0.8)) drop-shadow(0 0 30px rgba(var(--neon-red), 0.4)) brightness(1.2);
+    drop-shadow(0 0 12px rgba(var(--neon-red), 0.8)) brightness(1.15);
 
   /* More visible mist */
   background: radial-gradient(circle at 30% 50%, rgba(var(--neon-red), 0.25), rgba(var(--neon-red), 0.1) 80%, transparent);
@@ -105,7 +105,7 @@
   z-index: 20;
 
   filter:
-    drop-shadow(0 0 3px rgba(var(--neon-blue), 1)) drop-shadow(0 0 15px rgba(var(--neon-blue), 0.8)) drop-shadow(0 0 30px rgba(var(--neon-blue), 0.4)) brightness(1.2);
+    drop-shadow(0 0 12px rgba(var(--neon-blue), 0.8)) brightness(1.15);
 
   background: radial-gradient(circle at 70% 50%, rgba(var(--neon-blue), 0.25), rgba(var(--neon-blue), 0.1) 80%, transparent);
 }

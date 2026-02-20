@@ -113,29 +113,50 @@ def analyze_singing_ability(
 
 
 def _compute_stability(f0: np.ndarray, conf: np.ndarray) -> float:
-    """ピッチ安定性スコア (0-100)"""
-    if len(f0) < 10:
-        return 50.0
+    """ピッチ安定性スコア (0-100)
+
+    持続音セグメント内のピッチ偏差を計測する。
+    隣接フレーム間のピッチ差が1半音以内なら同一音符とみなし、
+    3フレーム以上続くセグメントごとにセント標準偏差を算出、
+    セグメント長で重み付き平均 → スコア化。
+    """
+    from config import STABILITY_MIN_SEGMENT, STABILITY_SCALING
 
     mask = (conf >= 0.3) & (f0 > 0)
     f0_valid = f0[mask]
     if len(f0_valid) < 10:
         return 50.0
 
-    window = 5
-    local_stds = []
-    for i in range(0, len(f0_valid) - window, window):
-        seg = f0_valid[i : i + window]
-        med = np.median(seg)
-        if med > 0:
-            cents = 1200.0 * np.log2(seg / med + 1e-10)
-            local_stds.append(float(np.std(cents)))
+    semitone_ratio = 2 ** (1 / 12)  # ≈1.0595
+    segments = []
+    current_seg = [f0_valid[0]]
 
-    if not local_stds:
+    for i in range(1, len(f0_valid)):
+        ratio = f0_valid[i] / f0_valid[i - 1]
+        if 1 / semitone_ratio <= ratio <= semitone_ratio:
+            current_seg.append(f0_valid[i])
+        else:
+            if len(current_seg) >= STABILITY_MIN_SEGMENT:
+                segments.append(current_seg)
+            current_seg = [f0_valid[i]]
+    if len(current_seg) >= STABILITY_MIN_SEGMENT:
+        segments.append(current_seg)
+
+    if not segments:
         return 50.0
 
-    avg_std = float(np.mean(local_stds))
-    return max(0.0, min(100.0, 100.0 - avg_std * 2.0))
+    weighted_sum = 0.0
+    total_frames = 0
+    for seg in segments:
+        arr = np.array(seg)
+        med = np.median(arr)
+        cents = 1200.0 * np.log2(arr / med)
+        weighted_sum += float(np.std(cents)) * len(seg)
+        total_frames += len(seg)
+
+    avg_std = weighted_sum / total_frames
+    # 目安: 10cents=プロ(92), 25cents=上手い素人(80), 40cents=普通のカラオケ(68), 75+=40以下
+    return max(0.0, min(100.0, 100.0 - avg_std * STABILITY_SCALING))
 
 
 def _compute_expression(
