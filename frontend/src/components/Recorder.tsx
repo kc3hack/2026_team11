@@ -242,7 +242,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
             checked={noFalsetto}
             onChange={(e) => setNoFalsetto(e.target.checked)}
             disabled={recording || loading}
-            className="peer appearance-none w-5 h-5 border-2 border-cyan-400 rounded-sm bg-slate-900/50 outline-none cursor-pointer transition-all duration-300 shadow-[0_0_10px_rgba(34,211,238,0.6)] group-hover:shadow-[0_0_20px_rgba(34,211,238,1)] group-hover:border-cyan-300 checked:bg-cyan-400 checked:border-cyan-400 checked:shadow-[0_0_20px_rgba(34,211,238,1)] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="peer appearance-none w-5 h-5 border-2 border-cyan-400 rounded-sm bg-slate-900/50 outline-none cursor-pointer transition-all duration-300 shadow-[0_0_10px_rgba(34,211,238,0.6)] group-hover:shadow-[0_0_20px_rgba(34,211,238,1)] group-hover:border-cyan-300 checked:bg-cyan-400 checked:border-cyan-400 checked:shadow-[0_0_20px_rgba(34,211,238,1)] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 focus-visible:outline-none"
           />
           <svg
             className="absolute w-3.5 h-3.5 text-slate-900 pointer-events-none opacity-0 peer-checked:opacity-100 transition-all duration-300 scale-50 peer-checked:scale-100"
