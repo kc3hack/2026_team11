@@ -174,7 +174,7 @@ def create_analysis_record(
     source_type: str,
     file_name: Optional[str] = None,
     result_json: Optional[Dict[str, Any]] = None
-) -> Dict[str, Any]:
+) -> Optional[Dict[str, Any]]:
     """分析履歴を新規作成"""
     data = {
         "user_id": user_id,
