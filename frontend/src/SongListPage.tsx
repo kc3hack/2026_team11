@@ -236,19 +236,17 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
     }
   }, [searchQuery, userRange]);
 
-  // 検索クエリが変わったらページをリセット
+  // 検索クエリが変わったらページをリセット（フェッチはページ変更effectに任せる）
   useEffect(() => {
     if (searchQuery) {
       setSearchPage(0);
       setSearchPageInput("1");
-      fetchSearchSongs(0);
     } else {
       setArtistPage(0);
       setPageInput("1");
       setSelectedArtist(null);
-      fetchArtists(0);
     }
-  }, [searchQuery, fetchArtists, fetchSearchSongs]);
+  }, [searchQuery]);
 
   // ページが変わったら取得（アーティスト）
   useEffect(() => {
