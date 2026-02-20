@@ -55,11 +55,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       return;
     }
 
-    // 本番環境のURLを優先、開発環境では現在のoriginを使用
+    // 現在のドメインが本番環境かチェック
+    const isProduction = window.location.hostname === "pitchscout.ten-hou.com";
     const redirectUrl = process.env.REACT_APP_REDIRECT_URL ||
-      (process.env.NODE_ENV === "production"
-        ? "https://pitchscout.ten-hou.com"
-        : window.location.origin);
+      (isProduction ? "https://pitchscout.ten-hou.com" : window.location.origin);
 
     await supabase.auth.signInWithOAuth({
       provider: "google",
