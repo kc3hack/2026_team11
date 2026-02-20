@@ -95,7 +95,7 @@ const Home: React.FC<Props> = ({ onNormalClick, onKaraokeClick, onUploadClick, o
                     {/* Quaternary Action: History (Small) */}
                     <button
                         onClick={onHistoryClick}
-                        className="group relative col-span-1 md:col-span-3 h-40 bg-slate-900/80 backdrop-blur-md bg-gradient-to-br from-emerald-900/40 to-slate-900/80 border-4 border-emerald-400 transform -skew-x-3 hover:skew-x-0 transition-all duration-300 shadow-[8px_8px_0px_0px_rgba(52,211,153,0.6)] hover:shadow-[0px_0px_30px_rgba(52,211,153,1)] hover:border-emerald-300 hover:scale-[1.02] overflow-hidden"
+                        className="group relative col-span-1 md:col-span-3 h-40 bg-slate-900/80 backdrop-blur-md bg-gradient-to-br from-emerald-900/40 to-slate-900/80 border-4 border-emerald-400 transform -skew-x-3 hover:skew-x-0 transition-all duration-300 shadow-[8px_8px_0px_0px_rgba(52,211,153,0.6)] hover:shadow-[0px_0px_30px_rgba(52,211,153,1)] hover:border-emerald-300 hover:scale-[1.02] overflow-hidden focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
                     >
                         {/* Light Leak */}
                         <div className="absolute -bottom-1/4 -left-1/4 w-32 h-32 bg-emerald-400/20 blur-[40px] rounded-full pointer-events-none group-hover:bg-emerald-400/40 transition-all duration-500"></div>
