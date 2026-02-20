@@ -19,6 +19,7 @@ const KaraokeUploader: React.FC<Props> = ({ onResult }) => {
   const [progress, setProgress] = useState(0);
   const [stepLabel, setStepLabel] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
+  const [noFalsetto, setNoFalsetto] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -70,7 +71,7 @@ const KaraokeUploader: React.FC<Props> = ({ onResult }) => {
     setFileName(file.name);
 
     try {
-      const data = await analyzeKaraoke(file, file.name);
+      const data = await analyzeKaraoke(file, file.name, noFalsetto);
       setProgress(100);
       setStepLabel("完了！");
       if (data.error) {
@@ -141,6 +142,18 @@ const KaraokeUploader: React.FC<Props> = ({ onResult }) => {
           disabled={loading}
           className="hidden"
         />
+      </label>
+
+      {/* 裏声なしオプション */}
+      <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={noFalsetto}
+          onChange={(e) => setNoFalsetto(e.target.checked)}
+          disabled={loading}
+          className="w-4 h-4 rounded border-slate-300 text-blue-500 focus:ring-blue-400"
+        />
+        裏声を使わない（地声のみで判定）
       </label>
 
       {/* プログレスバー */}
