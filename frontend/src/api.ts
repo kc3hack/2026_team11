@@ -130,6 +130,28 @@ export interface UserRange {
   falsetto_max_hz?: number;
 }
 
+/** 統合音域情報（直近N件の分析から算出） */
+export interface IntegratedVocalRange {
+  overall_min?: string;
+  overall_max?: string;
+  overall_min_hz?: number;
+  overall_max_hz?: number;
+  chest_min?: string;
+  chest_max?: string;
+  chest_min_hz?: number;
+  chest_max_hz?: number;
+  falsetto_max?: string;
+  falsetto_max_hz?: number;
+  chest_ratio?: number;
+  falsetto_ratio?: number;
+  data_count: number;  // 統合に使用したデータ件数
+  limit: number;       // 取得を試みた件数
+  singing_analysis?: SingingAnalysis;
+  voice_type?: VoiceType;
+  recommended_songs?: RecommendedSong[];
+  similar_artists?: SimilarArtist[];
+}
+
 // ── API 関数 ──────────────────────────────────────────
 
 /** マイク録音用 */
@@ -285,5 +307,11 @@ export const getAnalysisHistory = async (limit = 50): Promise<AnalysisHistoryRec
 /** 履歴削除API */
 export const deleteAnalysisHistory = async (recordId: string): Promise<{ message: string }> => {
   const res = await API.delete(`/analysis/history/${recordId}`);
+  return res.data;
+};
+
+/** 統合音域取得API（直近N件から計算） */
+export const getIntegratedVocalRange = async (limit = 20): Promise<IntegratedVocalRange> => {
+  const res = await API.get<IntegratedVocalRange>("/analysis/integrated-range", { params: { limit } });
   return res.data;
 };
