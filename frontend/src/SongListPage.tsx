@@ -236,37 +236,35 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
     }
   }, [searchQuery, userRange]);
 
-  // 検索クエリが変わったらページをリセット＆初回フェッチ
+  // 検索クエリが変わったらページをリセット（フェッチはページ変更effectで実行）
   useEffect(() => {
     if (searchQuery) {
       setSearchPage(0);
       setSearchPageInput("1");
-      fetchSearchSongs(0);
     } else {
       setArtistPage(0);
       setPageInput("1");
       setSelectedArtist(null);
-      fetchArtists(0);
     }
-  }, [searchQuery, fetchSearchSongs, fetchArtists]);
+  }, [searchQuery]);
 
-  // ページが変わったら取得（アーティスト）- 2ページ目以降のみ
+  // ページが変わったら取得（アーティスト）
   useEffect(() => {
-    if (!searchQuery && artistPage > 0) {
+    if (!searchQuery) {
       fetchArtists(artistPage);
       setPageInput((artistPage + 1).toString());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [artistPage, fetchArtists]);
+  }, [artistPage, searchQuery]);
 
-  // ページが変わったら取得（楽曲検索）- 2ページ目以降のみ
+  // ページが変わったら取得（楽曲検索）
   useEffect(() => {
-    if (searchQuery && searchPage > 0) {
+    if (searchQuery) {
       fetchSearchSongs(searchPage);
       setSearchPageInput((searchPage + 1).toString());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchPage, fetchSearchSongs]);
+  }, [searchPage, searchQuery]);
 
   // お気に入りアーティスト取得
   useEffect(() => {
