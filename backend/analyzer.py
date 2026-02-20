@@ -27,9 +27,10 @@ def fix_octave_errors(f0: np.ndarray, conf: np.ndarray) -> np.ndarray:
     for i, freq in enumerate(f0_fixed):
         if freq <= 0:
             continue
-        # 高音保護: 中央値の2倍以上かつ人声範囲内かつ高信頼度 → 正当な高音跳躍なので補正しない
+        # 高音保護: 中央値の1.5倍以上かつ人声範囲内かつ高信頼度 → 正当な高音跳躍なので補正しない
         # ノイズフレーム(conf<0.5)は保護せずオクターブ補正の対象に残す
-        if freq > reference * 2 and VOICE_MIN <= freq <= VOICE_MAX and conf[i] >= 0.5:
+        # ★ 旧閾値2.0xではmedian≈200Hzの場合300-400Hz(mid2E~mid2G)が保護されず半減されていた
+        if freq > reference * 1.5 and VOICE_MIN <= freq <= VOICE_MAX and conf[i] >= 0.5:
             continue
         doubled, halved = freq * 2, freq / 2
         can_up   = VOICE_MIN <= doubled <= VOICE_MAX
@@ -84,6 +85,26 @@ def remove_isolated_extremes(notes, min_neighbors=4):
             removed += 1
     if removed > 0:
         print(f"[DEBUG] 孤立フレーム除去: {removed}フレーム削除 (閾値={high_threshold:.1f}Hz以上, 近傍{min_neighbors}未満)")
+    return result if result else notes  # 全除去を防止
+
+
+# ============================================================
+# remove_statistical_outliers
+# パーセンタイルベースの外れ値除去（ノイズ・伴奏混入の安全ネット）
+# ============================================================
+def remove_statistical_outliers(notes, percentile=97, max_semitones_gap=6):
+    """主要分布から大きく離れたフレームを除去。
+    P{percentile}から{max_semitones_gap}半音以上離れたフレームを外れ値とする。"""
+    if len(notes) < 10:
+        return notes
+    arr = np.array(notes)
+    ref = np.percentile(arr, percentile)
+    threshold = ref * (2 ** (max_semitones_gap / 12))
+    result = [f for f in notes if f <= threshold]
+    removed = len(notes) - len(result)
+    if removed > 0:
+        print(f"[DEBUG] 統計外れ値除去: {removed}フレーム削除 "
+              f"(参照P{percentile}={ref:.1f}Hz, 閾値={threshold:.1f}Hz)")
     return result if result else notes  # 全除去を防止
 
 
@@ -338,6 +359,7 @@ def analyze(wav_path: str, already_separated: bool = False) -> dict:
     total_frames   = len(f0_reg_fixed)
     progress_interval = max(1, total_frames // 10)  # 10%ごとに進捗表示
 
+    graduated_conf_filtered = 0
     print(f"[INFO] {total_frames}フレームを処理中...")
     for i in range(len(f0_reg_fixed)):
         if i % progress_interval == 0 and i > 0:
@@ -346,6 +368,20 @@ def analyze(wav_path: str, already_separated: bool = False) -> dict:
         freq = f0_reg_fixed[i]
         if not (65 <= freq <= 1324):
             continue
+        # --- 段階的信頼度要求: 中央値から遠いほど高い信頼度を要求 ---
+        # ★ CREPE元値(f0_reg[i])を使い、fix_octave_errorsで補正されたノイズも検出
+        orig_freq = f0_reg[i]
+        if orig_freq > median_freq:
+            octaves_above = np.log2(orig_freq / median_freq)
+            if octaves_above > 1.5:
+                min_conf = 0.65
+            elif octaves_above > 1.0:
+                min_conf = 0.50
+            else:
+                min_conf = 0.35  # 既存ノイズゲートと同じ
+            if conf_reg[i] < min_conf:
+                graduated_conf_filtered += 1
+                continue
         frame_idx = valid_indices_reg[i]
         center    = int(frame_idx) * hop_length
         start     = max(0, center - frame_len // 2)
@@ -363,6 +399,9 @@ def analyze(wav_path: str, already_separated: bool = False) -> dict:
             # reg == "unknown" はスキップ（無声音・異常データ）
         except Exception:
             continue
+
+    if graduated_conf_filtered > 0:
+        print(f"[DEBUG] 段階的信頼度フィルタ: {graduated_conf_filtered}フレーム除外")
 
     # 裏声表示フィルタ: 330Hz未満の「裏声」は息混じり地声の可能性が高い
     display_min_hz = FALSETTO_DISPLAY_MIN_HZ
@@ -388,6 +427,13 @@ def analyze(wav_path: str, already_separated: bool = False) -> dict:
             print(f"[DEBUG] 最高音付近（{high_threshold:.1f}Hz以上）: 地声{len(high_chest)}フレーム, 裏声{len(high_falsetto)}フレーム")
             if high_chest and high_falsetto:
                 print(f"[DEBUG] → 地声最高: {max(high_chest):.1f}Hz, 裏声最高: {max(high_falsetto):.1f}Hz")
+
+    # === 統計的外れ値除去（パーセンタイルベースの安全ネット） ===
+    chest_notes = remove_statistical_outliers(chest_notes)
+    # ★ 裏声は地声より狭い分布が期待される＋伴奏混入は上端に集中するため厳しめに
+    # P90+2半音: 主要分布の上端から全音以上離れたフレームを除去
+    # (裏声分布はP90付近に集中するため、楽器混入は2半音で十分に検出可能)
+    falsetto_notes = remove_statistical_outliers(falsetto_notes, percentile=90, max_semitones_gap=2)
 
     # === 孤立した極端値を除去（ノイズ最終防衛線） ===
     chest_notes = remove_isolated_extremes(chest_notes)
