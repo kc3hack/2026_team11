@@ -311,18 +311,18 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
                     fill="none"
                     className="stroke-fuchsia-400 transition-all duration-100 ease-linear"
                     strokeWidth="6"
-                    strokeDasharray="528" // 2 * PI * 84 roughly 528
-                    strokeDashoffset="528"
+                    strokeDasharray="132 396"
+                    strokeDashoffset="0"
                     style={{
-                      animation: "progressRing 15s linear forwards"
+                      animation: "spinRing 2s linear infinite"
                     }}
                   />
                 </svg>
                 {/* Embedded CSS for animation */}
                 <style>{`
-                  @keyframes progressRing {
-                    from { stroke-dashoffset: 528; }
-                    to { stroke-dashoffset: 0; }
+                  @keyframes spinRing {
+                    from { transform: rotate(0deg); transform-origin: center; }
+                    to { transform: rotate(360deg); transform-origin: center; }
                   }
                   @keyframes pulseShadow {
                     0% { box-shadow: 0 0 20px rgba(232,121,249,0.4), inset 0 0 10px rgba(0,0,0,0.5); }
