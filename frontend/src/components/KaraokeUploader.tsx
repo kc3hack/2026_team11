@@ -153,8 +153,8 @@ const KaraokeUploader: React.FC<Props> = ({ onResult }) => {
           onDrop={handleDrop}
           onMouseEnter={() => !loading && setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
-          className={`relative w-full aspect-video sm:aspect-[21/9] flex flex-col items-center justify-center p-8 cursor-pointer transition-all duration-300 block overflow-hidden
-            ${loading ? "bg-fuchsia-950/60 cursor-not-allowed cursor-wait" : "bg-gradient-to-br from-fuchsia-950/40 via-fuchsia-900/30 to-fuchsia-950/40 hover:bg-fuchsia-900/40"}
+          className={`relative w-full aspect-video sm:aspect-[21/9] flex flex-col items-center justify-center p-8 transition-all duration-300 block overflow-hidden
+            ${loading ? "bg-fuchsia-950/60 cursor-not-allowed cursor-wait" : "bg-gradient-to-br from-fuchsia-950/40 via-fuchsia-900/30 to-fuchsia-950/40 hover:bg-fuchsia-900/40 cursor-pointer"}
           `}
           style={{
             clipPath: 'polygon(30px 0, 100% 0, 100% calc(100% - 30px), calc(100% - 30px) 100%, 0 100%, 0 30px)',
