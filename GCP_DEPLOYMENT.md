@@ -281,7 +281,7 @@ sudo nano /etc/supervisor/conf.d/pitchscout-backend.conf
 
 ```ini
 [program:pitchscout-backend]
-command=/opt/pitchscout/2026_team11/backend/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
+git command=/opt/pitchscout/2026_team11/backend/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
 directory=/opt/pitchscout/2026_team11/backend
 user=YOUR_USERNAME
 autostart=true
