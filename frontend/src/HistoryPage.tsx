@@ -1,5 +1,7 @@
+// frontend/src/HistoryPage.tsx
 import React, { useEffect, useState } from "react";
-import { getAnalysisHistory, AnalysisHistoryRecord } from "./api";
+// deleteAnalysisHistory をインポートに追加
+import { getAnalysisHistory, AnalysisHistoryRecord, deleteAnalysisHistory } from "./api";
 import { useAuth } from "./contexts/AuthContext";
 
 interface HistoryPageProps {
@@ -13,6 +15,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onLoginClick }) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // ... 既存の fetchHistory 処理そのまま ...
     if (!isAuthenticated) {
       setLoading(false);
       return;
@@ -33,19 +36,22 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onLoginClick }) => {
     fetchHistory();
   }, [isAuthenticated]);
 
+  // 新しく追加する削除処理
+  const handleDelete = async (recordId: string) => {
+    if (!window.confirm("この履歴を削除しますか？")) return;
+
+    try {
+      await deleteAnalysisHistory(recordId);
+      // 成功したら画面のリストから該当レコードを消す
+      setHistory((prev) => prev.filter((record) => record.id !== recordId));
+    } catch (err) {
+      alert("削除に失敗しました。");
+      console.error(err);
+    }
+  };
+
   if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-8 text-center">
-        <h2 className="text-2xl font-bold mb-4 text-white">分析履歴</h2>
-        <p className="text-slate-400 mb-6">履歴を見るにはログインが必要です。</p>
-        <button
-          onClick={onLoginClick}
-          className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all"
-        >
-          ログインする
-        </button>
-      </div>
-    );
+    // ... 既存の未ログイン時表示そのまま ...
   }
 
   return (
@@ -63,7 +69,9 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onLoginClick }) => {
       ) : (
         <div className="space-y-4">
           {history.map((record) => (
-            <div key={record.id} className="bg-slate-800 p-6 rounded-xl border border-white/5 shadow-md flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+            <div key={record.id} className="bg-slate-800 p-6 rounded-xl border border-white/5 shadow-md flex flex-col sm:flex-row justify-between sm:items-center gap-4 relative group">
+              
+              {/* === 左側のメタデータ部分 === */}
               <div>
                 <p className="text-sm text-slate-400 mb-1">
                   {new Date(record.created_at).toLocaleString('ja-JP')}
@@ -80,7 +88,8 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onLoginClick }) => {
                 </div>
               </div>
               
-              <div className="flex gap-4">
+              {/* === 右側の音域表示と削除ボタン === */}
+              <div className="flex items-center gap-4">
                 <div className="bg-slate-900 px-4 py-2 rounded-lg text-center min-w-[100px]">
                   <p className="text-xs text-slate-500 mb-1">地声</p>
                   <p className="font-mono font-bold text-cyan-400">
@@ -93,7 +102,17 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onLoginClick }) => {
                     {record.falsetto_max || '-'}
                   </p>
                 </div>
+                
+                {/* 追加: 削除ボタン */}
+                <button
+                  onClick={() => handleDelete(record.id)}
+                  className="ml-2 px-3 py-2 bg-red-900/40 text-red-400 hover:bg-red-600 hover:text-white rounded-lg transition-colors text-sm font-bold"
+                  aria-label="履歴を削除"
+                >
+                  削除
+                </button>
               </div>
+
             </div>
           ))}
         </div>

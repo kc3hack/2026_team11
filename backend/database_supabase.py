@@ -323,3 +323,14 @@ def get_favorite_artist_ids(user_id: str) -> List[int]:
     except Exception as e:
         print(f"[WARN] お気に入りアーティストID取得失敗: {e}")
         return []
+
+def delete_analysis_record(user_id: str, record_id: str) -> bool:
+    """分析履歴を削除"""
+    try:
+        supabase.table("analysis_history").delete().eq(
+            "id", record_id
+        ).eq("user_id", user_id).execute()
+        return True
+    except Exception as e:
+        print(f"履歴削除エラー: {e}")
+        return False

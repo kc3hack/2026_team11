@@ -233,3 +233,9 @@ export const getAnalysisHistory = async (limit = 50): Promise<AnalysisHistoryRec
   const res = await API.get<AnalysisHistoryRecord[]>("/analysis/history", { params: { limit } });
   return res.data;
 };
+
+/** 履歴削除API */
+export const deleteAnalysisHistory = async (recordId: string): Promise<{ message: string }> => {
+  const res = await API.delete(`/analysis/history/${recordId}`);
+  return res.data;
+};
