@@ -8,21 +8,6 @@ const API = axios.create({
   timeout: TIMEOUT_MS,
 });
 
-// エラーレスポンスのインターセプタを追加して詳細情報を保持
-API.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    // ネットワークエラーの詳細情報を保持
-    if (error.code === "ERR_NETWORK" || !error.response) {
-      const networkError = new Error("Network Error");
-      (networkError as any).code = "ERR_NETWORK";
-      (networkError as any).originalError = error;
-      return Promise.reject(networkError);
-    }
-    return Promise.reject(error);
-  },
-);
-
 // Supabaseのセッショントークンを自動でAuthorizationヘッダーに付与
 API.interceptors.request.use(async (config) => {
   if (supabase) {
@@ -188,34 +173,12 @@ export const getSongs = async (
 
 /** お気に入りアーティスト一覧取得 */
 export const getFavoriteArtists = async (): Promise<FavoriteArtist[]> => {
-  try {
-    // デバッグ: 認証トークンを確認
-    if (supabase) {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-      console.log("[DEBUG] Supabase token available:", !!token);
-      if (token) {
-        console.log("[DEBUG] Token prefix:", token.substring(0, 20) + "...");
-      }
-    }
-
-    const res = await API.get<FavoriteArtist[]>("/favorite-artists");
-    return res.data;
-  } catch (error: any) {
-    console.error("[ERROR] getFavoriteArtists failed:", {
-      status: error.response?.status,
-      message: error.response?.data?.detail || error.message,
-      headers: error.config?.headers,
-    });
-    throw error;
-  }
+  const res = await API.get<FavoriteArtist[]>("/favorite-artists");
+  return res.data;
 };
 
 /** お気に入りアーティスト追加 */
-export const addFavoriteArtist = async (
-  artistId: number,
-  artistName: string,
-): Promise<FavoriteArtist> => {
+export const addFavoriteArtist = async (artistId: number, artistName: string): Promise<FavoriteArtist> => {
   const res = await API.post<FavoriteArtist>("/favorite-artists", {
     artist_id: artistId,
     artist_name: artistName,
@@ -224,12 +187,8 @@ export const addFavoriteArtist = async (
 };
 
 /** お気に入りアーティスト削除 */
-export const removeFavoriteArtist = async (
-  artistId: number,
-): Promise<{ message: string }> => {
-  const res = await API.delete<{ message: string }>(
-    `/favorite-artists/${artistId}`,
-  );
+export const removeFavoriteArtist = async (artistId: number): Promise<{ message: string }> => {
+  const res = await API.delete<{ message: string }>(`/favorite-artists/${artistId}`);
   return res.data;
 };
 

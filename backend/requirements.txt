@@ -11,6 +11,8 @@ beautifulsoup4>=4.12.0
 torch==2.5.1
 torchaudio==2.5.1
 demucs
+torchcrepe
+torchcodec
 noisereduce
 soundfile
 # Supabase & 認証

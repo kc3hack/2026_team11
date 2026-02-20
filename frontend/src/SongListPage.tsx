@@ -119,13 +119,7 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
     try {
       const favs = await getFavoriteArtists();
       setFavoriteIds(favs.map(f => f.artist_id));
-    } catch (e: any) { 
-      console.error("お気に入り同期失敗:", e.message);
-      // ネットワークエラーの場合はサイレントで処理
-      if (e.code !== 'ERR_NETWORK') {
-        console.warn("お気に入りアーティスト取得に失敗しました。ローカル表示のみ利用可能です。");
-      }
-    }
+    } catch (e) { console.error("お気に入り同期失敗", e); }
   };
 
   const fetchSongs = async () => {
@@ -135,16 +129,7 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
       setSongs(data);
       setError(null);
     } catch (err: any) {
-      console.error("楽曲取得エラー:", err.message);
-      if (err.code === 'ERR_NETWORK' || err.message?.includes('Network Error')) {
-        setError("バックエンド API に接続できません。ローカルキャッシュから表示しています。");
-      } else {
-        setError("楽曲の取得に失敗しました");
-      }
-      // API が利用不可でも、空の配列で続行（既存キャッシュがあれば表示）
-      if (songs.length === 0) {
-        setSongs([]);
-      }
+      setError("楽曲の取得に失敗しました");
     } finally {
       setLoading(false);
     }

@@ -1,14 +1,7 @@
 import numpy as np
 import soundfile as sf
 import torch
-# torchcrepe は Python 3.13 互換性の問題があるため、オプショナルインポート
-try:
-    import torchcrepe
-    HAS_TORCHCREPE = True
-except ImportError:
-    HAS_TORCHCREPE = False
-    print("警告: torchcrepe がインストールされていません。librosa を使用します。")
-
+import torchcrepe
 import librosa
 from register_classifier import classify_register
 from note_converter import hz_to_label_and_hz
@@ -166,18 +159,6 @@ def get_min_max_from_crepe(f0: np.ndarray, conf: np.ndarray,
 # run_crepe
 # ============================================================
 def run_crepe(audio_tensor, sr, hop_length, device, model_size='tiny'):
-    if not HAS_TORCHCREPE:
-        # フォールバック: librosa を使用して周波数追跡
-        print("[INFO] librosa を使用して周波数追跡を実行します")
-        S = librosa.stft(audio_tensor.cpu().numpy() if isinstance(audio_tensor, torch.Tensor) else audio_tensor)
-        S_db = librosa.power_to_db(np.abs(S)**2, ref=np.max)
-        f0_hz = librosa.yin(audio_tensor.cpu().numpy() if isinstance(audio_tensor, torch.Tensor) else audio_tensor, fmin=65, fmax=1400, sr=sr)
-        # サンプルレートに合わせてリサンプリング
-        f0 = np.interp(np.arange(0, len(audio_tensor), hop_length), np.arange(len(f0_hz)) * hop_length, f0_hz, left=0, right=0)
-        conf = np.ones_like(f0) * 0.9  # ダミー信頼度
-        print(f"[INFO] librosa を使用した周波数追跡が完了しました")
-        return f0, conf
-    
     common = dict(
         audio=audio_tensor, sample_rate=sr, hop_length=hop_length,
         fmin=65, fmax=1400, model=model_size,
@@ -199,7 +180,6 @@ def run_crepe(audio_tensor, sr, hop_length, device, model_size='tiny'):
         except Exception:
             raise
     raise RuntimeError("torchcrepe: 全デコーダーで失敗")
-
 
 
 # ============================================================
