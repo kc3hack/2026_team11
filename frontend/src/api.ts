@@ -4,7 +4,7 @@ import { supabase } from "./supabaseClient";
 const TIMEOUT_MS = 300000; // 5分
 
 const API = axios.create({
-  baseURL: "http://127.0.0.1:8000",
+  baseURL: process.env.REACT_APP_API_URL || "http://136.110.117.55:8000",
   timeout: TIMEOUT_MS,
 });
 
