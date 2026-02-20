@@ -14,8 +14,8 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   isAuthenticated: false,
   isLoading: true,
-  loginWithGoogle: async () => {},
-  logout: async () => {},
+  loginWithGoogle: async () => { },
+  logout: async () => { },
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -54,10 +54,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       console.warn("Supabase未設定のためログインできません");
       return;
     }
+
+    // 現在のドメインが本番環境かチェック
+    const isProduction = window.location.hostname === "pitchscout.ten-hou.com";
+    const redirectUrl = process.env.REACT_APP_REDIRECT_URL ||
+      (isProduction ? "https://pitchscout.ten-hou.com" : window.location.origin);
+
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: window.location.origin,
+        redirectTo: redirectUrl,
       },
     });
   }, []);
