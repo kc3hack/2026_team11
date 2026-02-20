@@ -20,7 +20,7 @@ from recommender import (
 )
 
 # 楽曲データはローカル SQLite（songs.db に5000曲入ってる）
-from database import get_all_songs, search_songs, init_db
+from database import get_all_songs, search_songs, init_db, get_artists, get_artist_songs, count_artists, search_artists
 
 # 認証・ユーザー系は Supabase
 from database_supabase import (
@@ -260,6 +260,52 @@ def get_my_favorite_artists(user: dict = Depends(get_current_user)):
 def check_favorite_artist(artist_id: int, user: dict = Depends(get_current_user)):
     """アーティストがお気に入りに登録されているか確認"""
     return {"is_favorite": is_favorite_artist(user["id"], artist_id)}
+
+
+# ============================================================
+# アーティスト一覧（認証不要）
+# ============================================================
+
+@app.get("/artists")
+def read_artists(
+    limit: int = 10, offset: int = 0, q: str | None = None,
+):
+    """アーティスト一覧を取得（ページネーション対応）"""
+    if q:
+        artists = search_artists(q, limit, offset)
+        total = count_artists(q)
+    else:
+        artists = get_artists(limit, offset)
+        total = count_artists()
+    return {"artists": artists, "total": total}
+
+
+@app.get("/artists/{artist_id}/songs")
+def read_artist_songs(
+    artist_id: int,
+    chest_min_hz: float | None = Query(None),
+    chest_max_hz: float | None = Query(None),
+    falsetto_max_hz: float | None = Query(None),
+):
+    """特定アーティストの楽曲一覧を取得"""
+    songs = get_artist_songs(artist_id)
+    if chest_min_hz and chest_max_hz:
+        effective_max = chest_max_hz
+        if falsetto_max_hz and falsetto_max_hz > chest_max_hz:
+            effective_max = falsetto_max_hz
+        for song in songs:
+            try:
+                key_info = recommend_key_for_song(
+                    song.get("lowest_note"),
+                    song.get("highest_note"),
+                    chest_min_hz,
+                    effective_max,
+                )
+                song.update(key_info)
+            except Exception:
+                song["recommended_key"] = 0
+                song["fit"] = "unknown"
+    return songs
 
 
 # ============================================================
