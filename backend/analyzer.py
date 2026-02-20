@@ -479,6 +479,56 @@ def analyze(wav_path: str, already_separated: bool = False, no_falsetto: bool = 
                     removed = before_count - len(chest_notes)
                     print(f"[INFO] ラベル一致'{c_label}'の地声{removed}フレームを除外")
 
+    # デバッグ: 最高音付近（上位10Hz）の判定状況を確認
+    if chest_notes or falsetto_notes:
+        all_freqs = chest_notes + falsetto_notes
+        if all_freqs:
+            max_freq = max(all_freqs)
+            high_threshold = max_freq - 10  # 最高音から10Hz以内
+            high_chest = [f for f in chest_notes if f >= high_threshold]
+            high_falsetto = [f for f in falsetto_notes if f >= high_threshold]
+            print(f"[DEBUG] 最高音付近（{high_threshold:.1f}Hz以上）: 地声{len(high_chest)}フレーム, 裏声{len(high_falsetto)}フレーム")
+            if high_chest and high_falsetto:
+                print(f"[DEBUG] → 地声最高: {max(high_chest):.1f}Hz, 裏声最高: {max(high_falsetto):.1f}Hz")
+
+    # === 統計的外れ値除去（パーセンタイルベースの安全ネット） ===
+    chest_notes = remove_statistical_outliers(chest_notes)
+    # ★ 裏声は地声より狭い分布が期待される＋伴奏混入は上端に集中するため厳しめに
+    # P90+2半音: 主要分布の上端から全音以上離れたフレームを除去
+    # (裏声分布はP90付近に集中するため、楽器混入は2半音で十分に検出可能)
+    falsetto_notes = remove_statistical_outliers(falsetto_notes, percentile=90, max_semitones_gap=2)
+
+    # === 孤立した極端値を除去（ノイズ最終防衛線） ===
+    chest_notes = remove_isolated_extremes(chest_notes)
+    falsetto_notes = remove_isolated_extremes(falsetto_notes)
+
+    # === 最高音付近の混在判定を解消 ===
+    # 半音ベースの除外: 2半音分（音名が異なることを保証）
+    if chest_notes and falsetto_notes:
+        all_freqs = chest_notes + falsetto_notes
+        max_freq = max(all_freqs)
+        cleanup_factor = 2 ** (2 / 12)  # 2半音 ≈ 1.1225
+        high_range_threshold = max_freq / cleanup_factor
+
+        high_chest_frames = [f for f in chest_notes if f >= high_range_threshold]
+        high_falsetto_frames = [f for f in falsetto_notes if f >= high_range_threshold]
+
+        # 両方存在する場合、最高音付近では裏声を優先（高音は裏声で出すのが自然）
+        if high_chest_frames and high_falsetto_frames:
+            chest_notes = [f for f in chest_notes if f < high_range_threshold]
+            print(f"[INFO] 最高音付近の地声{len(high_chest_frames)}フレームを除外（裏声{len(high_falsetto_frames)}フレームを優先採用）")
+
+        # ラベル変換後の安全チェック: 量子化で同じ音名になるケースを防止
+        if chest_notes and falsetto_notes:
+            f_label, _ = hz_to_label_and_hz(max(falsetto_notes))
+            c_label, _ = hz_to_label_and_hz(max(chest_notes))
+            if c_label == f_label:
+                before_count = len(chest_notes)
+                chest_notes = [f for f in chest_notes
+                               if hz_to_label_and_hz(f)[0] != f_label]
+                removed = before_count - len(chest_notes)
+                print(f"[INFO] ラベル一致'{c_label}'の地声{removed}フレームを除外")
+
     print(f"\n[STEP 7/7] 📋 結果集計中...")
     # === overall_min/max はレジスター判定済みnotesから取る ===
     # get_min_max_from_crepeはconf閾値が異なるため「どこから来たか分からない数字」になる
