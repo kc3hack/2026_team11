@@ -1,7 +1,7 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-from fastapi import FastAPI, File, UploadFile, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import FastAPI, File, UploadFile, BackgroundTasks, Depends, HTTPException, Query, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.encoders import jsonable_encoder
 import shutil
@@ -412,6 +412,7 @@ def _enrich_result(result: dict, user: dict | None = None) -> dict:
 async def analyze_voice(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    no_falsetto: bool = Form(False),
     user: dict | None = Depends(get_optional_user),
 ):
     """アカペラ/マイク録音用 (Demucsなし)。ログイン済みなら履歴に自動保存"""
@@ -437,8 +438,7 @@ async def analyze_voice(
         print(f"[API] ✅ 変換完了: {converted_wav_path}")
 
         print(f"\n[API] [3/3] 音域解析実行中...")
-        # 1. ここでまず analyze を実行して result を作成する（これが消えていた可能性があります！）
-        result = analyze(converted_wav_path)
+        result = analyze(converted_wav_path, no_falsetto=no_falsetto)
 
         # 2. その result におすすめ曲などを追加する
         result = _enrich_result(result, user)
@@ -482,6 +482,7 @@ async def analyze_voice(
 async def analyze_karaoke(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    no_falsetto: bool = Form(False),
     user: dict | None = Depends(get_optional_user),
 ):
     """カラオケ音源用 (Demucsあり)。ログイン済みなら履歴に自動保存"""
@@ -516,8 +517,7 @@ async def analyze_karaoke(
         print(f"[API] ✅ ボーカル分離完了: {vocal_path}")
 
         print(f"\n[API] [4/4] 音域解析実行中...")
-        # 1. ここでまず analyze を実行して result を作成する
-        result = analyze(vocal_path, already_separated=True)
+        result = analyze(vocal_path, already_separated=True, no_falsetto=no_falsetto)
 
         # 2. その result におすすめ曲などを追加する
         result = _enrich_result(result, user)

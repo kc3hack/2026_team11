@@ -24,14 +24,21 @@ import os
 import numpy as np
 import librosa
 
-FALSETTO_HARD_MIN_HZ = 270.0
+from config import (
+    FALSETTO_HARD_MIN_HZ,
+    ML_CONF_THRESHOLD_LOW_F0, ML_CONF_THRESHOLD_HIGH,
+    ML_CONF_THRESHOLD_NOISY, ML_CONF_CHEST_HIGH_F0,
+    CREPE_NOISE_GATE,
+    FALSETTO_RATIO_HIGH, FALSETTO_RATIO_MID, FALSETTO_RATIO_DEFAULT,
+)
 
 # ============================================================
 # MLモデルのロード（ホットリロード対応）
 # ============================================================
 _ML_MODEL = None
-_MODEL_PATH = os.path.join(os.path.dirname(__file__), "models", "register_model.joblib")
+_MODEL_PATH = os.path.join(os.path.dirname(__file__), "ml", "models", "register_model.joblib")
 _MODEL_MTIME = 0.0  # モデルファイルの更新日時を記録
+_ML_STATUS_LOGGED = False  # MLモデルの初回状態ログ出力済みフラグ
 
 
 def _load_model_if_needed():
@@ -67,56 +74,18 @@ _load_model_if_needed()
 # 共通特徴量抽出（feature_extractor.pyを使用）
 # ============================================================
 try:
-    from feature_extractor import extract_features
+    from feature_extractor import extract_features, get_peak_db, compute_hnr
 except ImportError:
     extract_features = None
-
-
-# ============================================================
-# ルールベース用のヘルパー（MLモデルがない場合のフォールバック）
-# ============================================================
-def _get_peak_db(fft: np.ndarray, freqs: np.ndarray,
-                 target_hz: float, sr: int) -> float:
-    if target_hz <= 0 or target_hz >= sr / 2 * 0.95:
-        return -120.0
-    half_win = max(10.0, target_hz * 0.035)
-    lo = max(1, np.searchsorted(freqs, target_hz - half_win))
-    hi = min(len(fft) - 2, np.searchsorted(freqs, target_hz + half_win))
-    if lo >= hi:
-        return -120.0
-    pk  = lo + int(np.argmax(fft[lo:hi + 1]))
-    a, b, c = fft[pk - 1], fft[pk], fft[pk + 1]
-    denom = a - 2 * b + c
-    if abs(denom) > 1e-12:
-        offset = 0.5 * (a - c) / denom
-        peak   = b - 0.25 * (a - c) * offset
-        if peak > b * 2.0 or peak < 0:
-            peak = b
-    else:
-        peak = b
-    return 20.0 * np.log10(max(peak, 1e-10))
-
-
-def _compute_hnr(y: np.ndarray, sr: int, f0: float) -> float:
-    try:
-        win = np.hanning(len(y))
-        ac  = np.correlate(y * win, y * win, mode='full')
-        ac  = ac[len(ac) // 2:]
-        if ac[0] < 1e-10:
-            return 0.5
-        ac /= ac[0]
-        lag = int(round(sr / f0))
-        if lag < 5 or lag >= len(ac) - 5:
-            return 0.5
-        return float(np.clip(np.max(ac[lag - 3: lag + 4]), 0.0, 1.0))
-    except Exception:
-        return 0.5
+    get_peak_db = None
+    compute_hnr = None
 
 
 # ============================================================
 # ML推論
 # ============================================================
-def _classify_ml(y: np.ndarray, sr: int, f0: float) -> str | None:
+def _classify_ml(y: np.ndarray, sr: int, f0: float,
+                  crepe_conf: float = 1.0) -> str | None:
     """MLモデルで判定。モデルがないか特徴抽出に失敗したら None を返す"""
     _load_model_if_needed()  # モデル更新チェック（mtime比較のみ、軽量）
 
@@ -135,11 +104,26 @@ def _classify_ml(y: np.ndarray, sr: int, f0: float) -> str | None:
         confidence = float(proba[pred])
 
         # 信頼度が低い場合はルールベースにフォールバック
-        if confidence < 0.6:
-            print(f"[REGISTER/ML] f0={f0:.0f}Hz → {label} conf={confidence:.2f} (低信頼度→ルールへ)")
+        # 遷移帯域（<500Hz）では地声/裏声の音響特徴が類似するため高い信頼度を要求
+        if f0 < 500:
+            threshold = ML_CONF_THRESHOLD_LOW_F0
+        elif crepe_conf < 0.55:
+            # CREPE信頼度低 + 高f0 → ノイズの可能性高い。ML確信を強く要求
+            threshold = ML_CONF_THRESHOLD_NOISY
+        else:
+            threshold = ML_CONF_THRESHOLD_HIGH
+
+        # 高音域で「地声」判定する場合は追加の信頼度要求
+        # f0>=400Hzは男声の地声域上限付近。MLが「地声」と判定するにはより強い根拠が必要。
+        # 裏声判定は通常閾値のままにし、高音の裏声検出を阻害しない。
+        if label == "chest" and f0 >= 400:
+            threshold = max(threshold, ML_CONF_CHEST_HIGH_F0)
+
+        if confidence < threshold:
+            print(f"[REGISTER/ML→RULE] f0={f0:.0f}Hz ML={label}({confidence:.3f}) < thresh={threshold:.2f} → ルールベースへ")
             return None
 
-        print(f"[REGISTER/ML] f0={f0:.0f}Hz → {label} conf={confidence:.2f}")
+        print(f"[REGISTER/ML] f0={f0:.0f}Hz label={label} conf={confidence:.3f} thresh={threshold:.2f} crepe={crepe_conf:.2f}")
         return label
     except Exception as e:
         print(f"[WARN] ML推論失敗: {e}")
@@ -149,7 +133,8 @@ def _classify_ml(y: np.ndarray, sr: int, f0: float) -> str | None:
 # ============================================================
 # ルールベース判定（フォールバック）
 # ============================================================
-def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float) -> str:
+def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float,
+                    crepe_conf: float = 1.0) -> str:
     """従来のルールベース判定"""
     # FFT
     n_fft    = 8192
@@ -160,7 +145,7 @@ def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float) -> st
     freqs    = np.fft.rfftfreq(n_fft, 1.0 / sr)
     noise_db = 20.0 * np.log10(float(np.percentile(fft, 5)) + 1e-12)
 
-    H  = [_get_peak_db(fft, freqs, f0 * n, sr) for n in range(1, 11)]
+    H  = [get_peak_db(fft, freqs, f0 * n, sr) for n in range(1, 11)]
     h1 = H[0]
 
     if h1 <= -60:
@@ -171,14 +156,19 @@ def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float) -> st
     if h1_h2 < -20.0:
         return "unknown"
 
-    # 地声即決
-    if h1_h2 < -2.0:
+    # 地声即決（低音域のみ: f0>400ではdemucsによるH1-H2変質があるためスコア判定へ回す）
+    if h1_h2 < -2.0 and f0 <= 400:
         print(f"[REGISTER/RULE] f0={f0:.0f}Hz H1-H2={h1_h2:.1f}dB → 地声確定(即決)")
         return "chest"
 
     # スコア判定
     chest_score    = 0.0
     falsetto_score = 0.0
+
+    # CREPE信頼度ペナルティ: 低信頼度フレームはノイズの可能性が高く、
+    # ノイズは裏声に偏りがち（低HNR、少ない倍音）なので地声方向に補正
+    if crepe_conf < 0.55:
+        chest_score += 1.5
 
     # H1-H2
     if h1_h2 >= 7:
@@ -221,7 +211,7 @@ def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float) -> st
         slope = None
 
     # HNR
-    hnr = _compute_hnr(y, sr, f0)
+    hnr = compute_hnr(y, sr, f0)
     if hnr < 0.35:
         falsetto_score += 4.0
     elif hnr < 0.50:
@@ -243,15 +233,21 @@ def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float) -> st
     elif cr > 6.5:
         chest_score += 1.5
 
-    # f0補正
+    # f0補正: 高音域では強い裏声バイアスを適用
+    # demucs分離後の音源は倍音構造が変質しやすく、hcount=10が頻発するため
+    # 音響特徴だけでは不十分。f0>400のボーナスはhcount≥8(+6.0)に対抗する必要がある。
     if f0 > 600:
-        falsetto_score += 2.0
+        falsetto_score += 5.0
     elif f0 > 500:
-        falsetto_score += 1.0
+        falsetto_score += 4.0
+    elif f0 > 400:
+        falsetto_score += 3.0
     elif f0 < 220:
         chest_score += 3.0
     elif f0 < 295:
         chest_score += 1.5
+    elif f0 < 350:
+        chest_score += 0.5      # 下位遷移帯域: 地声寄り
 
     # 判定
     total = chest_score + falsetto_score
@@ -259,7 +255,16 @@ def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float) -> st
         return "chest"
 
     falsetto_ratio = falsetto_score / total
-    result = "falsetto" if falsetto_ratio >= 0.58 else "chest"
+    # 高音域では裏声判定の閾値を下げる
+    # demucs分離後はhcount(倍音数)やslope(減衰)が常に地声寄りになるため、
+    # 音響特徴だけでは裏声を検出しづらい。f0が高いこと自体が裏声の強い証拠。
+    if f0 > 500:
+        ratio_threshold = FALSETTO_RATIO_HIGH
+    elif f0 > 400:
+        ratio_threshold = FALSETTO_RATIO_MID
+    else:
+        ratio_threshold = FALSETTO_RATIO_DEFAULT
+    result = "falsetto" if falsetto_ratio >= ratio_threshold else "chest"
 
     # [FIX] f-string内で条件式をフォーマット指定子に使うとValueError → 事前に文字列変換
     slope_str = f"{slope:.1f}" if slope is not None else "N/A"
@@ -278,24 +283,45 @@ def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float) -> st
 # メインAPI（analyzer.pyから呼ばれる）
 # ============================================================
 def classify_register(y: np.ndarray, sr: int, f0: float, median_freq: float = 0,
-                      already_separated: bool = False) -> str:
+                      already_separated: bool = False,
+                      crepe_conf: float = 1.0) -> str:
     """
     地声/裏声を判定する。
 
-    1. f0 < 270Hz → 地声確定
-    2. MLモデルがあればMLで判定
-    3. MLがないか低信頼度ならルールベースにフォールバック
+    1. crepe_conf < CREPE_NOISE_GATE → unknown（ノイズゲート）
+    2. f0 < FALSETTO_HARD_MIN_HZ → 地声確定
+    3. MLモデルがあればMLで判定
+    4. MLがないか低信頼度ならルールベースにフォールバック
     """
+    global _ML_STATUS_LOGGED
+
+    # 初回のみMLモデル状態をログ出力
+    if not _ML_STATUS_LOGGED:
+        _load_model_if_needed()
+        if _ML_MODEL is not None and extract_features is not None:
+            print(f"[INFO] 🎯 MLモデル使用中 (from {_MODEL_PATH})")
+        else:
+            if not os.path.exists(_MODEL_PATH):
+                print(f"[INFO] MLモデル: ファイルなし ({_MODEL_PATH})")
+            else:
+                print(f"[INFO] MLモデル: ロード失敗または特徴抽出器なし")
+            print(f"[INFO] ルールベース判定を使用します")
+        _ML_STATUS_LOGGED = True
+
     if f0 <= 0 or len(y) < 512:
+        return "unknown"
+
+    # CREPE信頼度ノイズゲート: ピッチ推定自体が不確かなフレームは判定しない
+    if crepe_conf < CREPE_NOISE_GATE:
         return "unknown"
 
     if f0 < FALSETTO_HARD_MIN_HZ:
         return "chest"
 
-    # ML判定を試行
-    ml_result = _classify_ml(y, sr, f0)
+    # ML判定を試行（crepe_confを伝搬）
+    ml_result = _classify_ml(y, sr, f0, crepe_conf=crepe_conf)
     if ml_result is not None:
         return ml_result
 
-    # フォールバック: ルールベース
-    return _classify_rules(y, sr, f0, median_freq)
+    # フォールバック: ルールベース（crepe_confを伝搬）
+    return _classify_rules(y, sr, f0, median_freq, crepe_conf=crepe_conf)
