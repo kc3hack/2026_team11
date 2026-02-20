@@ -13,18 +13,11 @@ const Home: React.FC<Props> = ({ onNormalClick, onKaraokeClick, onUploadClick, o
         <div className="min-h-[100dvh] relative bg-slate-950 overflow-hidden">
 
             {/* Cyberpunk Background Grid & Scanlines */}
-            <div className="absolute inset-0 z-0 pointer-events-none"
-                style={{
-                    backgroundImage: `
-                         linear-gradient(rgba(6, 182, 212, 0.05) 1px, transparent 1px),
-                         linear-gradient(90deg, rgba(6, 182, 212, 0.05) 1px, transparent 1px)
-                     `,
-                    backgroundSize: '40px 40px',
-                    backgroundPosition: 'center center'
-                }}
+            <div
+                className="absolute inset-0 z-0 pointer-events-none bg-[linear-gradient(rgba(6,182,212,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.05)_1px,transparent_1px)] [background-size:40px_40px] [background-position:center_center]"
             ></div>
-            <div className="absolute inset-0 z-0 pointer-events-none opacity-30"
-                style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.8) 2px, rgba(0,0,0,0.8) 4px)' }}
+            <div
+                className="absolute inset-0 z-0 pointer-events-none opacity-30 bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,rgba(0,0,0,0.8)_2px,rgba(0,0,0,0.8)_4px)]"
             ></div>
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-cyan-500/10 rounded-full blur-[120px] pointer-events-none z-0"></div>
 
