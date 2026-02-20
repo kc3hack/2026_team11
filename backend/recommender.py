@@ -155,7 +155,7 @@ def _compute_stability(f0: np.ndarray, conf: np.ndarray) -> float:
         total_frames += len(seg)
 
     avg_std = weighted_sum / total_frames
-    # 目安: 20cents=優秀(70), 35cents=良好(47), 50cents=普通(25), 67+=0
+    # 目安: 10cents=プロ(92), 25cents=上手い素人(80), 40cents=普通のカラオケ(68), 75+=40以下
     return max(0.0, min(100.0, 100.0 - avg_std * STABILITY_SCALING))
 
 

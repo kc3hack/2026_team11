@@ -46,7 +46,7 @@ CREPE_NOISE_GATE = 0.35            # ピッチ推定ノイズゲート
 
 # === ピッチ安定性 ===
 STABILITY_MIN_SEGMENT = 3       # 持続音セグメントの最小フレーム数
-STABILITY_SCALING = 1.5         # スコア変換係数 (avg_std * scaling を100から引く)
+STABILITY_SCALING = 0.8         # スコア変換係数 (avg_std * scaling を100から引く)
 
 # === 最高音堅牢化 ===
 MIN_SUSTAIN_FRAMES = 3          # 最高音として認定する最小フレーム数
