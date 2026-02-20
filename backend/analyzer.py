@@ -53,7 +53,7 @@ def remove_unrealistic_range(f0: np.ndarray, conf: np.ndarray) -> tuple:
     hc     = conf >= 0.3
     median = np.median(f0[hc]) if hc.sum() >= 3 else np.median(f0)
     lower_factor = 2 ** 1.5   # 下限: 1.5オクターブ下（サブハーモニクス誤検出を除去）
-    upper_factor = 2 ** 2.0   # 上限: 2.0オクターブ上（高音保持しつつノイズ抑制）
+    upper_factor = 2 ** 1.75  # 上限: 1.75オクターブ上（伴奏混入の抑制を強化）
     mask = (f0 >= median / lower_factor) & (f0 <= median * upper_factor)
     return f0[mask], conf[mask]
 
@@ -241,7 +241,7 @@ def run_crepe(audio_tensor, sr, hop_length, device, model_size='tiny'):
 # ============================================================
 # analyze
 # ============================================================
-def analyze(wav_path: str, already_separated: bool = False) -> dict:
+def analyze(wav_path: str, already_separated: bool = False, no_falsetto: bool = False) -> dict:
     print(f"\n{'='*60}")
     print(f"[INFO] 🎵 分析開始: {wav_path}")
     print(f"{'='*60}")
@@ -351,120 +351,133 @@ def analyze(wav_path: str, already_separated: bool = False) -> dict:
     print(f"[DEBUG] ✅ 中央値={median_freq:.1f} Hz, レジスター判定フレーム数={len(f0_reg_fixed)}")
 
     print(f"\n[STEP 6/7] 🎤 レジスター判定中...")
-    # === レジスター判定 ===
-    # ★ valid_indices_reg と f0_reg_fixed が同じ長さで完全対応
-    chest_notes    = []
-    falsetto_notes = []
-    frame_len      = 2048
-    total_frames   = len(f0_reg_fixed)
-    progress_interval = max(1, total_frames // 10)  # 10%ごとに進捗表示
 
-    graduated_conf_filtered = 0
-    print(f"[INFO] {total_frames}フレームを処理中...")
-    for i in range(len(f0_reg_fixed)):
-        if i % progress_interval == 0 and i > 0:
-            progress = (i / total_frames) * 100
-            print(f"[INFO] 進捗: {progress:.0f}% ({i}/{total_frames}) - 地声:{len(chest_notes)} 裏声:{len(falsetto_notes)}")
-        freq = f0_reg_fixed[i]
-        if not (65 <= freq <= 1324):
-            continue
-        # --- 段階的信頼度要求: 中央値から遠いほど高い信頼度を要求 ---
-        # ★ CREPE元値(f0_reg[i])を使い、fix_octave_errorsで補正されたノイズも検出
-        orig_freq = f0_reg[i]
-        if orig_freq > median_freq:
-            octaves_above = np.log2(orig_freq / median_freq)
-            if octaves_above > 1.5:
-                min_conf = 0.65
-            elif octaves_above > 1.0:
-                min_conf = 0.50
-            else:
-                min_conf = 0.35  # 既存ノイズゲートと同じ
-            if conf_reg[i] < min_conf:
-                graduated_conf_filtered += 1
+    if no_falsetto:
+        # === no_falsetto モード: 全フレームを地声として扱う ===
+        print(f"[INFO] no_falsetto=True: 裏声判定をスキップし、全フレームを地声として処理")
+        chest_notes = [f for f in f0_reg_fixed if 65 <= f <= 1324]
+        falsetto_notes = []
+        # no_falsettoではレジスター判定がないため、伴奏混入やCREPEオクターブエラーが
+        # 全て地声に含まれP97が汚染される。P95を使い、主歌声分布の上端を基準にする。
+        chest_notes = remove_statistical_outliers(chest_notes, percentile=95, max_semitones_gap=3)
+        chest_notes = remove_isolated_extremes(chest_notes)
+    else:
+        # === 通常モード: レジスター判定 ===
+        # ★ valid_indices_reg と f0_reg_fixed が同じ長さで完全対応
+        chest_notes    = []
+        falsetto_notes = []
+        frame_len      = 2048
+        total_frames   = len(f0_reg_fixed)
+        progress_interval = max(1, total_frames // 10)  # 10%ごとに進捗表示
+
+        graduated_conf_filtered = 0
+        print(f"[INFO] {total_frames}フレームを処理中...")
+        for i in range(len(f0_reg_fixed)):
+            if i % progress_interval == 0 and i > 0:
+                progress = (i / total_frames) * 100
+                print(f"[INFO] 進捗: {progress:.0f}% ({i}/{total_frames}) - 地声:{len(chest_notes)} 裏声:{len(falsetto_notes)}")
+            freq = f0_reg_fixed[i]
+            if not (65 <= freq <= 1324):
                 continue
-        frame_idx = valid_indices_reg[i]
-        center    = int(frame_idx) * hop_length
-        start     = max(0, center - frame_len // 2)
-        end       = min(len(y_16k), center + frame_len // 2)
-        frame     = y_16k[start:end]
-        if len(frame) < 512:
-            continue
-        try:
-            reg = classify_register(frame, sr_crepe, freq, median_freq, already_separated,
-                                    crepe_conf=float(conf_reg[i]))
-            if reg == "falsetto":
-                falsetto_notes.append(freq)
-            elif reg == "chest":
-                chest_notes.append(freq)
-            # reg == "unknown" はスキップ（無声音・異常データ）
-        except Exception:
-            continue
+            # --- 段階的信頼度要求: 中央値から遠いほど高い信頼度を要求 ---
+            # ★ CREPE元値(f0_reg[i])を使い、fix_octave_errorsで補正されたノイズも検出
+            orig_freq = f0_reg[i]
+            if orig_freq > median_freq:
+                octaves_above = np.log2(orig_freq / median_freq)
+                if octaves_above > 1.5:
+                    min_conf = 0.65
+                elif octaves_above > 1.0:
+                    min_conf = 0.50
+                else:
+                    min_conf = 0.35  # 既存ノイズゲートと同じ
+                if conf_reg[i] < min_conf:
+                    graduated_conf_filtered += 1
+                    continue
+            frame_idx = valid_indices_reg[i]
+            center    = int(frame_idx) * hop_length
+            start     = max(0, center - frame_len // 2)
+            end       = min(len(y_16k), center + frame_len // 2)
+            frame     = y_16k[start:end]
+            if len(frame) < 512:
+                continue
+            try:
+                reg = classify_register(frame, sr_crepe, freq, median_freq, already_separated,
+                                        crepe_conf=float(conf_reg[i]))
+                if reg == "falsetto":
+                    falsetto_notes.append(freq)
+                elif reg == "chest":
+                    chest_notes.append(freq)
+                # reg == "unknown" はスキップ（無声音・異常データ）
+            except Exception:
+                continue
 
-    if graduated_conf_filtered > 0:
-        print(f"[DEBUG] 段階的信頼度フィルタ: {graduated_conf_filtered}フレーム除外")
+        if graduated_conf_filtered > 0:
+            print(f"[DEBUG] 段階的信頼度フィルタ: {graduated_conf_filtered}フレーム除外")
 
-    # 裏声表示フィルタ: 330Hz未満の「裏声」は息混じり地声の可能性が高い
-    display_min_hz = FALSETTO_DISPLAY_MIN_HZ
-    falsetto_orig  = list(falsetto_notes)
-    falsetto_notes = [f for f in falsetto_orig if f >= display_min_hz]
-    low_falsetto   = [f for f in falsetto_orig if f < display_min_hz]
-    chest_notes.extend(low_falsetto)
-    if low_falsetto:
-        print(f"[DEBUG] {len(low_falsetto)}フレームを裏声→地声に再分類")
+        # 裏声表示フィルタ: 330Hz未満の「裏声」は息混じり地声の可能性が高い
+        display_min_hz = FALSETTO_DISPLAY_MIN_HZ
+        falsetto_orig  = list(falsetto_notes)
+        falsetto_notes = [f for f in falsetto_orig if f >= display_min_hz]
+        low_falsetto   = [f for f in falsetto_orig if f < display_min_hz]
+        chest_notes.extend(low_falsetto)
+        if low_falsetto:
+            print(f"[DEBUG] {len(low_falsetto)}フレームを裏声→地声に再分類")
 
-    if not chest_notes and not falsetto_notes:
-        print(f"[WARN] レジスター判定結果なし。全フレームを地声として処理")
-        chest_notes = f0_reg_fixed.tolist()
+        if not chest_notes and not falsetto_notes:
+            print(f"[WARN] レジスター判定結果なし。全フレームを地声として処理")
+            chest_notes = f0_reg_fixed.tolist()
 
-    # デバッグ: 最高音付近（上位10Hz）の判定状況を確認
-    if chest_notes or falsetto_notes:
-        all_freqs = chest_notes + falsetto_notes
-        if all_freqs:
-            max_freq = max(all_freqs)
-            high_threshold = max_freq - 10  # 最高音から10Hz以内
-            high_chest = [f for f in chest_notes if f >= high_threshold]
-            high_falsetto = [f for f in falsetto_notes if f >= high_threshold]
-            print(f"[DEBUG] 最高音付近（{high_threshold:.1f}Hz以上）: 地声{len(high_chest)}フレーム, 裏声{len(high_falsetto)}フレーム")
-            if high_chest and high_falsetto:
-                print(f"[DEBUG] → 地声最高: {max(high_chest):.1f}Hz, 裏声最高: {max(high_falsetto):.1f}Hz")
+        # デバッグ: 最高音付近（上位10Hz）の判定状況を確認
+        if chest_notes or falsetto_notes:
+            all_freqs = chest_notes + falsetto_notes
+            if all_freqs:
+                max_freq = max(all_freqs)
+                high_threshold = max_freq - 10  # 最高音から10Hz以内
+                high_chest = [f for f in chest_notes if f >= high_threshold]
+                high_falsetto = [f for f in falsetto_notes if f >= high_threshold]
+                print(f"[DEBUG] 最高音付近（{high_threshold:.1f}Hz以上）: 地声{len(high_chest)}フレーム, 裏声{len(high_falsetto)}フレーム")
+                if high_chest and high_falsetto:
+                    print(f"[DEBUG] → 地声最高: {max(high_chest):.1f}Hz, 裏声最高: {max(high_falsetto):.1f}Hz")
 
-    # === 統計的外れ値除去（パーセンタイルベースの安全ネット） ===
-    chest_notes = remove_statistical_outliers(chest_notes)
-    # ★ 裏声は地声より狭い分布が期待される＋伴奏混入は上端に集中するため厳しめに
-    # P90+2半音: 主要分布の上端から全音以上離れたフレームを除去
-    # (裏声分布はP90付近に集中するため、楽器混入は2半音で十分に検出可能)
-    falsetto_notes = remove_statistical_outliers(falsetto_notes, percentile=90, max_semitones_gap=2)
+        # === 統計的外れ値除去（パーセンタイルベースの安全ネット） ===
+        # P97+3半音: demucs分離後のCREPEはオクターブ誤検出(2×median)を起こしやすく、
+        # これらが地声に分類されると上端が膨らむ。6半音→3半音で余分な上端を切り落とす。
+        # 適応的閾値: P97が高い歌手(地声広い)では閾値も自然に上がるため回帰は起きにくい。
+        chest_notes = remove_statistical_outliers(chest_notes, percentile=97, max_semitones_gap=3)
+        # ★ 裏声は伴奏混入に弱い（混入が多いとP90が汚染される）ため、P75を使用。
+        # P75は25%汚染まで耐え、gap=3半音で正当な裏声上端を保持しつつ伴奏を除去。
+        falsetto_notes = remove_statistical_outliers(falsetto_notes, percentile=75, max_semitones_gap=3)
 
-    # === 孤立した極端値を除去（ノイズ最終防衛線） ===
-    chest_notes = remove_isolated_extremes(chest_notes)
-    falsetto_notes = remove_isolated_extremes(falsetto_notes)
+        # === 孤立した極端値を除去（ノイズ最終防衛線） ===
+        chest_notes = remove_isolated_extremes(chest_notes)
+        falsetto_notes = remove_isolated_extremes(falsetto_notes)
 
-    # === 最高音付近の混在判定を解消 ===
-    # 半音ベースの除外: 2半音分（音名が異なることを保証）
-    if chest_notes and falsetto_notes:
-        all_freqs = chest_notes + falsetto_notes
-        max_freq = max(all_freqs)
-        cleanup_factor = 2 ** (2 / 12)  # 2半音 ≈ 1.1225
-        high_range_threshold = max_freq / cleanup_factor
-
-        high_chest_frames = [f for f in chest_notes if f >= high_range_threshold]
-        high_falsetto_frames = [f for f in falsetto_notes if f >= high_range_threshold]
-
-        # 両方存在する場合、最高音付近では裏声を優先（高音は裏声で出すのが自然）
-        if high_chest_frames and high_falsetto_frames:
-            chest_notes = [f for f in chest_notes if f < high_range_threshold]
-            print(f"[INFO] 最高音付近の地声{len(high_chest_frames)}フレームを除外（裏声{len(high_falsetto_frames)}フレームを優先採用）")
-
-        # ラベル変換後の安全チェック: 量子化で同じ音名になるケースを防止
+        # === 最高音付近の混在判定を解消 ===
+        # 半音ベースの除外: 2半音分（音名が異なることを保証）
         if chest_notes and falsetto_notes:
-            f_label, _ = hz_to_label_and_hz(max(falsetto_notes))
-            c_label, _ = hz_to_label_and_hz(max(chest_notes))
-            if c_label == f_label:
-                before_count = len(chest_notes)
-                chest_notes = [f for f in chest_notes
-                               if hz_to_label_and_hz(f)[0] != f_label]
-                removed = before_count - len(chest_notes)
-                print(f"[INFO] ラベル一致'{c_label}'の地声{removed}フレームを除外")
+            all_freqs = chest_notes + falsetto_notes
+            max_freq = max(all_freqs)
+            cleanup_factor = 2 ** (2 / 12)  # 2半音 ≈ 1.1225
+            high_range_threshold = max_freq / cleanup_factor
+
+            high_chest_frames = [f for f in chest_notes if f >= high_range_threshold]
+            high_falsetto_frames = [f for f in falsetto_notes if f >= high_range_threshold]
+
+            # 両方存在する場合、最高音付近では裏声を優先（高音は裏声で出すのが自然）
+            if high_chest_frames and high_falsetto_frames:
+                chest_notes = [f for f in chest_notes if f < high_range_threshold]
+                print(f"[INFO] 最高音付近の地声{len(high_chest_frames)}フレームを除外（裏声{len(high_falsetto_frames)}フレームを優先採用）")
+
+            # ラベル変換後の安全チェック: 量子化で同じ音名になるケースを防止
+            if chest_notes and falsetto_notes:
+                f_label, _ = hz_to_label_and_hz(max(falsetto_notes))
+                c_label, _ = hz_to_label_and_hz(max(chest_notes))
+                if c_label == f_label:
+                    before_count = len(chest_notes)
+                    chest_notes = [f for f in chest_notes
+                                   if hz_to_label_and_hz(f)[0] != f_label]
+                    removed = before_count - len(chest_notes)
+                    print(f"[INFO] ラベル一致'{c_label}'の地声{removed}フレームを除外")
 
     print(f"\n[STEP 7/7] 📋 結果集計中...")
     # === overall_min/max はレジスター判定済みnotesから取る ===

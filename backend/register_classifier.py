@@ -145,9 +145,18 @@ def _classify_ml(y: np.ndarray, sr: int, f0: float,
             threshold = 0.80
         else:
             threshold = 0.70
+
+        # 高音域で「地声」判定する場合は追加の信頼度要求
+        # f0>=400Hzは男声の地声域上限付近。MLが「地声」と判定するにはより強い根拠が必要。
+        # 裏声判定は通常閾値のままにし、高音の裏声検出を阻害しない。
+        if label == "chest" and f0 >= 400:
+            threshold = max(threshold, 0.85)
+
         if confidence < threshold:
+            print(f"[REGISTER/ML→RULE] f0={f0:.0f}Hz ML={label}({confidence:.3f}) < thresh={threshold:.2f} → ルールベースへ")
             return None
 
+        print(f"[REGISTER/ML] f0={f0:.0f}Hz label={label} conf={confidence:.3f} thresh={threshold:.2f} crepe={crepe_conf:.2f}")
         return label
     except Exception as e:
         print(f"[WARN] ML推論失敗: {e}")
@@ -180,8 +189,8 @@ def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float,
     if h1_h2 < -20.0:
         return "unknown"
 
-    # 地声即決
-    if h1_h2 < -2.0:
+    # 地声即決（低音域のみ: f0>400ではdemucsによるH1-H2変質があるためスコア判定へ回す）
+    if h1_h2 < -2.0 and f0 <= 400:
         print(f"[REGISTER/RULE] f0={f0:.0f}Hz H1-H2={h1_h2:.1f}dB → 地声確定(即決)")
         return "chest"
 
@@ -257,12 +266,15 @@ def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float,
     elif cr > 6.5:
         chest_score += 1.5
 
-    # f0補正（高音バイアスを半減: ノイズの裏声誤判定を抑制）
+    # f0補正: 高音域では強い裏声バイアスを適用
+    # demucs分離後の音源は倍音構造が変質しやすく、hcount=10が頻発するため
+    # 音響特徴だけでは不十分。f0>400のボーナスはhcount≥8(+6.0)に対抗する必要がある。
     if f0 > 600:
-        falsetto_score += 1.0
+        falsetto_score += 5.0
     elif f0 > 500:
-        falsetto_score += 0.5
-    # f0>400（遷移帯域）: 削除 — スペクトル特徴に委ねる
+        falsetto_score += 4.0
+    elif f0 > 400:
+        falsetto_score += 3.0
     elif f0 < 220:
         chest_score += 3.0
     elif f0 < 295:
@@ -276,7 +288,16 @@ def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float,
         return "chest"
 
     falsetto_ratio = falsetto_score / total
-    result = "falsetto" if falsetto_ratio >= 0.58 else "chest"
+    # 高音域では裏声判定の閾値を下げる
+    # demucs分離後はhcount(倍音数)やslope(減衰)が常に地声寄りになるため、
+    # 音響特徴だけでは裏声を検出しづらい。f0が高いこと自体が裏声の強い証拠。
+    if f0 > 500:
+        ratio_threshold = 0.42
+    elif f0 > 400:
+        ratio_threshold = 0.48
+    else:
+        ratio_threshold = 0.58
+    result = "falsetto" if falsetto_ratio >= ratio_threshold else "chest"
 
     # [FIX] f-string内で条件式をフォーマット指定子に使うとValueError → 事前に文字列変換
     slope_str = f"{slope:.1f}" if slope is not None else "N/A"
