@@ -113,6 +113,11 @@ const KaraokeUploader: React.FC<Props> = ({ onResult }) => {
 
   const handleDragLeave = (e: React.DragEvent<HTMLLabelElement>) => {
     e.preventDefault();
+    const related = e.relatedTarget as Node | null;
+    if (related && e.currentTarget.contains(related)) {
+      // Still inside the label (moved to a child element), do not reset dragging state
+      return;
+    }
     setIsDragging(false);
   };
 
@@ -141,15 +146,15 @@ const KaraokeUploader: React.FC<Props> = ({ onResult }) => {
       </div>
 
       {/* Cyberpunk Dropzone ("Data Transfer Gate") */}
-      <div className="w-full relative group perspective-1000 mt-4">
+      <div className="w-full relative group perspective-[1000px] mt-4">
         <label
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           onMouseEnter={() => !loading && setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
-          className={`relative w-full aspect-video sm:aspect-[21/9] flex flex-col items-center justify-center p-8 cursor-pointer transition-all duration-300 block overflow-hidden
-            ${loading ? "bg-fuchsia-950/60 cursor-not-allowed cursor-wait" : "bg-gradient-to-br from-fuchsia-950/40 via-fuchsia-900/30 to-fuchsia-950/40 hover:bg-fuchsia-900/40"}
+          className={`relative w-full aspect-video sm:aspect-[21/9] flex flex-col items-center justify-center p-8 transition-all duration-300 block overflow-hidden
+            ${loading ? "bg-fuchsia-950/60 cursor-not-allowed cursor-wait" : "bg-gradient-to-br from-fuchsia-950/40 via-fuchsia-900/30 to-fuchsia-950/40 hover:bg-fuchsia-900/40 cursor-pointer"}
           `}
           style={{
             clipPath: 'polygon(30px 0, 100% 0, 100% calc(100% - 30px), calc(100% - 30px) 100%, 0 100%, 0 30px)',
