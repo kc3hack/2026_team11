@@ -44,6 +44,10 @@ ML_CONF_THRESHOLD_NOISY = 0.80     # CREPE信頼度低 + 高f0
 ML_CONF_CHEST_HIGH_F0 = 0.85       # 地声 + f0 >= 400Hz
 CREPE_NOISE_GATE = 0.35            # ピッチ推定ノイズゲート
 
+# === ピッチ安定性 ===
+STABILITY_MIN_SEGMENT = 3       # 持続音セグメントの最小フレーム数
+STABILITY_SCALING = 1.5         # スコア変換係数 (avg_std * scaling を100から引く)
+
 # === ルールベース判定 ===
 FALSETTO_RATIO_HIGH = 0.42    # f0 > 500Hz
 FALSETTO_RATIO_MID = 0.48     # f0 > 400Hz
