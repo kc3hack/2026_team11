@@ -34,6 +34,7 @@ const steps = [
     {
         icon: MusicalNoteIcon,
         color: "text-yellow-400",
+        decorationColor: "border-yellow-400",
         borderGlow: "border-yellow-500/50 shadow-[0_0_15px_rgba(250,204,21,0.2)] group-hover:shadow-[0_0_30px_rgba(250,204,21,0.6)] group-hover:border-yellow-400",
         textGlow: "drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]",
         title: "おすすめ曲 & キー設定",
