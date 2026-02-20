@@ -20,6 +20,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
   // initialUseDemucs はマウント時に確定するため、useEffect による同期は不要
   const [progress, setProgress] = useState(0);
   const [stepLabel, setStepLabel] = useState("");
+  const [noFalsetto, setNoFalsetto] = useState(false);
 
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
@@ -152,8 +153,8 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
 
         try {
           const data = initialUseDemucs
-            ? await analyzeKaraoke(blob, "recording.webm")
-            : await analyzeVoice(blob);
+            ? await analyzeKaraoke(blob, "recording.webm", noFalsetto)
+            : await analyzeVoice(blob, noFalsetto);
 
           setProgress(100);
           setStepLabel("完了！");
@@ -232,7 +233,19 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
   };
 
   return (
-    <div className="flex flex-col items-center w-full">
+    <div className="flex flex-col items-center w-full gap-4">
+      {/* 裏声なしオプション */}
+      <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={noFalsetto}
+          onChange={(e) => setNoFalsetto(e.target.checked)}
+          disabled={recording || loading}
+          className="w-4 h-4 rounded border-slate-500 text-blue-500 focus:ring-blue-400"
+        />
+        裏声を使わない（地声のみで判定）
+      </label>
+
       <div className="relative w-full max-w-4xl h-[500px] bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-3xl overflow-hidden shadow-inner flex flex-col items-center justify-center">
         {recording && (
           <canvas
