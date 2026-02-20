@@ -216,3 +216,26 @@ export const checkFavorite = async (songId: number): Promise<boolean> => {
   const res = await API.get(`/favorites/check/${songId}`);
   return res.data.is_favorite;
 };
+
+export interface AnalysisHistoryRecord {
+  id: string;
+  user_id: string;
+  vocal_range_min: string | null;
+  vocal_range_max: string | null;
+  falsetto_max: string | null;
+  source_type: string;
+  file_name: string | null;
+  created_at: string;
+}
+
+// 履歴取得API
+export const getAnalysisHistory = async (limit = 50): Promise<AnalysisHistoryRecord[]> => {
+  const res = await API.get<AnalysisHistoryRecord[]>("/analysis/history", { params: { limit } });
+  return res.data;
+};
+
+/** 履歴削除API */
+export const deleteAnalysisHistory = async (recordId: string): Promise<{ message: string }> => {
+  const res = await API.delete(`/analysis/history/${recordId}`);
+  return res.data;
+};

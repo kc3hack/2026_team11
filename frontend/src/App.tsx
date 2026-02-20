@@ -14,6 +14,7 @@ import PlaceholderPage from "./PlaceholderPage";
 import BottomNav from "./components/BottomNav";
 import { AnalysisResult, UserRange } from "./api";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import HistoryPage from "./HistoryPage";
 
 // 画面の状態を定義
 type ViewState =
@@ -261,7 +262,7 @@ function AppContent() {
         {view === "guide" && <GuidePage />}
 
         {/* 履歴画面 (Placeholder) */}
-        {view === "history" && <PlaceholderPage title="履歴" />}
+        {view === "history" && <HistoryPage onLoginClick={() => setView("login")} />}
 
         {/* マイページ画面 (Placeholder) */}
         {view === "mypage" && <PlaceholderPage title="マイページ" />}

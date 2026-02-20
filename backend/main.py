@@ -24,7 +24,7 @@ from database import get_all_songs, search_songs, init_db
 # 認証・ユーザー系は Supabase
 from database_supabase import (
     get_user_profile, update_user_profile, update_vocal_range,
-    create_analysis_record, get_analysis_history,
+    create_analysis_record, get_analysis_history,delete_analysis_record,
     add_favorite_song, remove_favorite_song, get_favorite_songs, is_favorite,
     # お気に入りアーティスト
     add_favorite_artist, remove_favorite_artist,
@@ -170,6 +170,14 @@ def create_analysis(data: AnalysisCreate, user: dict = Depends(get_current_user)
 def get_my_analysis_history(user: dict = Depends(get_current_user), limit: int = 50):
     """自分の分析履歴を取得"""
     return get_analysis_history(user["id"], limit)
+
+@app.delete("/analysis/history/{record_id}")
+def delete_my_analysis_history(record_id: str, user: dict = Depends(get_current_user)):
+    """自分の分析履歴を削除"""
+    success = delete_analysis_record(user["id"], record_id)
+    if success:
+        return {"message": "履歴を削除しました"}
+    raise HTTPException(status_code=400, detail="履歴の削除に失敗しました")
 
 
 # ============================================================
