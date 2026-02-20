@@ -336,3 +336,194 @@ def delete_analysis_record(user_id: str, record_id: str) -> bool:
     except Exception as e:
         print(f"履歴削除エラー: {e}")
         return False
+
+
+def get_integrated_vocal_range(user_id: str, limit: int = 20) -> Optional[Dict[str, Any]]:
+    """
+    直近N件の分析履歴から統合音域と総合分析を計算
+    
+    Args:
+        user_id: ユーザーID
+        limit: 統合する履歴の件数（デフォルト20件）
+    
+    Returns:
+        統合音域・タイプ・おすすめ曲・アーティスト・歌唱力指標を含む辞書
+        データがない場合はNone
+    """
+    try:
+        from note_converter import hz_to_label_and_hz
+        from recommender import recommend_songs, find_similar_artists, classify_voice_type
+        
+        # 直近N件の履歴を取得
+        history = get_analysis_history(user_id, limit=limit)
+        
+        if not history:
+            return None
+        
+        # Hz値のリストを収集
+        chest_min_values = []
+        chest_max_values = []
+        falsetto_max_values = []
+        overall_min_values = []
+        overall_max_values = []
+        chest_ratio_values = []
+        
+        # 歌唱力指標の収集
+        range_scores = []
+        stability_scores = []
+        expression_scores = []
+        overall_scores = []
+        
+        valid_count = 0
+        for record in history:
+            # result_jsonがある場合はそこから取得
+            if record.get("result_json"):
+                result = record["result_json"]
+                if result.get("chest_min_hz"):
+                    chest_min_values.append(result["chest_min_hz"])
+                if result.get("chest_max_hz"):
+                    chest_max_values.append(result["chest_max_hz"])
+                if result.get("falsetto_max_hz"):
+                    falsetto_max_values.append(result["falsetto_max_hz"])
+                if result.get("overall_min_hz"):
+                    overall_min_values.append(result["overall_min_hz"])
+                if result.get("overall_max_hz"):
+                    overall_max_values.append(result["overall_max_hz"])
+                if result.get("chest_ratio") is not None:
+                    chest_ratio_values.append(result["chest_ratio"])
+                
+                # 歌唱力指標
+                if result.get("singing_analysis"):
+                    sa = result["singing_analysis"]
+                    if sa.get("range_score") is not None:
+                        range_scores.append(sa["range_score"])
+                    if sa.get("stability_score") is not None:
+                        stability_scores.append(sa["stability_score"])
+                    if sa.get("expression_score") is not None:
+                        expression_scores.append(sa["expression_score"])
+                    if sa.get("overall_score") is not None:
+                        overall_scores.append(sa["overall_score"])
+                
+                valid_count += 1
+            # 古い形式の場合は直接取得
+            elif record.get("vocal_range_min_hz") or record.get("vocal_range_max_hz"):
+                if record.get("vocal_range_min_hz"):
+                    overall_min_values.append(record["vocal_range_min_hz"])
+                    chest_min_values.append(record["vocal_range_min_hz"])
+                if record.get("vocal_range_max_hz"):
+                    overall_max_values.append(record["vocal_range_max_hz"])
+                    chest_max_values.append(record["vocal_range_max_hz"])
+                if record.get("falsetto_max_hz"):
+                    falsetto_max_values.append(record["falsetto_max_hz"])
+                valid_count += 1
+        
+        if valid_count == 0:
+            return None
+        
+        # 統合値を計算（最小値と最大値を採用）
+        result = {
+            "data_count": valid_count,
+            "limit": limit
+        }
+        
+        # 音域情報
+        if overall_min_values:
+            overall_min_hz = min(overall_min_values)
+            overall_min_label, overall_min_hz_defined = hz_to_label_and_hz(overall_min_hz)
+            result["overall_min"] = overall_min_label
+            result["overall_min_hz"] = overall_min_hz_defined
+        
+        if overall_max_values:
+            overall_max_hz = max(overall_max_values)
+            overall_max_label, overall_max_hz_defined = hz_to_label_and_hz(overall_max_hz)
+            result["overall_max"] = overall_max_label
+            result["overall_max_hz"] = overall_max_hz_defined
+        
+        chest_min_hz_defined = None
+        if chest_min_values:
+            chest_min_hz = min(chest_min_values)
+            chest_min_label, chest_min_hz_defined = hz_to_label_and_hz(chest_min_hz)
+            result["chest_min"] = chest_min_label
+            result["chest_min_hz"] = chest_min_hz_defined
+        
+        chest_max_hz_defined = None
+        if chest_max_values:
+            chest_max_hz = max(chest_max_values)
+            chest_max_label, chest_max_hz_defined = hz_to_label_and_hz(chest_max_hz)
+            result["chest_max"] = chest_max_label
+            result["chest_max_hz"] = chest_max_hz_defined
+        
+        falsetto_max_hz_defined = None
+        if falsetto_max_values:
+            falsetto_max_hz = max(falsetto_max_values)
+            falsetto_max_label, falsetto_max_hz_defined = hz_to_label_and_hz(falsetto_max_hz)
+            result["falsetto_max"] = falsetto_max_label
+            result["falsetto_max_hz"] = falsetto_max_hz_defined
+        
+        # 地声比率の平均
+        avg_chest_ratio = sum(chest_ratio_values) / len(chest_ratio_values) if chest_ratio_values else 0.8
+        result["chest_ratio"] = avg_chest_ratio
+        result["falsetto_ratio"] = 1.0 - avg_chest_ratio
+        
+        # 歌唱力指標の平均
+        if range_scores or stability_scores or expression_scores or overall_scores:
+            result["singing_analysis"] = {}
+            if range_scores:
+                result["singing_analysis"]["range_score"] = sum(range_scores) / len(range_scores)
+            if stability_scores:
+                result["singing_analysis"]["stability_score"] = sum(stability_scores) / len(stability_scores)
+            if expression_scores:
+                result["singing_analysis"]["expression_score"] = sum(expression_scores) / len(expression_scores)
+            if overall_scores:
+                result["singing_analysis"]["overall_score"] = sum(overall_scores) / len(overall_scores)
+            
+            # 音域の半音数を計算
+            if chest_min_hz_defined and chest_max_hz_defined:
+                import math
+                result["singing_analysis"]["range_semitones"] = round(
+                    12 * math.log2(chest_max_hz_defined / chest_min_hz_defined)
+                )
+        
+        # 声質タイプを判定（chest_avg_hzを計算）
+        if chest_min_hz_defined and chest_max_hz_defined:
+            import math
+            chest_avg_hz = math.sqrt(chest_min_hz_defined * chest_max_hz_defined)  # 幾何平均
+            
+            # voice_typeを分類
+            voice_type_data = classify_voice_type(
+                chest_min_hz_defined,
+                chest_max_hz_defined,
+                chest_avg_hz,
+                falsetto_max_hz_defined,
+                avg_chest_ratio
+            )
+            result["voice_type"] = voice_type_data
+            
+            # 似ているアーティストを取得
+            similar_artists = find_similar_artists(
+                chest_min_hz_defined,
+                chest_max_hz_defined,
+                chest_avg_hz,
+                limit=5
+            )
+            result["similar_artists"] = similar_artists
+            
+            # おすすめ曲を取得
+            fav_artist_ids = get_favorite_artist_ids(user_id)
+            recommended_songs = recommend_songs(
+                chest_min_hz_defined,
+                chest_max_hz_defined,
+                chest_avg_hz,
+                falsetto_max_hz_defined,
+                limit=10,
+                favorite_artist_ids=fav_artist_ids
+            )
+            result["recommended_songs"] = recommended_songs
+        
+        return result
+        
+    except Exception as e:
+        print(f"統合音域計算エラー: {e}")
+        import traceback
+        traceback.print_exc()
+        return None

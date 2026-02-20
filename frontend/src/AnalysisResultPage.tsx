@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from "react";
 import {
   AnalysisResult,
+  IntegratedVocalRange,
   getFavoriteArtists,
   addFavoriteArtist,
   removeFavoriteArtist,
+  getIntegratedVocalRange,
 } from "./api";
 import { StarIcon as StarSolid } from "@heroicons/react/24/solid";
 import { StarIcon as StarOutline } from "@heroicons/react/24/outline";
+import { useAuth } from "./contexts/AuthContext";
 
 interface AnalysisResultPageProps {
   result: AnalysisResult | null;
@@ -62,7 +65,10 @@ const RadarChart: React.FC<{ data: { label: string; value: number }[] }> = ({ da
    メインコンポーネント
    ════════════════════════════════════════════════ */
 const AnalysisResultPage: React.FC<AnalysisResultPageProps> = ({ result }) => {
+  const { isAuthenticated } = useAuth();
   const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
+  const [integratedRange, setIntegratedRange] = useState<IntegratedVocalRange | null>(null);
+  const [loadingIntegrated, setLoadingIntegrated] = useState(false);
 
   // お気に入り情報の初期取得
   useEffect(() => {
@@ -76,6 +82,24 @@ const AnalysisResultPage: React.FC<AnalysisResultPageProps> = ({ result }) => {
     };
     fetchFavs();
   }, []);
+
+  // 統合音域を取得（認証済みの場合のみ）
+  useEffect(() => {
+    const fetchIntegratedRange = async () => {
+      if (!isAuthenticated) return;
+      setLoadingIntegrated(true);
+      try {
+        const data = await getIntegratedVocalRange(20);
+        setIntegratedRange(data);
+      } catch (e) {
+        console.error("Failed to fetch integrated range", e);
+        setIntegratedRange(null);
+      } finally {
+        setLoadingIntegrated(false);
+      }
+    };
+    fetchIntegratedRange();
+  }, [isAuthenticated]);
 
   // お気に入り切り替え
   const toggleFavorite = async (artistId: number, artistName: string) => {
@@ -92,7 +116,22 @@ const AnalysisResultPage: React.FC<AnalysisResultPageProps> = ({ result }) => {
     }
   };
 
-  if (!result || result.error) {
+  // ローディング中
+  if (isAuthenticated && loadingIntegrated) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-slate-400 p-8">
+        <div className="text-4xl mb-4">⏳</div>
+        <p className="text-lg font-bold">統合音域を計算中...</p>
+      </div>
+    );
+  }
+
+  // 統合音域が利用可能な場合（ログイン済み&データあり）-> 統合音域を表示
+  const useIntegrated = isAuthenticated && integratedRange;
+  const displayData = useIntegrated ? integratedRange : result;
+
+  // データがない場合のエラー表示
+  if (!displayData || (displayData as any).error) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-slate-400 p-8">
         <div className="text-6xl mb-4">🎤</div>
@@ -102,7 +141,7 @@ const AnalysisResultPage: React.FC<AnalysisResultPageProps> = ({ result }) => {
     );
   }
 
-  const singing = result.singing_analysis;
+  const singing = displayData.singing_analysis;
   const radarData = singing ? [
     { label: "音域", value: singing.range_score },
     { label: "安定性", value: singing.stability_score },
@@ -110,106 +149,124 @@ const AnalysisResultPage: React.FC<AnalysisResultPageProps> = ({ result }) => {
     { label: "総合", value: singing.overall_score },
   ] : [];
 
+  const songs = displayData.recommended_songs ?? [];
+  const artists = displayData.similar_artists ?? [];
+  const voiceType = displayData.voice_type ?? {};
+
   return (
     <div className="flex flex-col items-center w-full min-h-screen bg-transparent p-4 sm:p-8 font-sans text-slate-200">
-      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="w-full max-w-6xl">
 
-        {/* 左カラム: メイン解析 */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl shadow-xl border border-white/10 p-6 sm:p-8">
-            <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-6">Vocal Range Analysis</h2>
-
-            <div className="flex items-baseline gap-4 mb-8">
-              <span className="text-4xl sm:text-6xl font-black text-white tracking-tighter">
-                {result.overall_min} <span className="text-slate-600 mx-1">~</span> {result.overall_max}
+        {/* 統合音域バッジ */}
+        {useIntegrated && (
+          <div className="mb-6 flex justify-center">
+            <div className="inline-flex bg-slate-900/60 backdrop-blur-md rounded-full px-6 py-3 border border-cyan-500/30">
+              <span className="text-sm font-medium text-cyan-400">
+                📊 統合音域（直近 {integratedRange!.data_count} 曲から算出）
               </span>
             </div>
+          </div>
+        )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-              <div className="bg-indigo-900/30 p-4 rounded-2xl border border-indigo-500/30">
-                <p className="text-xs font-bold text-indigo-400 mb-1">地声範囲 (Chest)</p>
-                <p className="text-xl font-bold text-slate-100">{result.chest_min ?? result.overall_min} ~ {result.chest_max ?? result.overall_max}</p>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+          {/* 左カラム: メイン解析 */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl shadow-xl border border-white/10 p-6 sm:p-8">
+              <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-6">Vocal Range Analysis</h2>
+
+              <div className="flex items-baseline gap-4 mb-8">
+                <span className="text-4xl sm:text-6xl font-black text-white tracking-tighter">
+                  {displayData.overall_min} <span className="text-slate-600 mx-1">~</span> {displayData.overall_max}
+                </span>
               </div>
-              {result.falsetto_max && (
-                <div className="bg-emerald-900/30 p-4 rounded-2xl border border-emerald-500/30">
-                  <p className="text-xs font-bold text-emerald-400 mb-1">裏声最高音 (Falsetto)</p>
-                  <p className="text-xl font-bold text-slate-100">{result.falsetto_max}</p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+                <div className="bg-indigo-900/30 p-4 rounded-2xl border border-indigo-500/30">
+                  <p className="text-xs font-bold text-indigo-400 mb-1">地声範囲 (Chest)</p>
+                  <p className="text-xl font-bold text-slate-100">{displayData.chest_min ?? displayData.overall_min} ~ {displayData.chest_max ?? displayData.overall_max}</p>
+                </div>
+                {displayData.falsetto_max && (
+                  <div className="bg-emerald-900/30 p-4 rounded-2xl border border-emerald-500/30">
+                    <p className="text-xs font-bold text-emerald-400 mb-1">裏声最高音 (Falsetto)</p>
+                    <p className="text-xl font-bold text-slate-100">{displayData.falsetto_max}</p>
+                  </div>
+                )}
+              </div>
+
+              {voiceType && voiceType.voice_type && (
+                <div className="p-5 bg-slate-800/50 rounded-2xl border border-slate-700/50">
+                  <p className="text-sm font-bold text-slate-200 mb-1">
+                    タイプ: <span className="text-cyan-400">{voiceType.voice_type}</span>
+                  </p>
+                  <p className="text-xs text-slate-400 leading-relaxed">{voiceType.description}</p>
                 </div>
               )}
             </div>
 
-            {result.voice_type && (
-              <div className="p-5 bg-slate-800/50 rounded-2xl border border-slate-700/50">
-                <p className="text-sm font-bold text-slate-200 mb-1">
-                  タイプ: <span className="text-cyan-400">{result.voice_type.voice_type}</span>
-                </p>
-                <p className="text-xs text-slate-400 leading-relaxed">{result.voice_type.description}</p>
+            {/* 似ているアーティストセクション */}
+            {artists && artists.length > 0 && (
+              <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl shadow-xl border border-white/10 p-6">
+                <h3 className="text-sm font-bold text-slate-200 mb-4">声質が似ているアーティスト</h3>
+                <div className="flex flex-wrap gap-3">
+                  {artists.map((artist) => (
+                    <div key={artist.id} className="flex items-center gap-3 bg-slate-800/50 pl-4 pr-2 py-2 rounded-full border border-slate-700/50 group transition-all hover:bg-slate-700/50 hover:border-slate-600/50">
+                      <span className="text-sm font-bold text-slate-200">{artist.name}</span>
+                      <span className="text-[10px] font-bold text-indigo-400">{Math.round(artist.similarity_score)}%</span>
+                      <button
+                        onClick={() => toggleFavorite(artist.id, artist.name)}
+                        className="p-1.5 transition-transform hover:scale-125"
+                        aria-label="お気に入り登録"
+                      >
+                        {favoriteIds.includes(artist.id) ? (
+                          <StarSolid className="w-5 h-5 text-amber-400" />
+                        ) : (
+                          <StarOutline className="w-5 h-5 text-slate-500" />
+                        )}
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
 
-          {/* 似ているアーティストセクション */}
-          {result.similar_artists && result.similar_artists.length > 0 && (
+          {/* 右カラム: スコア・おすすめ */}
+          <div className="space-y-6">
+            <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl shadow-xl border border-white/10 p-6 flex flex-col items-center">
+              <h3 className="text-sm font-bold text-slate-200 self-start mb-4">歌唱力指標</h3>
+              {radarData.length > 0 ? (
+                <div className="w-full flex flex-col items-center">
+                  <RadarChart data={radarData} />
+                  <div className="mt-4 text-center">
+                    <div className="text-3xl font-black text-indigo-400">{Math.round(singing?.overall_score ?? 0)}点</div>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Singing Score</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500 py-10">スコアデータがありません</p>
+              )}
+            </div>
+
             <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl shadow-xl border border-white/10 p-6">
-              <h3 className="text-sm font-bold text-slate-200 mb-4">声質が似ているアーティスト</h3>
-              <div className="flex flex-wrap gap-3">
-                {result.similar_artists.map((artist) => (
-                  <div key={artist.id} className="flex items-center gap-3 bg-slate-800/50 pl-4 pr-2 py-2 rounded-full border border-slate-700/50 group transition-all hover:bg-slate-700/50 hover:border-slate-600/50">
-                    <span className="text-sm font-bold text-slate-200">{artist.name}</span>
-                    <span className="text-[10px] font-bold text-indigo-400">{Math.round(artist.similarity_score)}%</span>
-                    <button
-                      onClick={() => toggleFavorite(artist.id, artist.name)}
-                      className="p-1.5 transition-transform hover:scale-125"
-                      aria-label="お気に入り登録"
-                    >
-                      {favoriteIds.includes(artist.id) ? (
-                        <StarSolid className="w-5 h-5 text-amber-400" />
-                      ) : (
-                        <StarOutline className="w-5 h-5 text-slate-500" />
-                      )}
-                    </button>
+              <h3 className="text-sm font-bold text-slate-200 mb-4">あなたへのおすすめ曲</h3>
+              <div className="space-y-3">
+                {songs.slice(0, 5).map((song, i) => (
+                  <div key={song.id} className="flex items-center justify-between group">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-200 truncate">{song.title}</p>
+                      <p className="text-[10px] text-slate-500 truncate">{song.artist}</p>
+                    </div>
+                    <div className="flex gap-2 flex-shrink-0 ml-2">
+                      {song.recommended_key !== undefined && keyBadge(song.recommended_key, song.fit)}
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
-          )}
-        </div>
-
-        {/* 右カラム: スコア・おすすめ */}
-        <div className="space-y-6">
-          <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl shadow-xl border border-white/10 p-6 flex flex-col items-center">
-            <h3 className="text-sm font-bold text-slate-200 self-start mb-4">歌唱力指標</h3>
-            {radarData.length > 0 ? (
-              <div className="w-full flex flex-col items-center">
-                <RadarChart data={radarData} />
-                <div className="mt-4 text-center">
-                  <div className="text-3xl font-black text-indigo-400">{Math.round(singing?.overall_score ?? 0)}点</div>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Singing Score</p>
-                </div>
-              </div>
-            ) : (
-              <p className="text-xs text-slate-500 py-10">スコアデータがありません</p>
-            )}
           </div>
 
-          <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl shadow-xl border border-white/10 p-6">
-            <h3 className="text-sm font-bold text-slate-200 mb-4">あなたへのおすすめ曲</h3>
-            <div className="space-y-3">
-              {result.recommended_songs?.slice(0, 5).map((song, i) => (
-                <div key={song.id} className="flex items-center justify-between group">
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-slate-200 truncate">{song.title}</p>
-                    <p className="text-[10px] text-slate-500 truncate">{song.artist}</p>
-                  </div>
-                  <div className="flex gap-2 flex-shrink-0 ml-2">
-                    {song.recommended_key !== undefined && keyBadge(song.recommended_key, song.fit)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
-
       </div>
     </div>
   );

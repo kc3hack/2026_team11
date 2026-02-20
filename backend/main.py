@@ -26,6 +26,7 @@ from database import get_all_songs, search_songs, init_db, get_artists, get_arti
 from database_supabase import (
     get_user_profile, update_user_profile, update_vocal_range,
     create_analysis_record, get_analysis_history,delete_analysis_record,
+    get_integrated_vocal_range,
     add_favorite_song, remove_favorite_song, get_favorite_songs, is_favorite,
     # お気に入りアーティスト
     add_favorite_artist, remove_favorite_artist,
@@ -171,6 +172,14 @@ def create_analysis(data: AnalysisCreate, user: dict = Depends(get_current_user)
 def get_my_analysis_history(user: dict = Depends(get_current_user), limit: int = 50):
     """自分の分析履歴を取得"""
     return get_analysis_history(user["id"], limit)
+
+@app.get("/analysis/integrated-range")
+def get_my_integrated_range(user: dict = Depends(get_current_user), limit: int = Query(20, ge=1, le=100)):
+    """直近N件の分析履歴から統合音域を取得"""
+    result = get_integrated_vocal_range(user["id"], limit)
+    if not result:
+        raise HTTPException(status_code=404, detail="統合可能な分析データが見つかりません")
+    return result
 
 @app.delete("/analysis/history/{record_id}")
 def delete_my_analysis_history(record_id: str, user: dict = Depends(get_current_user)):
