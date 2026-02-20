@@ -5,16 +5,16 @@ import { useAuth } from "./contexts/AuthContext";
 
 interface HistoryPageProps {
   onLoginClick: () => void;
+  onSelectRecord: (record: AnalysisHistoryRecord) => void;
 }
 
-const HistoryPage: React.FC<HistoryPageProps> = ({ onLoginClick }) => {
+const HistoryPage: React.FC<HistoryPageProps> = ({ onLoginClick, onSelectRecord }) => {
   const { isAuthenticated } = useAuth();
   const [history, setHistory] = useState<AnalysisHistoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // ... 既存の fetchHistory 処理そのまま ...
     if (!isAuthenticated) {
       setLoading(false);
       return;
@@ -36,7 +36,8 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onLoginClick }) => {
   }, [isAuthenticated]);
 
   // 削除処理
-  const handleDelete = async (recordId: string) => {
+  const handleDelete = async (e: React.MouseEvent, recordId: string) => {
+    e.stopPropagation(); // 親要素のクリックイベント（画面遷移）を防ぐ
     if (!window.confirm("この履歴を削除しますか？")) return;
 
     try {
@@ -54,7 +55,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onLoginClick }) => {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] bg-transparent p-8">
         <div className="w-full max-w-sm bg-slate-900/60 backdrop-blur-md rounded-2xl shadow-xl border border-white/10 p-8 text-center">
-          {/* 履歴を表す時計のアイコンに変更 */}
+          {/* 履歴を表す時計のアイコン */}
           <svg 
             className="w-12 h-12 text-cyan-500/50 mx-auto mb-4" 
             fill="none" 
@@ -96,7 +97,11 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onLoginClick }) => {
       ) : (
         <div className="space-y-4">
           {history.map((record) => (
-            <div key={record.id} className="bg-slate-800 p-6 rounded-xl border border-white/5 shadow-md flex flex-col sm:flex-row justify-between sm:items-center gap-4 relative group">
+            <div 
+              key={record.id} 
+              className="bg-slate-800 p-6 rounded-xl border border-white/5 shadow-md flex flex-col sm:flex-row justify-between sm:items-center gap-4 relative group cursor-pointer hover:bg-slate-700/80 transition-colors"
+              onClick={() => onSelectRecord(record)}
+            >
               
               {/* === 左側のメタデータ部分 === */}
               <div>
@@ -130,10 +135,10 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onLoginClick }) => {
                   </p>
                 </div>
                 
-                {/* 追加: 削除ボタン */}
+                {/* 削除ボタン */}
                 <button
-                  onClick={() => handleDelete(record.id)}
-                  className="ml-2 px-3 py-2 bg-red-900/40 text-red-400 hover:bg-red-600 hover:text-white rounded-lg transition-colors text-sm font-bold"
+                  onClick={(e) => handleDelete(e, record.id)}
+                  className="ml-2 px-3 py-2 bg-red-900/40 text-red-400 hover:bg-red-600 hover:text-white rounded-lg transition-colors text-sm font-bold z-10"
                   aria-label="履歴を削除"
                 >
                   削除

@@ -244,6 +244,15 @@ function AppContent() {
         {/* 分析結果画面 (AnalysisResultPage) */}
         {view === "analysis" && (
           <div className="min-h-screen bg-transparent">
+            {/* 戻るボタンの追加 */}
+            <div className="max-w-6xl mx-auto px-4 sm:px-8 pt-8 pb-2">
+              <button
+                onClick={handleHistory}
+                className="text-slate-500 hover:text-cyan-400 font-bold flex items-center gap-2 transition-colors"
+              >
+                ← 履歴に戻る
+              </button>
+            </div>
             <AnalysisResultPage result={result} />
           </div>
         )}
@@ -261,8 +270,26 @@ function AppContent() {
         {/* 使い方ガイド */}
         {view === "guide" && <GuidePage />}
 
-        {/* 履歴画面 (Placeholder) */}
-        {view === "history" && <HistoryPage onLoginClick={() => setView("login")} />}
+        {/* 履歴画面 (HistoryPage) */}
+        {view === "history" && (
+          <HistoryPage 
+            onLoginClick={() => setView("login")}
+            onSelectRecord={(record) => {
+              // 履歴データから擬似的な結果データを作成して結果画面へ遷移
+              const mockResult: AnalysisResult = {
+                overall_min: record.vocal_range_min || "-",
+                overall_max: record.vocal_range_max || "-",
+                overall_min_hz: 0,
+                overall_max_hz: 0,
+                chest_min: record.vocal_range_min || undefined,
+                chest_max: record.vocal_range_max || undefined,
+                falsetto_max: record.falsetto_max || undefined,
+              };
+              setResult(mockResult);
+              setView("analysis");
+            }}
+          />
+        )}
 
         {/* マイページ画面 (Placeholder) */}
         {view === "mypage" && <PlaceholderPage title="マイページ" />}
