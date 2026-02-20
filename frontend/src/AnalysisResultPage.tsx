@@ -28,13 +28,6 @@ const keyBadge = (key: number, fit?: string) => {
   );
 };
 
-/* ───── ヘルパーコンポーネント: 難易度バッジ ───── */
-const difficultyBadge = (score: number) => {
-  if (score >= 80) return <span className="text-xs font-bold px-2 py-1 rounded-md bg-emerald-900/30 text-emerald-400 border border-emerald-500/30">Easy</span>;
-  if (score >= 60) return <span className="text-xs font-bold px-2 py-1 rounded-md bg-amber-900/30 text-amber-400 border border-amber-500/30">Medium</span>;
-  return <span className="text-xs font-bold px-2 py-1 rounded-md bg-rose-900/30 text-rose-400 border border-rose-500/30">Hard</span>;
-};
-
 /* ───── 歌唱力レーダーチャート (SVG) ───── */
 const RadarChart: React.FC<{ data: { label: string; value: number }[] }> = ({ data }) => {
   const cx = 120, cy = 120, r = 90;

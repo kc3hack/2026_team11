@@ -1,5 +1,6 @@
 import React from 'react';
 import { MicrophoneIcon, MusicalNoteIcon, CloudArrowUpIcon, ClockIcon } from '@heroicons/react/24/solid';
+import { useAnalysis } from './contexts/AnalysisContext';
 
 interface Props {
     onNormalClick: () => void;
@@ -9,6 +10,8 @@ interface Props {
 }
 
 const Home: React.FC<Props> = ({ onNormalClick, onKaraokeClick, onUploadClick, onHistoryClick }) => {
+    const { isAnalyzing } = useAnalysis();
+
     return (
         <div className="min-h-[100dvh] relative bg-slate-950 overflow-hidden">
 
@@ -31,13 +34,27 @@ const Home: React.FC<Props> = ({ onNormalClick, onKaraokeClick, onUploadClick, o
                     </h1>
                 </div>
 
+                {/* Analyzing Banner */}
+                {isAnalyzing && (
+                    <div className="w-full max-w-6xl mx-auto mb-8 p-4 bg-slate-800/90 border-2 border-cyan-400 rounded-xl shadow-[0_0_20px_rgba(34,211,238,0.4)] animate-pulse text-center backdrop-blur-sm z-20">
+                        <span className="text-xl md:text-2xl font-bold text-cyan-400 italic tracking-wider">
+                            🔄 現在、バックグラウンドで音声を解析中です...
+                        </span>
+                        <br />
+                        <span className="text-sm md:text-base font-medium text-slate-300 mt-2 inline-block">
+                            解析が完了すると自動的に結果画面へ移動します。新しく録音することはできません。
+                        </span>
+                    </div>
+                )}
+
                 {/* Grid Layout for Menu Items */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-6 w-full max-w-6xl mx-auto">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-6 w-full max-w-6xl mx-auto transition-all duration-300">
 
                     {/* Main Action: Normal Recording (Huge) */}
                     <button
                         onClick={onNormalClick}
-                        className="group relative col-span-1 md:col-span-6 row-span-2 h-64 md:h-auto bg-slate-900/80 backdrop-blur-md bg-gradient-to-br from-cyan-900/40 to-slate-900/80 border-4 border-cyan-400 transform -skew-x-3 hover:skew-x-0 transition-all duration-300 shadow-[8px_8px_0px_0px_rgba(6,182,212,0.6)] hover:shadow-[0px_0px_40px_rgba(6,182,212,1)] hover:border-cyan-300 hover:scale-[1.02] overflow-hidden focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+                        disabled={isAnalyzing}
+                        className="group relative col-span-1 md:col-span-6 row-span-2 h-64 md:h-auto bg-slate-900/80 backdrop-blur-md bg-gradient-to-br from-cyan-900/40 to-slate-900/80 border-4 border-cyan-400 transform -skew-x-3 hover:skew-x-0 transition-all duration-300 shadow-[8px_8px_0px_0px_rgba(6,182,212,0.6)] hover:shadow-[0px_0px_40px_rgba(6,182,212,1)] hover:border-cyan-300 hover:scale-[1.02] overflow-hidden focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:opacity-50 disabled:pointer-events-none"
                     >
                         {/* Light Leak */}
                         <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-cyan-400/20 blur-[60px] rounded-full pointer-events-none group-hover:bg-cyan-400/40 transition-all duration-500"></div>
@@ -54,7 +71,8 @@ const Home: React.FC<Props> = ({ onNormalClick, onKaraokeClick, onUploadClick, o
                     {/* Secondary Action: Karaoke (Medium) */}
                     <button
                         onClick={onKaraokeClick}
-                        className="group relative col-span-1 md:col-span-6 h-40 bg-slate-900/80 backdrop-blur-md bg-gradient-to-br from-pink-900/40 to-slate-900/80 border-4 border-pink-500 transform -skew-x-3 hover:skew-x-0 transition-all duration-300 shadow-[8px_8px_0px_0px_rgba(236,72,153,0.6)] hover:shadow-[0px_0px_40px_rgba(236,72,153,1)] hover:border-pink-400 hover:scale-[1.02] overflow-hidden focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-pink-300 focus-visible:ring-offset-4 focus-visible:ring-offset-slate-900"
+                        disabled={isAnalyzing}
+                        className="group relative col-span-1 md:col-span-6 h-40 bg-slate-900/80 backdrop-blur-md bg-gradient-to-br from-pink-900/40 to-slate-900/80 border-4 border-pink-500 transform -skew-x-3 hover:skew-x-0 transition-all duration-300 shadow-[8px_8px_0px_0px_rgba(236,72,153,0.6)] hover:shadow-[0px_0px_40px_rgba(236,72,153,1)] hover:border-pink-400 hover:scale-[1.02] overflow-hidden focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-pink-300 focus-visible:ring-offset-4 focus-visible:ring-offset-slate-900 disabled:opacity-50 disabled:pointer-events-none"
                     >
                         {/* Light Leak */}
                         <div className="absolute -bottom-1/2 -right-1/2 w-64 h-64 bg-pink-500/20 blur-[50px] rounded-full pointer-events-none group-hover:bg-pink-500/40 transition-all duration-500"></div>
@@ -73,7 +91,8 @@ const Home: React.FC<Props> = ({ onNormalClick, onKaraokeClick, onUploadClick, o
                     {/* Tertiary Action: Upload (Small) */}
                     <button
                         onClick={onUploadClick}
-                        className="group relative col-span-1 md:col-span-3 h-40 bg-slate-900/80 backdrop-blur-md bg-gradient-to-br from-yellow-900/40 to-slate-900/80 border-4 border-yellow-400 transform -skew-x-3 hover:skew-x-0 transition-all duration-300 shadow-[8px_8px_0px_0px_rgba(250,204,21,0.6)] hover:shadow-[0px_0px_30px_rgba(250,204,21,1)] hover:border-yellow-300 hover:scale-[1.02] overflow-hidden focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-yellow-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+                        disabled={isAnalyzing}
+                        className="group relative col-span-1 md:col-span-3 h-40 bg-slate-900/80 backdrop-blur-md bg-gradient-to-br from-yellow-900/40 to-slate-900/80 border-4 border-yellow-400 transform -skew-x-3 hover:skew-x-0 transition-all duration-300 shadow-[8px_8px_0px_0px_rgba(250,204,21,0.6)] hover:shadow-[0px_0px_30px_rgba(250,204,21,1)] hover:border-yellow-300 hover:scale-[1.02] overflow-hidden focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-yellow-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 disabled:opacity-50 disabled:pointer-events-none"
                     >
                         {/* Light Leak */}
                         <div className="absolute -top-1/4 -right-1/4 w-32 h-32 bg-yellow-400/20 blur-[40px] rounded-full pointer-events-none group-hover:bg-yellow-400/40 transition-all duration-500"></div>
@@ -88,7 +107,8 @@ const Home: React.FC<Props> = ({ onNormalClick, onKaraokeClick, onUploadClick, o
                     {/* Quaternary Action: History (Small) */}
                     <button
                         onClick={onHistoryClick}
-                        className="group relative col-span-1 md:col-span-3 h-40 bg-slate-900/80 backdrop-blur-md bg-gradient-to-br from-emerald-900/40 to-slate-900/80 border-4 border-emerald-400 transform -skew-x-3 hover:skew-x-0 transition-all duration-300 shadow-[8px_8px_0px_0px_rgba(52,211,153,0.6)] hover:shadow-[0px_0px_30px_rgba(52,211,153,1)] hover:border-emerald-300 hover:scale-[1.02] overflow-hidden focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+                        disabled={isAnalyzing}
+                        className="group relative col-span-1 md:col-span-3 h-40 bg-slate-900/80 backdrop-blur-md bg-gradient-to-br from-emerald-900/40 to-slate-900/80 border-4 border-emerald-400 transform -skew-x-3 hover:skew-x-0 transition-all duration-300 shadow-[8px_8px_0px_0px_rgba(52,211,153,0.6)] hover:shadow-[0px_0px_30px_rgba(52,211,153,1)] hover:border-emerald-300 hover:scale-[1.02] overflow-hidden focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:opacity-50 disabled:pointer-events-none"
                     >
                         {/* Light Leak */}
                         <div className="absolute -bottom-1/4 -left-1/4 w-32 h-32 bg-emerald-400/20 blur-[40px] rounded-full pointer-events-none group-hover:bg-emerald-400/40 transition-all duration-500"></div>

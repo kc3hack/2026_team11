@@ -153,4 +153,4 @@ const HistoryPage: React.FC<HistoryPageProps> = ({ onLoginClick, onSelectRecord 
   );
 };
 
-export default HistoryPage;
+export default React.memo(HistoryPage);
