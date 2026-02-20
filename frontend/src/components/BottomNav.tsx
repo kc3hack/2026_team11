@@ -87,8 +87,8 @@ const BottomNav: React.FC<BottomNavProps> = ({ currentView, onViewChange, isAuth
 
         {/* 5. マイページ / ログイン */}
         <button
-          onClick={() => onViewChange(isAuthenticated ? "mypage" : "login")}
-          className={`flex-1 flex flex-col items-center justify-end h-full py-1 ${getItemClass(isAuthenticated ? "mypage" : "login")}`}
+          onClick={() => onViewChange(isAuthenticated ? "history" : "login")}
+          className={`flex-1 flex flex-col items-center justify-end h-full py-1 ${getItemClass(isAuthenticated ? "history" : "login")}`}
         >
           <UserCircleIcon className="w-6 h-6 mb-1" />
           <span className="text-[10px] font-medium">

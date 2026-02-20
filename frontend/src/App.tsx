@@ -11,7 +11,6 @@ import GuidePage from "./GuidePage";
 import LoginPage from "./LoginPage";
 import SongListPage from "./SongListPage";
 import FavoritesPage from "./FavoritesPage";
-import PlaceholderPage from "./PlaceholderPage";
 import BottomNav from "./components/BottomNav";
 import { AnalysisResult, UserRange } from "./api";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
@@ -310,8 +309,6 @@ function AppContent() {
           />
         )}
 
-        {/* マイページ画面 (Placeholder) */}
-        {view === "mypage" && <PlaceholderPage title="マイページ" />}
 
         {/* ログイン画面 */}
         {view === "login" && <LoginPage />}
