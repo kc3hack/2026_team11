@@ -14,6 +14,7 @@ from config import (
     CLEANUP_SEMITONES,
     GRADUATED_CONF_FAR, GRADUATED_CONF_MID, GRADUATED_CONF_NEAR,
     UNREALISTIC_LOWER_OCT, UNREALISTIC_UPPER_OCT,
+    MIN_SUSTAIN_FRAMES,
 )
 
 
@@ -110,6 +111,31 @@ def remove_statistical_outliers(notes, percentile=97, max_semitones_gap=6):
         print(f"[DEBUG] 統計外れ値除去: {removed}フレーム削除 "
               f"(参照P{percentile}={ref:.1f}Hz, 閾値={threshold:.1f}Hz)")
     return result if result else notes  # 全除去を防止
+
+
+# ============================================================
+# _get_robust_max
+# 最高音候補の最小持続フレーム要件（一瞬のノイズを除外）
+# ============================================================
+def _get_robust_max(notes, min_sustain=None):
+    """最高音候補が min_sustain フレーム以上存在することを要求。
+    1半音以内のフレーム数でカウント。不足なら段階的に下げる。"""
+    if min_sustain is None:
+        min_sustain = MIN_SUSTAIN_FRAMES
+    if not notes:
+        return None
+    arr = sorted(notes, reverse=True)
+    semitone = 2 ** (1 / 12)
+    checked = set()
+    for candidate in arr:
+        key = round(candidate, 1)
+        if key in checked:
+            continue
+        checked.add(key)
+        count = sum(1 for f in notes if candidate / semitone <= f <= candidate * semitone)
+        if count >= min_sustain:
+            return candidate
+    return arr[0]  # フォールバック: 全て不足なら元のmax
 
 
 # ============================================================
@@ -531,7 +557,11 @@ def _build_result(chest_notes: list, falsetto_notes: list,
             return
         arr = np.array(notes)
         lo_label, lo_hz = hz_to_label_and_hz(float(np.min(arr)))
-        hi_label, hi_hz = hz_to_label_and_hz(float(np.max(arr)))
+        robust_max = _get_robust_max(notes)
+        hi_label, hi_hz = hz_to_label_and_hz(float(robust_max))
+        raw_max = float(np.max(arr))
+        if robust_max < raw_max:
+            print(f"[INFO] {prefix} 最高音堅牢化: {raw_max:.1f}Hz → {robust_max:.1f}Hz (持続不足フレームをスキップ)")
         result[f"{prefix}_min"]    = lo_label
         result[f"{prefix}_max"]    = hi_label
         result[f"{prefix}_min_hz"] = lo_hz
