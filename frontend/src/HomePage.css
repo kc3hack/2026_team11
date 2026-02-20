@@ -197,4 +197,15 @@
     text-align: center !important;
     align-items: center !important;
   }
+
+  /* Specifically position the top (left) and bottom (right) content blocks to avoid collision */
+  .landing-section.left .landing-content {
+    top: 30% !important;
+    transform: translateY(-50%) !important;
+  }
+
+  .landing-section.right .landing-content {
+    top: 70% !important;
+    transform: translateY(-50%) !important;
+  }
 }
