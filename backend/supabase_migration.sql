@@ -179,27 +179,29 @@ CREATE TRIGGER update_user_profiles_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================
--- 6. アプリケーションから使いやすくするための便利なビュー (追加提案)
+-- 6. お気に入りアーティストテーブル
 -- ============================================================
+CREATE TABLE IF NOT EXISTS favorite_artists (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
+    artist_id INTEGER NOT NULL,
+    artist_name TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- 同じアーティストを重複して登録できないように
+    UNIQUE(user_id, artist_id)
+);
 
--- お気に入り楽曲の詳細（曲名やアーティスト名）を一度に取得できるビュー
-CREATE OR REPLACE VIEW user_favorite_songs_details AS
-SELECT 
-    fs.id AS favorite_id,
-    fs.user_id,
-    fs.created_at AS favorited_at,
-    s.id AS song_id,
-    s.title,
-    s.lowest_note,
-    s.highest_note,
-    s.falsetto_note,
-    a.name AS artist_name
-FROM 
-    favorite_songs fs
-JOIN 
-    songs s ON fs.song_id = s.id
-JOIN 
-    artists a ON s.artist_id = a.id;
+-- インデックス
+CREATE INDEX idx_favorite_artists_user ON favorite_artists(user_id, created_at ASC);
 
--- ビュー経由のアクセスでも元のテーブルのRLSポリシー（自分のデータしか見えない制限）を適用する
-ALTER VIEW user_favorite_songs_details SET (security_invoker = true);
+-- RLS (Row Level Security) を有効化
+ALTER TABLE favorite_artists ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own favorite artists" 
+    ON favorite_artists FOR SELECT 
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can manage own favorite artists" 
+    ON favorite_artists FOR ALL 
+    USING (auth.uid() = user_id);
