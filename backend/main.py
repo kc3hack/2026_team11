@@ -20,7 +20,7 @@ from recommender import (
 )
 
 # 楽曲データはローカル SQLite（songs.db に5000曲入ってる）
-from database import get_all_songs, search_songs, init_db, get_artists, get_artist_songs, count_artists, search_artists
+from database import get_all_songs, search_songs, count_songs, init_db, get_artists, get_artist_songs, count_artists, search_artists
 
 # 認証・ユーザー系は Supabase
 from database_supabase import (
@@ -330,8 +330,10 @@ def read_songs(
 ):
     if q:
         songs = search_songs(q, limit, offset)
+        total = count_songs(q)
     else:
         songs = get_all_songs(limit, offset)
+        total = count_songs()
 
     if chest_min_hz and chest_max_hz:
         effective_max = chest_max_hz
@@ -350,7 +352,7 @@ def read_songs(
                 song["recommended_key"] = 0
                 song["fit"] = "unknown"
 
-    return songs
+    return {"songs": songs, "total": total}
 
 
 # ============================================================

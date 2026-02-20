@@ -3,6 +3,7 @@ database.py — 楽曲音域データベースの接続管理とクエリ関数
 """
 import sqlite3
 import os
+import unicodedata
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "songs.db")
 
@@ -15,6 +16,31 @@ def get_connection(db_path: str = DB_PATH) -> sqlite3.Connection:
 def _escape_like(query: str) -> str:
     """LIKE句の特殊文字（%, _）をエスケープするヘルパー"""
     return query.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+
+def _hiragana_normalize(text: str) -> str:
+    """カタカナをひらがなに変換して正規化
+    
+    Unicodeコードポイント範囲（U+30A1〜U+30F6）を使用して、
+    濁点・半濁点・小書き文字・ヴなどを含む一般的なカタカナに対応。
+    
+    変換範囲: ァ〜ヶ（U+30A1〜U+30F6）
+    対象外: ヷヸヹヺ（U+30F7〜U+30FA）等の稀な文字
+    
+    例: "ミセス" -> "みせす", "ガッツ" -> "がっつ", "パーティー" -> "ぱーてぃー"
+    """
+    # NFKC正規化で合成文字を統一（濁点・半濁点の結合文字対応）
+    text = unicodedata.normalize('NFKC', text)
+    
+    # カタカナ（U+30A1〜U+30F6）をひらがな（U+3041〜U+3096）に変換
+    result = []
+    for char in text:
+        code = ord(char)
+        if 0x30A1 <= code <= 0x30F6:  # カタカナ範囲
+            result.append(chr(code - 0x60))  # ひらがなに変換
+        else:
+            result.append(char)
+    
+    return ''.join(result)
 
 def init_db(db_path: str = DB_PATH):
     """データベースの初期化とマイグレーション"""
@@ -129,11 +155,16 @@ def init_db(db_path: str = DB_PATH):
 
 
 def search_songs(query: str, limit: int = 20, offset: int = 0) -> list[dict]:
-    """曲名またはアーティスト名、ふりがなであいまい検索"""
+    """曲名またはアーティスト名、ふりがなであいまい検索（カタカナ対応）"""
     conn = get_connection()
     try:
-        escaped = f"%{_escape_like(query)}%"
-        # 変更点： a.reading LIKE ? ESCAPE '\\' を追加し、ふりがなも検索対象に！
+        # title/name には NFKC 正規化のみ、reading にはひらがな正規化を使用
+        nfkc_query = unicodedata.normalize('NFKC', query)
+        normalized_query = _hiragana_normalize(query)
+        
+        escaped_nfkc = f"%{_escape_like(nfkc_query)}%"
+        escaped_normalized = f"%{_escape_like(normalized_query)}%"
+        
         rows = conn.execute("""
             SELECT s.id, s.title, a.name as artist,
                    s.artist_id, a.slug as artist_slug,
@@ -147,8 +178,34 @@ def search_songs(query: str, limit: int = 20, offset: int = 0) -> list[dict]:
                OR a.reading LIKE ? ESCAPE '\\'
             ORDER BY a.reading, s.title COLLATE NOCASE
             LIMIT ? OFFSET ?
-        """, (escaped, escaped, escaped, limit, offset)).fetchall() # escapedを3つに増やしました
+        """, (escaped_nfkc, escaped_nfkc, escaped_normalized, limit, offset)).fetchall()
         return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def count_songs(query: str = "") -> int:
+    """楽曲総数を取得（カタカナ対応）"""
+    conn = get_connection()
+    try:
+        if query:
+            # title/name には NFKC 正規化のみ、reading にはひらがな正規化を使用
+            nfkc_query = unicodedata.normalize('NFKC', query)
+            normalized_query = _hiragana_normalize(query)
+            
+            escaped_nfkc = f"%{_escape_like(nfkc_query)}%"
+            escaped_normalized = f"%{_escape_like(normalized_query)}%"
+            
+            row = conn.execute("""
+                SELECT COUNT(*) FROM songs s
+                JOIN artists a ON s.artist_id = a.id
+                WHERE s.title LIKE ? ESCAPE '\\' 
+                   OR a.name LIKE ? ESCAPE '\\'
+                   OR a.reading LIKE ? ESCAPE '\\'
+            """, (escaped_nfkc, escaped_nfkc, escaped_normalized)).fetchone()
+        else:
+            row = conn.execute("SELECT COUNT(*) FROM songs").fetchone()
+        return row[0]
     finally:
         conn.close()
 
@@ -200,14 +257,20 @@ def get_artists(limit: int = 100, offset: int = 0) -> list[dict]:
 
 
 def count_artists(query: str = "") -> int:
-    """アーティスト総数を取得"""
+    """アーティスト総数を取得（カタカナ対応）"""
     conn = get_connection()
     try:
         if query:
-            escaped = f"%{_escape_like(query)}%"
+            # name には NFKC 正規化のみ、reading にはひらがな正規化を使用
+            nfkc_query = unicodedata.normalize('NFKC', query)
+            normalized_query = _hiragana_normalize(query)
+            
+            escaped_nfkc = f"%{_escape_like(nfkc_query)}%"
+            escaped_normalized = f"%{_escape_like(normalized_query)}%"
+            
             row = conn.execute(
-                "SELECT COUNT(*) FROM artists WHERE song_count > 0 AND name LIKE ? ESCAPE '\\'",
-                (escaped,),
+                "SELECT COUNT(*) FROM artists WHERE song_count > 0 AND (name LIKE ? ESCAPE '\\' OR reading LIKE ? ESCAPE '\\')",
+                (escaped_nfkc, escaped_normalized),
             ).fetchone()
         else:
             row = conn.execute(
@@ -219,17 +282,23 @@ def count_artists(query: str = "") -> int:
 
 
 def search_artists(query: str, limit: int = 100, offset: int = 0) -> list[dict]:
-    """アーティスト名であいまい検索"""
+    """アーティスト名またはふりがなであいまい検索（カタカナ対応）"""
     conn = get_connection()
     try:
-        escaped = f"%{_escape_like(query)}%"
+        # name には NFKC 正規化のみ、reading にはひらがな正規化を使用
+        nfkc_query = unicodedata.normalize('NFKC', query)
+        normalized_query = _hiragana_normalize(query)
+        
+        escaped_nfkc = f"%{_escape_like(nfkc_query)}%"
+        escaped_normalized = f"%{_escape_like(normalized_query)}%"
+        
         rows = conn.execute("""
             SELECT id, name, slug, song_count, reading
             FROM artists
-            WHERE song_count > 0 AND name LIKE ? ESCAPE '\\'
+            WHERE song_count > 0 AND (name LIKE ? ESCAPE '\\' OR reading LIKE ? ESCAPE '\\')
             ORDER BY reading
             LIMIT ? OFFSET ?
-        """, (escaped, limit, offset)).fetchall()
+        """, (escaped_nfkc, escaped_normalized, limit, offset)).fetchall()
         return [dict(r) for r in rows]
     finally:
         conn.close()
