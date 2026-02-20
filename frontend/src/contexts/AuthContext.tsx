@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
 import { User } from "@supabase/supabase-js";
 import { supabase } from "../supabaseClient";
 
@@ -49,7 +49,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     return () => subscription.unsubscribe();
   }, []);
 
-  const loginWithGoogle = async () => {
+  const loginWithGoogle = useCallback(async () => {
     if (!supabase) {
       console.warn("Supabase未設定のためログインできません");
       return;
@@ -60,24 +60,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         redirectTo: window.location.origin,
       },
     });
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     if (!supabase) return;
     await supabase.auth.signOut();
     setUser(null);
-  };
+  }, []);
+
+  const value = useMemo(
+    () => ({ user, isAuthenticated: !!user, isLoading, loginWithGoogle, logout }),
+    [user, isLoading, loginWithGoogle, logout]
+  );
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isAuthenticated: !!user,
-        isLoading,
-        loginWithGoogle,
-        logout,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

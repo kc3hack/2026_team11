@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { analyzeVoice, analyzeKaraoke, AnalysisResult } from "../api";
 import { MicrophoneIcon, StopIcon } from "@heroicons/react/24/solid";
+import "./Recorder.css";
 
 interface Props {
   onResult: (data: AnalysisResult) => void;
@@ -34,6 +35,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const animationIdRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const gradientRef = useRef<CanvasGradient | null>(null);
 
   // Loading animation logic
   useEffect(() => {
@@ -105,10 +107,13 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
     ctx.fillStyle = "rgb(100, 116, 139)";
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-    const gradient = ctx.createLinearGradient(0, HEIGHT, 0, 0);
-    gradient.addColorStop(0, "#38bdf8");
-    gradient.addColorStop(1, "#a78bfa");
-    ctx.fillStyle = gradient;
+    if (!gradientRef.current) {
+      const gradient = ctx.createLinearGradient(0, HEIGHT, 0, 0);
+      gradient.addColorStop(0, "#38bdf8");
+      gradient.addColorStop(1, "#a78bfa");
+      gradientRef.current = gradient;
+    }
+    ctx.fillStyle = gradientRef.current;
 
     const totalBins = dataArrayRef.current.length;
     const maxBinIndex = Math.floor(totalBins * 0.4);
@@ -309,7 +314,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
               </button>
             ) : (
               // --- Recording State Button ---
-              <div className="relative flex items-center justify-center group pointer-events-auto" style={{ animation: "fadeIn 0.3s ease-out forwards" }}>
+              <div className="relative flex items-center justify-center group pointer-events-auto recorder-fade-in">
                 {/* 15s Progress Ring SVG */}
                 <svg className="absolute w-[180px] h-[180px] -rotate-90 pointer-events-none drop-shadow-[0_0_10px_rgba(232,121,249,0.8)]">
                   <circle
@@ -325,36 +330,16 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
                     cy="90"
                     r="84"
                     fill="none"
-                    className="stroke-fuchsia-400 transition-all duration-100 ease-linear"
+                    className="stroke-fuchsia-400 transition-all duration-100 ease-linear recorder-ring-circle"
                     strokeWidth="6"
                     strokeDasharray="132 396"
                     strokeDashoffset="0"
-                    style={{
-                      animation: "spinRing 2s linear infinite"
-                    }}
                   />
                 </svg>
-                {/* Embedded CSS for animation */}
-                <style>{`
-                  @keyframes spinRing {
-                    from { transform: rotate(0deg); transform-origin: center; }
-                    to { transform: rotate(360deg); transform-origin: center; }
-                  }
-                  @keyframes pulseShadow {
-                    0% { box-shadow: 0 0 20px rgba(232,121,249,0.4), inset 0 0 10px rgba(0,0,0,0.5); }
-                    50% { box-shadow: 0 0 50px rgba(232,121,249,0.8), inset 0 0 10px rgba(0,0,0,0.5); }
-                    100% { box-shadow: 0 0 20px rgba(232,121,249,0.4), inset 0 0 10px rgba(0,0,0,0.5); }
-                  }
-                  @keyframes fadeIn {
-                    from { opacity: 0; }
-                    to { opacity: 1; }
-                  }
-                `}</style>
 
                 <button
                   onClick={stopRecording}
-                  className="w-24 h-24 bg-fuchsia-600 hover:bg-fuchsia-500 rounded-full flex items-center justify-center transition-all transform hover:scale-105 border-4 border-fuchsia-300 relative z-10"
-                  style={{ animation: "pulseShadow 1.5s infinite" }}
+                  className="w-24 h-24 bg-fuchsia-600 hover:bg-fuchsia-500 rounded-full flex items-center justify-center transition-all transform hover:scale-105 border-4 border-fuchsia-300 relative z-10 recorder-stop-btn"
                   aria-label="録音を停止"
                 >
                   <StopIcon className="w-12 h-12 text-white drop-shadow-[0_0_5px_rgba(255,255,255,0.8)]" />

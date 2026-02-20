@@ -160,4 +160,4 @@ const GuidePage: React.FC = () => {
     );
 };
 
-export default GuidePage;
+export default React.memo(GuidePage);

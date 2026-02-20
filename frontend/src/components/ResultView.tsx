@@ -332,4 +332,4 @@ const ResultView: React.FC<Props> = ({ result }) => {
   );
 };
 
-export default ResultView;
+export default React.memo(ResultView);
