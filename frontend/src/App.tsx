@@ -11,7 +11,6 @@ import GuidePage from "./GuidePage";
 import LoginPage from "./LoginPage";
 import SongListPage from "./SongListPage";
 import FavoritesPage from "./FavoritesPage";
-import PlaceholderPage from "./PlaceholderPage";
 import BottomNav from "./components/BottomNav";
 import { AnalysisResult, UserRange } from "./api";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
