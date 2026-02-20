@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { analyzeVoice, analyzeKaraoke, AnalysisResult } from "../api";
 import { MicrophoneIcon, StopIcon } from "@heroicons/react/24/solid";
+import { useAnalysis } from '../contexts/AnalysisContext';
 
 interface Props {
   onResult: (data: AnalysisResult) => void;
@@ -16,10 +17,11 @@ const STEPS = [
 
 const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
   const [recording, setRecording] = useState(false);
-  const [loading, setLoading] = useState(false);
-  // initialUseDemucs はマウント時に確定するため、useEffect による同期は不要
-  const [progress, setProgress] = useState(0);
-  const [stepLabel, setStepLabel] = useState("");
+  const { 
+    isAnalyzing: loading, setIsAnalyzing: setLoading,
+    progress, setProgress,
+    stepLabel, setStepLabel
+  } = useAnalysis();
   const [noFalsetto, setNoFalsetto] = useState(false);
 
   const mediaRecorder = useRef<MediaRecorder | null>(null);

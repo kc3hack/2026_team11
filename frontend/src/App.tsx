@@ -15,6 +15,7 @@ import BottomNav from "./components/BottomNav";
 import { AnalysisResult, UserRange } from "./api";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import HistoryPage from "./HistoryPage";
+import { AnalysisProvider } from './contexts/AnalysisContext';
 
 // 画面の状態を定義
 type ViewState =
@@ -55,7 +56,7 @@ function AppContent() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [userRange, setUserRange] = useState<UserRange | null>(loadSavedRange);
-  
+
   // ★ 追加: 履歴画面から遷移してきたかを判定するフラグ
   const [isFromHistory, setIsFromHistory] = useState(false);
 
@@ -284,7 +285,7 @@ function AppContent() {
 
         {/* 履歴画面 (HistoryPage) */}
         {view === "history" && (
-          <HistoryPage 
+          <HistoryPage
             onLoginClick={() => setView("login")}
             onSelectRecord={(record) => {
               if (record.result_json) {
@@ -327,7 +328,9 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <AnalysisProvider>
+        <AppContent />
+      </AnalysisProvider>
     </AuthProvider>
   );
 }
