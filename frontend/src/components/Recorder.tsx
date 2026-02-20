@@ -99,7 +99,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
     const WIDTH = canvas.width;
     const HEIGHT = canvas.height;
 
-    analyserRef.current.getByteFrequencyData(dataArrayRef.current as any);
+    analyserRef.current.getByteFrequencyData(dataArrayRef.current);
 
     ctx.fillStyle = "rgb(100, 116, 139)";
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
