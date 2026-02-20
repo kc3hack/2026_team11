@@ -14,8 +14,8 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   isAuthenticated: false,
   isLoading: true,
-  loginWithGoogle: async () => {},
-  logout: async () => {},
+  loginWithGoogle: async () => { },
+  logout: async () => { },
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -54,10 +54,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       console.warn("Supabase未設定のためログインできません");
       return;
     }
+
+    // 本番環境のURLを優先、開発環境では現在のoriginを使用
+    const redirectUrl = process.env.REACT_APP_REDIRECT_URL ||
+      (process.env.NODE_ENV === "production"
+        ? "https://pitchscout.ten-hou.com"
+        : window.location.origin);
+
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: window.location.origin,
+        redirectTo: redirectUrl,
       },
     });
   };
