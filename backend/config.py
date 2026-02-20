@@ -55,3 +55,9 @@ MIN_SUSTAIN_FRAMES = 3          # 最高音として認定する最小フレー�
 FALSETTO_RATIO_HIGH = 0.42    # f0 > 500Hz
 FALSETTO_RATIO_MID = 0.48     # f0 > 400Hz
 FALSETTO_RATIO_DEFAULT = 0.58 # その他
+
+# === ログ制御 ===
+import os
+# REGISTER_LOG_LEVEL: 0=なし, 1=サマリーのみ, 2=間引き(デフォルト), 3=全て
+REGISTER_LOG_LEVEL = int(os.getenv("REGISTER_LOG_LEVEL", "1"))
+REGISTER_LOG_INTERVAL = int(os.getenv("REGISTER_LOG_INTERVAL", "100"))  # 間引き間隔

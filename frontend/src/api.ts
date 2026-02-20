@@ -3,8 +3,9 @@ import { supabase } from "./supabaseClient";
 
 const TIMEOUT_MS = 300000; // 5分
 
+// 本番環境では /api を使用、開発環境では localhost:8000 を使用
 const API = axios.create({
-  baseURL: "http://127.0.0.1:8000",
+  baseURL: process.env.REACT_APP_API_URL || (process.env.NODE_ENV === "production" ? "/api" : "http://127.0.0.1:8000"),
   timeout: TIMEOUT_MS,
 });
 
@@ -309,7 +310,6 @@ export const deleteAnalysisHistory = async (recordId: string): Promise<{ message
   const res = await API.delete(`/analysis/history/${recordId}`);
   return res.data;
 };
-
 /** 統合音域取得API（直近N件から計算） */
 export const getIntegratedVocalRange = async (limit = 20): Promise<IntegratedVocalRange> => {
   const res = await API.get<IntegratedVocalRange>("/analysis/integrated-range", { params: { limit } });
