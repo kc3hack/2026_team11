@@ -223,10 +223,9 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
     }
     setSearchLoading(true);
     try {
-      const songs = await getSongs(10, page * 10, searchQuery, userRange);
-      setSearchSongs(songs);
-      // getSongs はページング情報を返さないので、実際の総数は推測
-      setTotalSearchSongs(Math.max(songs.length, (page + 1) * 10));
+      const data = await getSongs(10, page * 10, searchQuery, userRange);
+      setSearchSongs(data.songs);
+      setTotalSearchSongs(data.total);
       setError(null);
     } catch (err: any) {
       setError("\u697d\u66f2\u691c\u7d22\u306b\u5931\u6557\u3057\u307e\u3057\u305f");
@@ -591,6 +590,37 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
               </table>
             </div>
           )}
+          
+          {/* 楽曲検索結果のページネーション */}
+          {!searchLoading && totalSearchSongs > 10 && (
+            <div className="flex items-center justify-center gap-4 mt-8">
+              <button
+                onClick={handlePrev}
+                disabled={searchPage === 0}
+                className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors shadow-sm text-sm"
+              >
+                {'前のページ'}
+              </button>
+              <div className="flex items-center gap-2 text-slate-400 text-sm font-medium">
+                <input
+                  type="text"
+                  value={searchPageInput}
+                  onChange={(e) => setSearchPageInput(e.target.value)}
+                  onBlur={handlePageJump}
+                  onKeyDown={(e) => e.key === 'Enter' && handlePageJump()}
+                  className="w-12 h-9 text-center bg-slate-800 border border-slate-700 rounded-lg focus:ring-2 focus:ring-cyan-500/50 text-slate-200"
+                />
+                <span>/ {totalSearchPages}</span>
+              </div>
+              <button
+                onClick={handleNext}
+                disabled={searchPage + 1 >= totalSearchPages}
+                className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors shadow-sm text-sm"
+              >
+                {'次のページ'}
+              </button>
+            </div>
+          )}
         </>
       ) : (
         // アーティスト一覧表示
@@ -627,69 +657,35 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
             ))}
           </div>
 
-          {/* ページネーション */}
-          {searchQuery ? (
-            // 楽曲検索結果のページネーション
-            !searchLoading && totalSearchSongs > 10 && (
-              <div className="flex items-center justify-center gap-4 mt-8">
-                <button
-                  onClick={handlePrev}
-                  disabled={searchPage === 0}
-                  className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors shadow-sm text-sm"
-                >
-                  {'前のページ'}
-                </button>
-                <div className="flex items-center gap-2 text-slate-400 text-sm font-medium">
-                  <input
-                    type="text"
-                    value={searchPageInput}
-                    onChange={(e) => setSearchPageInput(e.target.value)}
-                    onBlur={handlePageJump}
-                    onKeyDown={(e) => e.key === 'Enter' && handlePageJump()}
-                    className="w-12 h-9 text-center bg-slate-800 border border-slate-700 rounded-lg focus:ring-2 focus:ring-cyan-500/50 text-slate-200"
-                  />
-                  <span>/ {totalSearchPages}</span>
-                </div>
-                <button
-                  onClick={handleNext}
-                  disabled={searchPage + 1 >= totalSearchPages}
-                  className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors shadow-sm text-sm"
-                >
-                  {'次のページ'}
-                </button>
+          {/* アーティスト一覧のページネーション */}
+          {!loading && totalArtists > ARTISTS_PER_PAGE && (
+            <div className="flex items-center justify-center gap-4 mt-8">
+              <button
+                onClick={handlePrev}
+                disabled={artistPage === 0}
+                className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors shadow-sm text-sm"
+              >
+                {'\u524d\u306e\u30da\u30fc\u30b8'}
+              </button>
+              <div className="flex items-center gap-2 text-slate-400 text-sm font-medium">
+                <input
+                  type="text"
+                  value={pageInput}
+                  onChange={(e) => setPageInput(e.target.value)}
+                  onBlur={handlePageJump}
+                  onKeyDown={(e) => e.key === 'Enter' && handlePageJump()}
+                  className="w-12 h-9 text-center bg-slate-800 border border-slate-700 rounded-lg focus:ring-2 focus:ring-cyan-500/50 text-slate-200"
+                />
+                <span>/ {totalPages}</span>
               </div>
-            )
-          ) : (
-            // アーティスト一覧のページネーション
-            !loading && totalArtists > ARTISTS_PER_PAGE && (
-              <div className="flex items-center justify-center gap-4 mt-8">
-                <button
-                  onClick={handlePrev}
-                  disabled={artistPage === 0}
-                  className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors shadow-sm text-sm"
-                >
-                  {'\u524d\u306e\u30da\u30fc\u30b8'}
-                </button>
-                <div className="flex items-center gap-2 text-slate-400 text-sm font-medium">
-                  <input
-                    type="text"
-                    value={pageInput}
-                    onChange={(e) => setPageInput(e.target.value)}
-                    onBlur={handlePageJump}
-                    onKeyDown={(e) => e.key === 'Enter' && handlePageJump()}
-                    className="w-12 h-9 text-center bg-slate-800 border border-slate-700 rounded-lg focus:ring-2 focus:ring-cyan-500/50 text-slate-200"
-                  />
-                  <span>/ {totalPages}</span>
-                </div>
-                <button
-                  onClick={handleNext}
-                  disabled={artistPage + 1 >= totalPages}
-                  className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors shadow-sm text-sm"
-                >
-                  {'\u6b21\u306e\u30da\u30fc\u30b8'}
-                </button>
-              </div>
-            )
+              <button
+                onClick={handleNext}
+                disabled={artistPage + 1 >= totalPages}
+                className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors shadow-sm text-sm"
+              >
+                {'\u6b21\u306e\u30da\u30fc\u30b8'}
+              </button>
+            </div>
           )}
         </>
       )}

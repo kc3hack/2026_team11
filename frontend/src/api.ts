@@ -177,13 +177,19 @@ export const analyzeKaraoke = async (
   return res.data;
 };
 
+/** 楽曲検索レスポンス */
+export interface SongsResponse {
+  songs: Song[];
+  total: number;
+}
+
 /** 楽曲取得 */
 export const getSongs = async (
   limit: number = 20,
   offset: number = 0,
   query: string = "",
   userRange?: UserRange | null,
-): Promise<Song[]> => {
+): Promise<SongsResponse> => {
   const params: Record<string, any> = { limit, offset };
   if (query) params.q = query;
   if (userRange) {
@@ -193,7 +199,7 @@ export const getSongs = async (
       params.falsetto_max_hz = userRange.falsetto_max_hz;
     }
   }
-  const res = await API.get<Song[]>("/songs", { params });
+  const res = await API.get<SongsResponse>("/songs", { params });
   return res.data;
 };
 

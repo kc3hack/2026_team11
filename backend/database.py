@@ -181,6 +181,32 @@ def search_songs(query: str, limit: int = 20, offset: int = 0) -> list[dict]:
         conn.close()
 
 
+def count_songs(query: str = "") -> int:
+    """楽曲総数を取得（カタカナ対応）"""
+    conn = get_connection()
+    try:
+        if query:
+            # title/name には NFKC 正規化のみ、reading にはひらがな正規化を使用
+            nfkc_query = unicodedata.normalize('NFKC', query)
+            normalized_query = _hiragana_normalize(query)
+            
+            escaped_nfkc = f"%{_escape_like(nfkc_query)}%"
+            escaped_normalized = f"%{_escape_like(normalized_query)}%"
+            
+            row = conn.execute("""
+                SELECT COUNT(*) FROM songs s
+                JOIN artists a ON s.artist_id = a.id
+                WHERE s.title LIKE ? ESCAPE '\\' 
+                   OR a.name LIKE ? ESCAPE '\\'
+                   OR a.reading LIKE ? ESCAPE '\\'
+            """, (escaped_nfkc, escaped_nfkc, escaped_normalized)).fetchone()
+        else:
+            row = conn.execute("SELECT COUNT(*) FROM songs").fetchone()
+        return row[0]
+    finally:
+        conn.close()
+
+
 def get_song(song_id: int) -> dict | None:
     """IDで楽曲を取得"""
     conn = get_connection()
