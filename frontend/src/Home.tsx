@@ -61,7 +61,7 @@ const Home: React.FC<Props> = ({ onNormalClick, onKaraokeClick, onUploadClick, o
                     {/* Secondary Action: Karaoke (Medium) */}
                     <button
                         onClick={onKaraokeClick}
-                        className="group relative col-span-1 md:col-span-6 h-40 bg-slate-900/80 backdrop-blur-md bg-gradient-to-br from-pink-900/40 to-slate-900/80 border-4 border-pink-500 transform -skew-x-3 hover:skew-x-0 transition-all duration-300 shadow-[8px_8px_0px_0px_rgba(236,72,153,0.6)] hover:shadow-[0px_0px_40px_rgba(236,72,153,1)] hover:border-pink-400 hover:scale-[1.02] overflow-hidden"
+                        className="group relative col-span-1 md:col-span-6 h-40 bg-slate-900/80 backdrop-blur-md bg-gradient-to-br from-pink-900/40 to-slate-900/80 border-4 border-pink-500 transform -skew-x-3 hover:skew-x-0 transition-all duration-300 shadow-[8px_8px_0px_0px_rgba(236,72,153,0.6)] hover:shadow-[0px_0px_40px_rgba(236,72,153,1)] hover:border-pink-400 hover:scale-[1.02] overflow-hidden focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-pink-300 focus-visible:ring-offset-4 focus-visible:ring-offset-slate-900"
                     >
                         {/* Light Leak */}
                         <div className="absolute -bottom-1/2 -right-1/2 w-64 h-64 bg-pink-500/20 blur-[50px] rounded-full pointer-events-none group-hover:bg-pink-500/40 transition-all duration-500"></div>
