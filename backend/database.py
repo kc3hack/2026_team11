@@ -3,6 +3,7 @@ database.py — 楽曲音域データベースの接続管理とクエリ関数
 """
 import sqlite3
 import os
+import unicodedata
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "songs.db")
 
@@ -18,14 +19,25 @@ def _escape_like(query: str) -> str:
 
 def _hiragana_normalize(text: str) -> str:
     """カタカナをひらがなに変換して正規化
-    例: "ミセス" -> "みせす"
-    """
-    katakana = "ァィゥェォカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン"
-    hiragana = "ぁぃぅぇぉかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん"
     
-    # カタカナをひらがなに変換
-    trans_table = str.maketrans(katakana, hiragana)
-    return text.translate(trans_table)
+    Unicodeコードポイント範囲（U+30A1〜U+30F6）を使用して、
+    濁点・半濁点・小書き文字・ヴなどを含むすべてのカタカナに対応。
+    
+    例: "ミセス" -> "みせす", "ガッツ" -> "がっつ", "パーティー" -> "ぱーてぃー"
+    """
+    # NFKC正規化で合成文字を統一（濁点・半濁点の結合文字対応）
+    text = unicodedata.normalize('NFKC', text)
+    
+    # カタカナ（U+30A1〜U+30F6）をひらがな（U+3041〜U+3096）に変換
+    result = []
+    for char in text:
+        code = ord(char)
+        if 0x30A1 <= code <= 0x30F6:  # カタカナ範囲
+            result.append(chr(code - 0x60))  # ひらがなに変換
+        else:
+            result.append(char)
+    
+    return ''.join(result)
 
 def init_db(db_path: str = DB_PATH):
     """データベースの初期化とマイグレーション"""
@@ -143,10 +155,13 @@ def search_songs(query: str, limit: int = 20, offset: int = 0) -> list[dict]:
     """曲名またはアーティスト名、ふりがなであいまい検索（カタカナ対応）"""
     conn = get_connection()
     try:
-        # カタカナをひらがなに正規化してから検索
+        # title/name には NFKC 正規化のみ、reading にはひらがな正規化を使用
+        nfkc_query = unicodedata.normalize('NFKC', query)
         normalized_query = _hiragana_normalize(query)
-        escaped = f"%{_escape_like(normalized_query)}%"
-        # 変更点： a.reading LIKE ? ESCAPE '\\' を追加し、ふりがなも検索対象に！
+        
+        escaped_nfkc = f"%{_escape_like(nfkc_query)}%"
+        escaped_normalized = f"%{_escape_like(normalized_query)}%"
+        
         rows = conn.execute("""
             SELECT s.id, s.title, a.name as artist,
                    s.artist_id, a.slug as artist_slug,
@@ -160,7 +175,7 @@ def search_songs(query: str, limit: int = 20, offset: int = 0) -> list[dict]:
                OR a.reading LIKE ? ESCAPE '\\'
             ORDER BY a.reading, s.title COLLATE NOCASE
             LIMIT ? OFFSET ?
-        """, (escaped, escaped, escaped, limit, offset)).fetchall() # escapedを3つに増やしました
+        """, (escaped_nfkc, escaped_nfkc, escaped_normalized, limit, offset)).fetchall()
         return [dict(r) for r in rows]
     finally:
         conn.close()
@@ -217,12 +232,16 @@ def count_artists(query: str = "") -> int:
     conn = get_connection()
     try:
         if query:
-            # カタカナをひらがなに正規化してから検索
+            # name には NFKC 正規化のみ、reading にはひらがな正規化を使用
+            nfkc_query = unicodedata.normalize('NFKC', query)
             normalized_query = _hiragana_normalize(query)
-            escaped = f"%{_escape_like(normalized_query)}%"
+            
+            escaped_nfkc = f"%{_escape_like(nfkc_query)}%"
+            escaped_normalized = f"%{_escape_like(normalized_query)}%"
+            
             row = conn.execute(
                 "SELECT COUNT(*) FROM artists WHERE song_count > 0 AND (name LIKE ? ESCAPE '\\' OR reading LIKE ? ESCAPE '\\')",
-                (escaped, escaped),
+                (escaped_nfkc, escaped_normalized),
             ).fetchone()
         else:
             row = conn.execute(
@@ -237,16 +256,20 @@ def search_artists(query: str, limit: int = 100, offset: int = 0) -> list[dict]:
     """アーティスト名またはふりがなであいまい検索（カタカナ対応）"""
     conn = get_connection()
     try:
-        # カタカナをひらがなに正規化してから検索
+        # name には NFKC 正規化のみ、reading にはひらがな正規化を使用
+        nfkc_query = unicodedata.normalize('NFKC', query)
         normalized_query = _hiragana_normalize(query)
-        escaped = f"%{_escape_like(normalized_query)}%"
+        
+        escaped_nfkc = f"%{_escape_like(nfkc_query)}%"
+        escaped_normalized = f"%{_escape_like(normalized_query)}%"
+        
         rows = conn.execute("""
             SELECT id, name, slug, song_count, reading
             FROM artists
             WHERE song_count > 0 AND (name LIKE ? ESCAPE '\\' OR reading LIKE ? ESCAPE '\\')
             ORDER BY reading
             LIMIT ? OFFSET ?
-        """, (escaped, escaped, limit, offset)).fetchall()
+        """, (escaped_nfkc, escaped_normalized, limit, offset)).fetchall()
         return [dict(r) for r in rows]
     finally:
         conn.close()
