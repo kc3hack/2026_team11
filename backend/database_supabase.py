@@ -2,7 +2,6 @@
 Supabaseデータベースの接続管理とクエリ関数
 """
 import os
-import json
 from typing import Optional, List, Dict, Any
 from supabase import create_client, Client
 from database import get_song
