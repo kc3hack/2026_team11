@@ -166,6 +166,7 @@ const SEARCH_ALIASES: Record<string, string> = {
 };
 
 const ARTISTS_PER_PAGE = 10;
+const SONGS_PER_PAGE = 10;
 
 const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | null; onLoginClick?: () => void }> = ({ searchQuery = "", userRange, onLoginClick }) => {
   const { isAuthenticated } = useAuth();
@@ -223,7 +224,7 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
     }
     setSearchLoading(true);
     try {
-      const data = await getSongs(10, page * 10, searchQuery, userRange);
+      const data = await getSongs(SONGS_PER_PAGE, page * SONGS_PER_PAGE, searchQuery, userRange);
       setSearchSongs(data.songs);
       setTotalSearchSongs(data.total);
       setError(null);
@@ -353,7 +354,7 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
   }, [isAuthenticated, onLoginClick]);
 
   const totalPages = Math.ceil(totalArtists / ARTISTS_PER_PAGE);
-  const totalSearchPages = Math.ceil(totalSearchSongs / 10);
+  const totalSearchPages = Math.ceil(totalSearchSongs / SONGS_PER_PAGE);
 
   const handleNext = () => {
     if (searchQuery) {
@@ -592,7 +593,7 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
           )}
 
           {/* 楽曲検索結果のページネーション */}
-          {!searchLoading && totalSearchSongs > 10 && (
+          {!searchLoading && totalSearchSongs > SONGS_PER_PAGE && (
             <div className="flex items-center justify-center gap-4 mt-8">
               <button
                 onClick={handlePrev}
