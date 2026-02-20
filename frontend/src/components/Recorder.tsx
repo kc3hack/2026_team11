@@ -2,30 +2,26 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { analyzeVoice, analyzeKaraoke, AnalysisResult } from "../api";
 import { MicrophoneIcon, StopIcon } from "@heroicons/react/24/solid";
 import "./Recorder.css";
+import { useAnalysis } from '../contexts/AnalysisContext';
 
 interface Props {
   onResult: (data: AnalysisResult) => void;
   initialUseDemucs?: boolean;
 }
 
-const STEPS = [
-  { progress: 20, label: "⚡ 超高速ボーカル分離中..." },
-  { progress: 50, label: "🎵 ボーカル抽出中（1〜2分）..." },
-  { progress: 75, label: "🎶 もうすぐ完了..." },
-  { progress: 90, label: "📊 音域を解析中..." },
-];
-
 const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
   const [recording, setRecording] = useState(false);
-  const [loading, setLoading] = useState(false);
-  // initialUseDemucs はマウント時に確定するため、useEffect による同期は不要
-  const [progress, setProgress] = useState(0);
-  const [stepLabel, setStepLabel] = useState("");
+  const { 
+    isAnalyzing: loading, setIsAnalyzing: setLoading,
+    progress, setProgress,
+    stepLabel, setStepLabel,
+    startAnalysisTimer, stopAnalysisTimer
+  } = useAnalysis();
+  
   const [noFalsetto, setNoFalsetto] = useState(false);
 
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Visualizer refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -36,34 +32,6 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
   const animationIdRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const gradientRef = useRef<CanvasGradient | null>(null);
-
-  // Loading animation logic
-  useEffect(() => {
-    if (loading && initialUseDemucs) {
-      let stepIndex = 0;
-      setProgress(STEPS[0].progress);
-      setStepLabel(STEPS[0].label);
-
-      timerRef.current = setInterval(() => {
-        stepIndex++;
-        if (stepIndex < STEPS.length) {
-          setProgress(STEPS[stepIndex].progress);
-          setStepLabel(STEPS[stepIndex].label);
-        }
-      }, 8000);
-    } else if (loading && !initialUseDemucs) {
-      setProgress(50);
-      setStepLabel("解析中...");
-    } else {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [loading, initialUseDemucs]);
 
   // クリーンアップ処理
   useEffect(() => {
@@ -153,18 +121,23 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
         if (animationIdRef.current) cancelAnimationFrame(animationIdRef.current);
         const blob = new Blob(chunks.current, { type: "audio/webm" });
 
-        setLoading(true);
-        setProgress(0);
+        if (initialUseDemucs) {
+          startAnalysisTimer('karaoke_record');
+        } else {
+          startAnalysisTimer('mic_record');
+        }
 
         try {
           const data = initialUseDemucs
             ? await analyzeKaraoke(blob, "recording.webm", noFalsetto)
             : await analyzeVoice(blob, noFalsetto);
 
+          stopAnalysisTimer();
           setProgress(100);
           setStepLabel("完了！");
           onResult(data);
         } catch (err: unknown) {
+          stopAnalysisTimer();
           const axiosErr = err as { code?: string; message?: string; response?: { data?: { error?: string } } };
           let errorMsg: string;
           if (
