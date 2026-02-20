@@ -548,7 +548,7 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
                 <tbody>
                   {searchSongs.map((song, i) => (
                     <tr key={song.id} className="border-b border-white/5 hover:bg-white/5 transition-colors text-sm group">
-                      <td className="py-3 px-5 text-slate-500 text-xs">{i + 1}</td>
+                      <td className="py-3 px-5 text-slate-500 text-xs">{searchPage * SONGS_PER_PAGE + i + 1}</td>
                       <td className="py-3 px-4 font-medium">
                         <a
                           href={`https://www.google.com/search?q=${encodeURIComponent(`${song.artist} ${song.title} 歌詞`)}`}
