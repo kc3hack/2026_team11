@@ -35,50 +35,165 @@ const INDEX_KANA = ['あ', 'か', 'さ', 'た', 'な', 'は', 'ま', 'や', 'ら
 
 /**
  * slugの先頭文字から五十音の行番号を返す
- * 0=あ行, 1=か行, 2=さ行, 3=た行, 4=な行, 5=は行, 6=ま行, 7=や行, 8=ら行, 9=わ行, 99=その他
- *
- * ひらがな/カタカナは Unicode 範囲で判定（濁音・半濁音・小文字を含む）
- * ローマ字は先頭文字から子音行にマッピング
  */
 const getConsonantRow = (slug: string): number => {
   if (!slug) return 99;
   const ch = slug.charAt(0);
   let code = ch.codePointAt(0) ?? 0;
 
-  // カタカナ → ひらがなに正規化 (U+30A1..U+30F6 → U+3041..U+3096)
+  // カタカナ → ひらがなに正規化
   if (code >= 0x30A1 && code <= 0x30F6) code -= 0x60;
 
-  // ひらがな範囲判定 (濁音・小文字含む)
+  // ひらがな範囲判定
   if (code >= 0x3041 && code <= 0x3093) {
-    if (code <= 0x304A) return 0; // ぁ-お → あ行
-    if (code <= 0x3054) return 1; // か-ご → か行
-    if (code <= 0x305E) return 2; // さ-ぞ → さ行
-    if (code <= 0x3069) return 3; // た-ど → た行
-    if (code <= 0x306E) return 4; // な-の → な行
-    if (code <= 0x307D) return 5; // は-ぽ → は行
-    if (code <= 0x3082) return 6; // ま-も → ま行
-    if (code <= 0x3088) return 7; // ゃ-よ → や行
-    if (code <= 0x308D) return 8; // ら-ろ → ら行
-    return 9;                      // ゎ-ん → わ行
+    if (code <= 0x304A) return 0;
+    if (code <= 0x3054) return 1;
+    if (code <= 0x305E) return 2;
+    if (code <= 0x3069) return 3;
+    if (code <= 0x306E) return 4;
+    if (code <= 0x307D) return 5;
+    if (code <= 0x3082) return 6;
+    if (code <= 0x3088) return 7;
+    if (code <= 0x308D) return 8;
+    return 9;
   }
 
-  // ローマ字 (voice-key.news のslug)
+  // ローマ字
   const lower = ch.toLowerCase();
   const ROMAJI_MAP: Record<string, number> = {
-    a: 0, i: 0, u: 0, e: 0, o: 0,  // あ行
-    k: 1, g: 1,                       // か行
-    s: 2, z: 2, j: 2,                 // さ行
-    t: 3, d: 3, c: 3,                 // た行
-    n: 4,                              // な行
-    h: 5, b: 5, p: 5, f: 5,           // は行
-    m: 6,                              // ま行
-    y: 7,                              // や行
-    r: 8, l: 8,                        // ら行
-    w: 9,                              // わ行
+    a: 0, i: 0, u: 0, e: 0, o: 0,
+    k: 1, g: 1,
+    s: 2, z: 2, j: 2,
+    t: 3, d: 3, c: 3,
+    n: 4,
+    h: 5, b: 5, p: 5, f: 5,
+    m: 6,
+    y: 7,
+    r: 8, l: 8,
+    w: 9,
   };
   if (ROMAJI_MAP[lower] !== undefined) return ROMAJI_MAP[lower];
 
-  return 99; // 漢字・記号・数字 → 末尾
+  return 99;
+};
+
+const SEARCH_ALIASES: Record<string, string> = {
+  // === 超定番・現代ポップス・ロック ===
+  "ミセス": "Mrs. GREEN APPLE",
+  "みせす": "Mrs. GREEN APPLE",
+  "ヒゲダン": "Official髭男dism",
+  "ひげだん": "Official髭男dism",
+  "ワンオク": "ONE OK ROCK",
+  "わんおく": "ONE OK ROCK",
+  "バウンディ": "Vaundy",
+  "ばうんでぃ": "Vaundy",
+  "キングヌー": "King Gnu",
+  "きんぐぬー": "King Gnu",
+  "ヌー": "King Gnu",
+  "ヨアソビ": "YOASOBI",
+  "よあそび": "YOASOBI",
+  "セカオワ": "SEKAI NO OWARI",
+  "せかおわ": "SEKAI NO OWARI",
+  "ラッド": "RADWIMPS",
+  "らっど": "RADWIMPS",
+  "ヨルシカ": "ヨルシカ", // そのままですが表記ゆれ対策
+  "ずとまよ": "ずっと真夜中でいいのに。",
+  "ズトマヨ": "ずっと真夜中でいいのに。",
+  "マカエン": "マカロニえんぴつ",
+  "まかえん": "マカロニえんぴつ",
+  "サウシー": "Saucy Dog",
+  "さうしー": "Saucy Dog",
+  "リョクシャカ": "緑黄色社会",
+  "りょくしゃか": "緑黄色社会",
+  "マイヘア": "My Hair is Bad",
+  "まいへあ": "My Hair is Bad",
+  "ノベブラ": "Novelbright",
+  "ノーベル": "Novelbright",
+  "ビーファ": "BE:FIRST",
+  "びーふぁ": "BE:FIRST",
+  
+  // === 英語名のカタカナ読み ===
+  "アド": "Ado",
+  "あど": "Ado",
+  "ユーリ": "優里",
+  "ゆうり": "優里",
+  "エメ": "Aimer",
+  "えめ": "Aimer",
+  "ユーアールユー": "Uru",
+  "ウル": "Uru",
+  "ミレイ": "milet",
+  "みれい": "milet",
+  "イヴ": "Eve",
+  "いゔ": "Eve",
+  "いぶ": "Eve",
+  "オーサム": "Awesome City Club",
+  "ディッシュ": "DISH//",
+  "でぃっしゅ": "DISH//",
+  "バックナンバー": "back number",
+  "ばっくなんばー": "back number",
+
+  // === レジェンド・定番バンド ===
+  "ミスチル": "Mr.Children",
+  "みすちる": "Mr.Children",
+  "ポルノ": "ポルノグラフィティ",
+  "ぽるの": "ポルノグラフィティ",
+  "バンプ": "BUMP OF CHICKEN",
+  "ばんぷ": "BUMP OF CHICKEN",
+  "アジカン": "ASIAN KUNG-FU GENERATION",
+  "あじかん": "ASIAN KUNG-FU GENERATION",
+  "エルレ": "ELLEGARDEN",
+  "えるれ": "ELLEGARDEN",
+  "ウーバー": "UVERworld",
+  "うーばー": "UVERworld",
+  "ラルク": "L'Arc~en~Ciel",
+  "らるく": "L'Arc~en~Ciel",
+  "ブルハ": "THE BLUE HEARTS",
+  "ぶるは": "THE BLUE HEARTS",
+  "モンパチ": "MONGOL800",
+  "もんぱち": "MONGOL800",
+  "ドロス": "![Alexandros]",
+  "アレキ": "![Alexandros]",
+  "カナブーン": "KANA-BOON",
+  "かなぶーん": "KANA-BOON",
+  "ホルモン": "マキシマム ザ ホルモン",
+  "マンウィズ": "MAN WITH A MISSION",
+  "テンフィ": "10-FEET",
+  "てんふぃ": "10-FEET",
+  "スピッツ": "スピッツ", // そのままだが英語で探す人向け
+  "spitz": "スピッツ",
+
+  // === グループ・アイドル・その他 ===
+  "ドリカム": "DREAMS COME TRUE",
+  "どりかむ": "DREAMS COME TRUE",
+  "いきもの": "いきものがかり",
+  "エグザイル": "EXILE",
+  "えぐざいる": "EXILE",
+  "三代目": "三代目 J SOUL BROTHERS from EXILE TRIBE",
+  "ジェネ": "GENERATIONS from EXILE TRIBE",
+  "ストーンズ": "SixTONES",
+  "すとーんず": "SixTONES",
+  "スノ": "Snow Man",
+  "すの": "Snow Man",
+  "エイト": "関ジャニ∞",
+  "キンキ": "KinKi Kids",
+  "ももクロ": "ももいろクローバーZ",
+  "モー娘。": "モーニング娘。",
+  "ニジュー": "NiziU",
+  "にじゅー": "NiziU",
+  "パフューム": "Perfume",
+  "ぱふゅーむ": "Perfume",
+  "ビッシュ": "BiSH",
+  "びっしゅ": "BiSH",
+
+  // === よくある略称（ソロアーティスト等） ===
+  "ユーミン": "松任谷由実",
+  "ゆーみん": "松任谷由実",
+  "林檎": "椎名林檎",
+  "りんご": "椎名林檎",
+  "事変": "東京事変",
+  "じへん": "東京事変",
+  "源さん": "星野源",
+  "げんさん": "星野源"
 };
 
 const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | null; onLoginClick?: () => void }> = ({ searchQuery = "", userRange, onLoginClick }) => {
@@ -86,7 +201,6 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
   // --- States ---
   const [songs, setSongs] = useState<Song[]>([]);
   const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
-  // お気に入り曲
   const [favoriteSongIds, setFavoriteSongIds] = useState<Set<number>>(new Set());
   const [togglingIds, setTogglingIds] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -114,6 +228,16 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
     setPageInput((artistPage + 1).toString());
   }, [artistPage]);
 
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setFavoriteSongIds(new Set());
+      return;
+    }
+    getFavorites(500)
+      .then(favs => setFavoriteSongIds(new Set(favs.map(f => f.song_id))))
+      .catch(err => console.error("お気に入り曲取得失敗:", err));
+  }, [isAuthenticated]);
+
   // --- API Handlers ---
   const fetchFavorites = async () => {
     try {
@@ -125,7 +249,10 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
   const fetchSongs = async () => {
     setLoading(true);
     try {
-      const data = await getSongs(FETCH_LIMIT, 0, searchQuery, userRange);
+      // 検索クエリを略称辞書で変換（ヒットしなければそのままのクエリを使用）
+      const effectiveQuery = SEARCH_ALIASES[searchQuery] || searchQuery;
+      
+      const data = await getSongs(FETCH_LIMIT, 0, effectiveQuery, userRange);
       setSongs(data);
       setError(null);
     } catch (err: any) {
@@ -150,18 +277,6 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
     }
   };
 
-  // お気に入り曲ID一括取得
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setFavoriteSongIds(new Set());
-      return;
-    }
-    getFavorites(500)
-      .then(favs => setFavoriteSongIds(new Set(favs.map(f => f.song_id))))
-      .catch(err => console.error("お気に入り曲取得失敗:", err));
-  }, [isAuthenticated]);
-
-  // ハートトグル（曲単位）
   const handleToggleFavoriteSong = useCallback(async (songId: number) => {
     if (!isAuthenticated) {
       onLoginClick?.();
@@ -171,7 +286,6 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
 
     const wasFavorite = favoriteSongIds.has(songId);
 
-    // オプティミスティック更新
     setFavoriteSongIds(prev => {
       const next = new Set(prev);
       wasFavorite ? next.delete(songId) : next.add(songId);
@@ -187,7 +301,6 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
       }
     } catch (err) {
       console.error("お気に入り曲更新失敗:", err);
-      // ロールバック
       setFavoriteSongIds(prev => {
         const next = new Set(prev);
         wasFavorite ? next.add(songId) : next.delete(songId);
@@ -287,7 +400,25 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
               {artistSongs.map((song, i) => (
                 <tr key={song.id} className="border-b border-white/5 hover:bg-white/5 transition-colors text-sm group">
                   <td className="py-3 px-5 text-slate-500 text-xs">{i + 1}</td>
-                  <td className="py-3 px-4 text-slate-200 font-medium group-hover:text-white transition-colors">{song.title}</td>
+                  
+                  {/* ▼▼▼ ここから修正：曲名をGoogle歌詞検索へのリンクに変更 ▼▼▼ */}
+                  <td className="py-3 px-4 font-medium">
+                    <a
+                      href={`https://www.google.com/search?q=${encodeURIComponent(`${selectedArtist} ${song.title} 歌詞`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-slate-200 hover:text-cyan-400 transition-colors inline-flex items-center gap-1 group/link"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {song.title}
+                      {/* 外部リンクを示す小さなアイコン */}
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3 text-slate-500 group-hover/link:text-cyan-400 transition-colors">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                      </svg>
+                    </a>
+                  </td>
+                  {/* ▲▲▲ ここまで修正 ▲▲▲ */}
+
                   <td className="py-3 px-4 text-slate-400 whitespace-nowrap">{song.lowest_note || '-'}</td>
                   <td className="py-3 px-4 text-slate-400 whitespace-nowrap">{song.highest_note || '-'}</td>
                   <td className="py-3 px-4 text-slate-400 whitespace-nowrap hidden sm:table-cell">{song.falsetto_note || '-'}</td>
@@ -326,7 +457,6 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
             <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 drop-shadow-md">アーティスト一覧</h1>
             <p className="text-xs text-slate-400">{userRange ? "音域に合わせたキーおすすめを表示中" : "録音するとキーおすすめが表示されます"}</p>
           </div>
-          {/* あかさたなジャンプボタン */}
           <div className="flex flex-wrap gap-1 justify-end">
             {INDEX_KANA.map(char => (
               <button
@@ -360,7 +490,6 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
               <span className="text-xs text-slate-500 bg-slate-800 px-2 py-1 rounded-full border border-slate-700">{artist.songCount}曲</span>
             </button>
 
-            {/* お気に入りボタン */}
             <button
               onClick={(e) => toggleFavorite(e, artist.id, artist.name)}
               className="p-4 transition-transform hover:scale-125"
@@ -375,7 +504,6 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
         ))}
       </div>
 
-      {/* ページネーション */}
       {!loading && allArtistList.length > ARTISTS_PER_PAGE && (
         <div className="flex items-center justify-center gap-4 mt-8">
           <button
