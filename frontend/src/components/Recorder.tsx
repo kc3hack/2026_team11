@@ -20,6 +20,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
   // initialUseDemucs はマウント時に確定するため、useEffect による同期は不要
   const [progress, setProgress] = useState(0);
   const [stepLabel, setStepLabel] = useState("");
+  const [noFalsetto, setNoFalsetto] = useState(false);
 
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
@@ -152,8 +153,8 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
 
         try {
           const data = initialUseDemucs
-            ? await analyzeKaraoke(blob, "recording.webm")
-            : await analyzeVoice(blob);
+            ? await analyzeKaraoke(blob, "recording.webm", noFalsetto)
+            : await analyzeVoice(blob, noFalsetto);
 
           setProgress(100);
           setStepLabel("完了！");
@@ -232,9 +233,20 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
   };
 
   return (
-    <div className="flex flex-col items-center w-full font-sans">
-      <div className="relative w-full max-w-4xl h-[500px] bg-slate-900/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col items-center justify-center group">
+    <div className="flex flex-col items-center w-full gap-4 font-sans">
+      {/* 裏声なしオプション */}
+      <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={noFalsetto}
+          onChange={(e) => setNoFalsetto(e.target.checked)}
+          disabled={recording || loading}
+          className="w-4 h-4 rounded border-slate-500 text-blue-500 focus:ring-blue-400"
+        />
+        裏声を使わない（地声のみで判定）
+      </label>
 
+      <div className="relative w-full max-w-4xl h-[500px] bg-slate-900/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col items-center justify-center group">
         {/* Visualizer Canvas during recording */}
         {recording && (
           <div className="absolute inset-0 w-full h-full opacity-60">
@@ -281,7 +293,6 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
                 onClick={startRecording}
                 className="pointer-events-auto relative w-28 h-28 bg-slate-800 hover:bg-slate-700 flex flex-col items-center justify-center rounded-full transition-all duration-300 transform hover:scale-110 shadow-[0_0_30px_rgba(34,211,238,0.3)] hover:shadow-[0_0_50px_rgba(34,211,238,0.6)] border-2 border-cyan-500/50 hover:border-cyan-400 group z-10"
               >
-
                 <MicrophoneIcon className="w-12 h-12 text-slate-300 group-hover:text-cyan-300 transition-colors drop-shadow-[0_0_8px_rgba(34,211,238,0)] group-hover:drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
                 <span className="text-xs mt-1 font-black italic text-cyan-400 tracking-wider">START</span>
               </button>

@@ -21,6 +21,7 @@ const KaraokeUploader: React.FC<Props> = ({ onResult }) => {
   const [fileName, setFileName] = useState<string | null>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [noFalsetto, setNoFalsetto] = useState(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -71,7 +72,7 @@ const KaraokeUploader: React.FC<Props> = ({ onResult }) => {
     setFileName(file.name);
 
     try {
-      const data = await analyzeKaraoke(file, file.name);
+      const data = await analyzeKaraoke(file, file.name, noFalsetto);
       setProgress(100);
       setStepLabel("完了！");
       if (data.error) {
@@ -145,17 +146,29 @@ const KaraokeUploader: React.FC<Props> = ({ onResult }) => {
         </p>
       </div>
 
+      {/* 裏声なしオプション */}
+      <label className="flex items-center gap-2 text-sm text-fuchsia-200 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={noFalsetto}
+          onChange={(e) => setNoFalsetto(e.target.checked)}
+          disabled={loading}
+          className="w-4 h-4 rounded border-fuchsia-500/50 bg-fuchsia-950/50 text-fuchsia-400 focus:ring-fuchsia-400"
+        />
+        裏声を使わない（地声のみで判定）
+      </label>
+
       {/* Cyberpunk Dropzone ("Data Transfer Gate") */}
-      <div className="w-full relative group perspective-[1000px] mt-4">
+      <div className="w-full relative group perspective-[1000px] mt-2">
         <label
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           onMouseEnter={() => !loading && setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
-          className={`relative w-full aspect-video sm:aspect-[21/9] flex flex-col items-center justify-center p-8 transition-all duration-300 block overflow-hidden
-            ${loading ? "bg-fuchsia-950/60 cursor-not-allowed cursor-wait" : "bg-gradient-to-br from-fuchsia-950/40 via-fuchsia-900/30 to-fuchsia-950/40 hover:bg-fuchsia-900/40 cursor-pointer"}
-          `}
+          className={`relative w-full aspect-video sm:aspect-[21/9] flex flex-col items-center justify-center p-8 transition-all duration-300 block overflow-hidden ${
+            loading ? "bg-fuchsia-950/60 cursor-not-allowed cursor-wait" : "bg-gradient-to-br from-fuchsia-950/40 via-fuchsia-900/30 to-fuchsia-950/40 hover:bg-fuchsia-900/40 cursor-pointer"
+          }`}
           style={{
             clipPath: 'polygon(30px 0, 100% 0, 100% calc(100% - 30px), calc(100% - 30px) 100%, 0 100%, 0 30px)',
             boxShadow: isDragging || isHovered ? '0 0 30px rgba(232,121,249,0.4)' : '0 0 15px rgba(0,0,0,0.5)'
