@@ -113,6 +113,11 @@ const KaraokeUploader: React.FC<Props> = ({ onResult }) => {
 
   const handleDragLeave = (e: React.DragEvent<HTMLLabelElement>) => {
     e.preventDefault();
+    const related = e.relatedTarget as Node | null;
+    if (related && e.currentTarget.contains(related)) {
+      // Still inside the label (moved to a child element), do not reset dragging state
+      return;
+    }
     setIsDragging(false);
   };
 
