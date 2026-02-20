@@ -16,8 +16,16 @@ interface ArtistSummary {
 }
 
 /* キーバッジの色設定 */
-const keyBadge = (key: number, fit?: string) => {
-  const label = key === 0 ? "±0" : key > 0 ? `+${key}` : `${key}`;
+const keyBadge = (key: number, fit?: string, octaveShift?: string) => {
+  // オクターブ表記
+  let octaveLabel = "";
+  if (octaveShift === "down") octaveLabel = "🔽";
+  else if (octaveShift === "up") octaveLabel = "🔼";
+
+  // キー表記
+  const keyLabel = key === 0 ? "±0" : key > 0 ? `+${key}` : `${key}`;
+  const label = octaveLabel ? `${octaveLabel}${keyLabel}` : keyLabel;
+
   let color: string;
   if (fit === "perfect") color = "bg-emerald-900/30 text-emerald-400 border border-emerald-500/30";
   else if (fit === "good") color = "bg-sky-900/30 text-sky-400 border border-sky-500/30";
@@ -294,7 +302,7 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
                   {userRange && (
                     <td className="py-3 px-4 text-center">
                       {song.recommended_key !== undefined
-                        ? keyBadge(song.recommended_key, song.fit)
+                        ? keyBadge(song.recommended_key, song.fit, (song as any).octave_shift)
                         : <span className="text-slate-600">-</span>}
                     </td>
                   )}

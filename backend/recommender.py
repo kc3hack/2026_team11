@@ -187,17 +187,16 @@ def recommend_songs(
 ) -> list[dict]:
     """
     ユーザーの音域に合った楽曲をスコア順で返す。
+    
+    新仕様:
+      - まず±4の範囲で、オクターブ下/原キー/オクターブ上の3パターンを試す
+      - 6曲見つかるまで探索
+      - 足りなければ±5、±6...と範囲を拡大
 
     favorite_artist_ids が指定されている場合:
       - DISCOVERY_SLOTS(4曲)はお気に入り以外のアーティストから選ぶ
       - 残り枠(最大FAV_MAX_SLOTS=6曲)はお気に入りアーティストの曲で埋める
       - お気に入りに合う曲が少ない場合は通常曲で補完
-
-    スコアリング:
-      - 楽曲の音域がユーザーの地声範囲に収まるほど高スコア
-      - 楽曲の中心音がユーザーの平均に近いほど高スコア
-      - 裏声がある場合、裏声最高音も上限として考慮
-      - 完全に範囲内ならボーナス加点
     """
     fav_ids: set[int] = set(favorite_artist_ids) if favorite_artist_ids else set()
 
@@ -216,58 +215,79 @@ def recommend_songs(
         if falsetto_max_hz and falsetto_max_hz > chest_max_hz:
             effective_max = falsetto_max_hz
 
+        # 段階的に範囲を拡大してマッチング
+        all_scored_songs: list[dict] = []
+        
+        for key_range in range(4, 8):  # ±4から始めて±7まで拡大
+            print(f"[Recommend] キー範囲 ±{key_range} で探索中...")
+            
+            for row in rows:
+                r = dict(row)
+                lo_hz = label_to_hz(r["lowest_note"])
+                hi_hz = label_to_hz(r["highest_note"])
+                if not lo_hz or not hi_hz or lo_hz > hi_hz:
+                    continue
+
+                # 最適なキー変更を計算（オクターブ対応）
+                key_info = recommend_key_for_song(
+                    r["lowest_note"], r["highest_note"],
+                    chest_min_hz, effective_max,
+                    key_range=key_range
+                )
+                
+                # fitが"hard"未満はスキップ
+                if key_info["fit"] == "unknown":
+                    continue
+                
+                # スコアをmatch_scoreとして使用
+                score_map = {"perfect": 95, "good": 80, "ok": 60, "hard": 40}
+                match_score = score_map.get(key_info["fit"], 0)
+                
+                if match_score < 40:
+                    continue
+
+                entry = {
+                    "id": r["id"],
+                    "title": r["title"],
+                    "artist": r["artist"],
+                    "artist_id": r["artist_id"],
+                    "lowest_note": r["lowest_note"],
+                    "highest_note": r["highest_note"],
+                    "match_score": match_score,
+                    "recommended_key": key_info["recommended_key"],
+                    "octave_shift": key_info["octave_shift"],
+                    "fit": key_info["fit"],
+                }
+                
+                all_scored_songs.append(entry)
+            
+            # 6曲以上見つかったら終了
+            if len(all_scored_songs) >= 6:
+                print(f"[Recommend] ±{key_range}で{len(all_scored_songs)}曲見つかりました")
+                break
+        
+        # スコアでソート
+        all_scored_songs.sort(key=lambda x: x["match_score"], reverse=True)
+        
+        # お気に入り/通常で分類
         fav_candidates: list[dict] = []
         normal_candidates: list[dict] = []
-
-        for row in rows:
-            r = dict(row)
-            lo_hz = label_to_hz(r["lowest_note"])
-            hi_hz = label_to_hz(r["highest_note"])
-            if not lo_hz or not hi_hz or lo_hz > hi_hz:
-                continue
-
-            # ペナルティ（半音単位）
-            low_penalty = 0.0
-            high_penalty = 0.0
-
-            if lo_hz < chest_min_hz:
-                low_penalty = _semitones(lo_hz, chest_min_hz)
-            if hi_hz > effective_max:
-                high_penalty = _semitones(effective_max, hi_hz)
-
-            # 中心音のずれ
-            song_center = math.sqrt(lo_hz * hi_hz)
-            center_diff = abs(_semitones(chest_avg_hz, song_center)) if chest_avg_hz > 0 else 0.0
-
-            # スコア計算
-            score = 100.0
-            score -= low_penalty * 6.0
-            score -= high_penalty * 8.0
-            score -= center_diff * 2.0
-
-            if low_penalty == 0 and high_penalty == 0:
-                score += 5.0
-
-            if score <= 30:
-                continue
-
-            entry = {
-                "id": r["id"],
-                "title": r["title"],
-                "artist": r["artist"],
-                "artist_id": r["artist_id"],
-                "lowest_note": r["lowest_note"],
-                "highest_note": r["highest_note"],
-                "match_score": round(min(100.0, score), 1),
-            }
-
-            if fav_ids and r["artist_id"] in fav_ids:
+        
+        for entry in all_scored_songs:
+            if fav_ids and entry["artist_id"] in fav_ids:
                 fav_candidates.append(entry)
             else:
                 normal_candidates.append(entry)
 
-        fav_candidates.sort(key=lambda x: x["match_score"], reverse=True)
-        normal_candidates.sort(key=lambda x: x["match_score"], reverse=True)
+        # お気に入り/通常で分類
+        fav_candidates: list[dict] = []
+        normal_candidates: list[dict] = []
+        
+        for entry in all_scored_songs:
+            if fav_ids and entry["artist_id"] in fav_ids:
+                fav_candidates.append(entry)
+            else:
+                normal_candidates.append(entry)
 
         # --- 枠配分 ---
         # お気に入りがない場合は全部 normal に
@@ -313,14 +333,9 @@ def recommend_songs(
 
         combined = fav_picks + discovery_picks
 
-        # --- キー変更おすすめを付与、artist_id を削除 ---
+        # --- artist_id を削除し、お気に入りフラグを付与 ---
         result_final = []
         for c in combined:
-            key_info = recommend_key_for_song(
-                c.get("lowest_note"), c.get("highest_note"),
-                chest_min_hz, effective_max,
-            )
-            c.update(key_info)
             c.pop("artist_id", None)
             # お気に入りアーティストの曲かどうかフラグを付ける
             c["is_favorite_artist"] = c["artist"] in {
@@ -477,20 +492,26 @@ def classify_voice_type(
 
 
 # ============================================================
-# 5. キー変更おすすめ
+# 5. キー変更おすすめ（オクターブ対応版）
 # ============================================================
 def recommend_key_for_song(
     song_lowest_note: str | None,
     song_highest_note: str | None,
     user_min_hz: float,
     user_max_hz: float,
+    key_range: int = 7,
 ) -> dict:
     """
     楽曲に対してユーザーの音域に最適なキー変更を計算。
+    オクターブ下（-12）、原キー（0）、オクターブ上（+12）の3パターンを試す。
+
+    Args:
+        key_range: 微調整の範囲（±key_range 半音）
 
     Returns:
         {
-            "recommended_key": int (-7〜+7, 0=原曲キー),
+            "recommended_key": int (オクターブ±微調整、例: -12〜-8, -4〜+4, +8〜+16),
+            "octave_shift": str ("down" | "original" | "up"),
             "fit": "perfect" | "good" | "ok" | "hard",
         }
     """
@@ -498,25 +519,35 @@ def recommend_key_for_song(
     song_hi = label_to_hz(song_highest_note) if song_highest_note else None
 
     if not song_lo or not song_hi or user_min_hz <= 0 or user_max_hz <= 0:
-        return {"recommended_key": 0, "fit": "unknown"}
+        return {"recommended_key": 0, "octave_shift": "original", "fit": "unknown"}
 
     best_shift = 0
     best_score = -9999.0
+    best_octave = "original"
 
-    for shift in range(-7, 8):
-        factor = 2.0 ** (shift / 12.0)
-        lo = song_lo * factor
-        hi = song_hi * factor
+    # オクターブ下（-12）、原キー（0）、オクターブ上（+12）の3パターンを試す
+    for octave_base, octave_label in [(-12, "down"), (0, "original"), (12, "up")]:
+        # 各オクターブベースから ±key_range の範囲で微調整
+        for fine_tune in range(-key_range, key_range + 1):
+            shift = octave_base + fine_tune
+            factor = 2.0 ** (shift / 12.0)
+            lo = song_lo * factor
+            hi = song_hi * factor
 
-        low_pen = _semitones(lo, user_min_hz) if lo < user_min_hz else 0.0
-        high_pen = _semitones(user_max_hz, hi) if hi > user_max_hz else 0.0
-        shift_pen = abs(shift) * 2.0
+            low_pen = _semitones(lo, user_min_hz) if lo < user_min_hz else 0.0
+            high_pen = _semitones(user_max_hz, hi) if hi > user_max_hz else 0.0
+            
+            # オクターブ変更のペナルティ
+            octave_pen = abs(octave_base) * 1.5  # オクターブ変更は大きなペナルティ
+            # 微調整のペナルティ（原キーに近いほど良い）
+            fine_tune_pen = abs(fine_tune) * 2.0
 
-        score = 100.0 - low_pen * 6.0 - high_pen * 10.0 - shift_pen
+            score = 100.0 - low_pen * 6.0 - high_pen * 10.0 - octave_pen - fine_tune_pen
 
-        if score > best_score:
-            best_score = score
-            best_shift = shift
+            if score > best_score:
+                best_score = score
+                best_shift = shift
+                best_octave = octave_label
 
     if best_score >= 90:
         fit = "perfect"
@@ -527,4 +558,8 @@ def recommend_key_for_song(
     else:
         fit = "hard"
 
-    return {"recommended_key": best_shift, "fit": fit}
+    return {
+        "recommended_key": best_shift,
+        "octave_shift": best_octave,
+        "fit": fit
+    }

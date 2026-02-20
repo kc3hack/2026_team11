@@ -233,13 +233,12 @@ const ResultView: React.FC<Props> = ({ result }) => {
                 className="flex-shrink-0 w-28 flex flex-col items-center text-center"
               >
                 <div
-                  className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md ring-2 ring-white/10 ${
-                    i === 0
+                  className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md ring-2 ring-white/10 ${i === 0
                       ? "bg-gradient-to-br from-amber-400 to-orange-500"
                       : i === 1
-                      ? "bg-gradient-to-br from-slate-500 to-slate-600"
-                      : "bg-gradient-to-br from-blue-500 to-indigo-600"
-                  }`}
+                        ? "bg-gradient-to-br from-slate-500 to-slate-600"
+                        : "bg-gradient-to-br from-blue-500 to-indigo-600"
+                    }`}
                 >
                   {a.name.charAt(0)}
                 </div>
@@ -293,21 +292,29 @@ const ResultView: React.FC<Props> = ({ result }) => {
                   </div>
                   {song.recommended_key !== undefined && (
                     <span
-                      className={`text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap border ${
-                        song.fit === "perfect"
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap border ${song.fit === "perfect"
                           ? "bg-emerald-900/30 text-emerald-400 border-emerald-500/30"
                           : song.fit === "good"
-                          ? "bg-sky-900/30 text-sky-400 border-sky-500/30"
-                          : song.fit === "ok"
-                          ? "bg-amber-900/30 text-amber-400 border-amber-500/30"
-                          : "bg-slate-800 text-slate-500 border-slate-700"
-                      }`}
+                            ? "bg-sky-900/30 text-sky-400 border-sky-500/30"
+                            : song.fit === "ok"
+                              ? "bg-amber-900/30 text-amber-400 border-amber-500/30"
+                              : "bg-slate-800 text-slate-500 border-slate-700"
+                        }`}
                     >
-                      {song.recommended_key === 0
-                        ? "±0"
-                        : song.recommended_key > 0
-                        ? `+${song.recommended_key}`
-                        : `${song.recommended_key}`}
+                      {(() => {
+                        const key = song.recommended_key;
+                        const octave = (song as any).octave_shift;
+
+                        // オクターブ表記
+                        let octaveLabel = "";
+                        if (octave === "down") octaveLabel = "🔽";
+                        else if (octave === "up") octaveLabel = "🔼";
+
+                        // キー表記
+                        let keyLabel = key === 0 ? "±0" : key > 0 ? `+${key}` : `${key}`;
+
+                        return octaveLabel ? `${octaveLabel}${keyLabel}` : keyLabel;
+                      })()}
                     </span>
                   )}
                   <span
