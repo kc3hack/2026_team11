@@ -46,6 +46,125 @@ const getConsonantRow = (reading: string): number => {
   return 99;
 };
 
+const SEARCH_ALIASES: Record<string, string> = {
+  // === 超定番・現代ポップス・ロック ===
+  "ミセス": "Mrs. GREEN APPLE",
+  "みせす": "Mrs. GREEN APPLE",
+  "ヒゲダン": "Official髭男dism",
+  "ひげだん": "Official髭男dism",
+  "ワンオク": "ONE OK ROCK",
+  "わんおく": "ONE OK ROCK",
+  "バウンディ": "Vaundy",
+  "ばうんでぃ": "Vaundy",
+  "キングヌー": "King Gnu",
+  "きんぐぬー": "King Gnu",
+  "ヌー": "King Gnu",
+  "ヨアソビ": "YOASOBI",
+  "よあそび": "YOASOBI",
+  "セカオワ": "SEKAI NO OWARI",
+  "せかおわ": "SEKAI NO OWARI",
+  "ラッド": "RADWIMPS",
+  "らっど": "RADWIMPS",
+  "ヨルシカ": "ヨルシカ",
+  "ずとまよ": "ずっと真夜中でいいのに。",
+  "ズトマヨ": "ずっと真夜中でいいのに。",
+  "マカエン": "マカロニえんぴつ",
+  "まかえん": "マカロニえんぴつ",
+  "サウシー": "Saucy Dog",
+  "さうしー": "Saucy Dog",
+  "リョクシャカ": "緑黄色社会",
+  "りょくしゃか": "緑黄色社会",
+  "マイヘア": "My Hair is Bad",
+  "まいへあ": "My Hair is Bad",
+  "ノベブラ": "Novelbright",
+  "ノーベル": "Novelbright",
+  "ビーファ": "BE:FIRST",
+  "びーふぁ": "BE:FIRST",
+
+  // === 英語名のカタカナ読み ===
+  "アド": "Ado",
+  "あど": "Ado",
+  "ユーリ": "優里",
+  "ゆうり": "優里",
+  "エメ": "Aimer",
+  "えめ": "Aimer",
+  "ユーアールユー": "Uru",
+  "ウル": "Uru",
+  "ミレイ": "milet",
+  "みれい": "milet",
+  "イヴ": "Eve",
+  "いゔ": "Eve",
+  "いぶ": "Eve",
+  "オーサム": "Awesome City Club",
+  "ディッシュ": "DISH//",
+  "でぃっしゅ": "DISH//",
+  "バックナンバー": "back number",
+  "ばっくなんばー": "back number",
+
+  // === レジェンド・定番バンド ===
+  "ミスチル": "Mr.Children",
+  "みすちる": "Mr.Children",
+  "ポルノ": "ポルノグラフィティ",
+  "ぽるの": "ポルノグラフィティ",
+  "バンプ": "BUMP OF CHICKEN",
+  "ばんぷ": "BUMP OF CHICKEN",
+  "アジカン": "ASIAN KUNG-FU GENERATION",
+  "あじかん": "ASIAN KUNG-FU GENERATION",
+  "エルレ": "ELLEGARDEN",
+  "えるれ": "ELLEGARDEN",
+  "ウーバー": "UVERworld",
+  "うーばー": "UVERworld",
+  "ラルク": "L'Arc~en~Ciel",
+  "らるく": "L'Arc~en~Ciel",
+  "ブルハ": "THE BLUE HEARTS",
+  "ぶるは": "THE BLUE HEARTS",
+  "モンパチ": "MONGOL800",
+  "もんぱち": "MONGOL800",
+  "ドロス": "![Alexandros]",
+  "アレキ": "![Alexandros]",
+  "カナブーン": "KANA-BOON",
+  "かなぶーん": "KANA-BOON",
+  "ホルモン": "マキシマム ザ ホルモン",
+  "マンウィズ": "MAN WITH A MISSION",
+  "テンフィ": "10-FEET",
+  "てんふぃ": "10-FEET",
+  "スピッツ": "スピッツ",
+  "spitz": "スピッツ",
+
+  // === グループ・アイドル・その他 ===
+  "ドリカム": "DREAMS COME TRUE",
+  "どりかむ": "DREAMS COME TRUE",
+  "いきもの": "いきものがかり",
+  "エグザイル": "EXILE",
+  "えぐざいる": "EXILE",
+  "三代目": "三代目 J SOUL BROTHERS from EXILE TRIBE",
+  "ジェネ": "GENERATIONS from EXILE TRIBE",
+  "ストーンズ": "SixTONES",
+  "すとーんず": "SixTONES",
+  "スノ": "Snow Man",
+  "すの": "Snow Man",
+  "エイト": "関ジャニ∞",
+  "キンキ": "KinKi Kids",
+  "ももクロ": "ももいろクローバーZ",
+  "モー娘。": "モーニング娘。",
+  "ニジュー": "NiziU",
+  "にじゅー": "NiziU",
+  "パフューム": "Perfume",
+  "ぱふゅーむ": "Perfume",
+  "ビッシュ": "BiSH",
+  "びっしゅ": "BiSH",
+
+  // === よくある略称（ソロアーティスト等） ===
+  "ユーミン": "松任谷由実",
+  "ゆーみん": "松任谷由実",
+  "林檎": "椎名林檎",
+  "りんご": "椎名林檎",
+  "事変": "東京事変",
+  "じへん": "東京事変",
+  "源さん": "星野源",
+  "げんさん": "星野源"
+};
+
 const ARTISTS_PER_PAGE = 10;
 
 const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | null; onLoginClick?: () => void }> = ({ searchQuery = "", userRange, onLoginClick }) => {
@@ -75,7 +194,9 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
   const fetchArtists = useCallback(async (page: number) => {
     setLoading(true);
     try {
-      const data = await getArtists(ARTISTS_PER_PAGE, page * ARTISTS_PER_PAGE, searchQuery);
+      // 検索クエリを略称辞書で変換（ヒットしなければそのままのクエリを使用）
+      const effectiveQuery = SEARCH_ALIASES[searchQuery] || searchQuery;
+      const data = await getArtists(ARTISTS_PER_PAGE, page * ARTISTS_PER_PAGE, effectiveQuery);
       setArtists(data.artists);
       setTotalArtists(data.total);
       setError(null);
@@ -196,16 +317,12 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
   const handleIndexJump = (char: string) => {
-    // 五十音ジャンプ: 各行の最初のアーティストがどのページにいるか推定
-    // サーバーサイドの読み順を前提に、先頭行のアーティスト数で計算
     const targetRow = INDEX_KANA.indexOf(char);
     if (targetRow === -1) return;
     const index = artists.findIndex(a => getConsonantRow(a.reading || "") >= targetRow);
     if (index !== -1) {
-      // 現在のページ内に見つかった場合はそのまま
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
-      // ページ外にある可能性 → 概算ジャンプ（総数 / 10行 × 行番号）
       const estimatedOffset = Math.floor((totalArtists / 10) * targetRow);
       const estimatedPage = Math.floor(estimatedOffset / ARTISTS_PER_PAGE);
       setArtistPage(Math.min(estimatedPage, totalPages - 1));
@@ -236,7 +353,7 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
         </div>
 
         {songsLoading ? (
-          <p className="mt-6 text-slate-500">\u8aad\u307f\u8fbc\u307f\u4e2d...</p>
+          <p className="mt-6 text-slate-500">{'\u8aad\u307f\u8fbc\u307f\u4e2d...'}</p>
         ) : (
           <div className="w-full max-w-5xl bg-slate-900/60 backdrop-blur-md shadow-xl rounded-xl overflow-hidden border border-white/10">
             <table className="w-full text-left">
@@ -255,7 +372,20 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
                 {artistSongs.map((song, i) => (
                   <tr key={song.id} className="border-b border-white/5 hover:bg-white/5 transition-colors text-sm group">
                     <td className="py-3 px-5 text-slate-500 text-xs">{i + 1}</td>
-                    <td className="py-3 px-4 text-slate-200 font-medium group-hover:text-white transition-colors">{song.title}</td>
+                    <td className="py-3 px-4 font-medium">
+                      <a
+                        href={`https://www.google.com/search?q=${encodeURIComponent(`${selectedArtist.name} ${song.title} 歌詞`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-slate-200 hover:text-cyan-400 transition-colors inline-flex items-center gap-1 group/link"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {song.title}
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3 text-slate-500 group-hover/link:text-cyan-400 transition-colors">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                        </svg>
+                      </a>
+                    </td>
                     <td className="py-3 px-4 text-slate-400 whitespace-nowrap">{song.lowest_note || '-'}</td>
                     <td className="py-3 px-4 text-slate-400 whitespace-nowrap">{song.highest_note || '-'}</td>
                     <td className="py-3 px-4 text-slate-400 whitespace-nowrap hidden sm:table-cell">{song.falsetto_note || '-'}</td>
@@ -295,7 +425,6 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
             <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 drop-shadow-md">{'\u30a2\u30fc\u30c6\u30a3\u30b9\u30c8\u4e00\u89a7'}</h1>
             <p className="text-xs text-slate-400">{userRange ? "\u97f3\u57df\u306b\u5408\u308f\u305b\u305f\u30ad\u30fc\u304a\u3059\u3059\u3081\u3092\u8868\u793a\u4e2d" : "\u9332\u97f3\u3059\u308b\u3068\u30ad\u30fc\u304a\u3059\u3059\u3081\u304c\u8868\u793a\u3055\u308c\u307e\u3059"}</p>
           </div>
-          {/* あかさたなジャンプボタン */}
           <div className="flex flex-wrap gap-1 justify-end">
             {INDEX_KANA.map(char => (
               <button
@@ -329,7 +458,6 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
               <span className="text-xs text-slate-500 bg-slate-800 px-2 py-1 rounded-full border border-slate-700">{artist.song_count}{'\u66f2'}</span>
             </button>
 
-            {/* お気に入りボタン */}
             <button
               onClick={(e) => toggleFavorite(e, artist.id, artist.name)}
               className="p-4 transition-transform hover:scale-125"

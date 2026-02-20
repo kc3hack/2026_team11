@@ -128,16 +128,12 @@ def init_db(db_path: str = DB_PATH):
     conn.close()
 
 
-def _escape_like(query: str) -> str:
-    """LIKE パターンの特殊文字をエスケープ"""
-    return query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-
 def search_songs(query: str, limit: int = 20, offset: int = 0) -> list[dict]:
-    """曲名またはアーティスト名であいまい検索"""
+    """曲名またはアーティスト名、ふりがなであいまい検索"""
     conn = get_connection()
     try:
         escaped = f"%{_escape_like(query)}%"
+        # 変更点： a.reading LIKE ? ESCAPE '\\' を追加し、ふりがなも検索対象に！
         rows = conn.execute("""
             SELECT s.id, s.title, a.name as artist,
                    s.artist_id, a.slug as artist_slug,
@@ -146,10 +142,12 @@ def search_songs(query: str, limit: int = 20, offset: int = 0) -> list[dict]:
                    s.source
             FROM songs s
             JOIN artists a ON s.artist_id = a.id
-            WHERE s.title LIKE ? ESCAPE '\\' OR a.name LIKE ? ESCAPE '\\'
+            WHERE s.title LIKE ? ESCAPE '\\' 
+               OR a.name LIKE ? ESCAPE '\\'
+               OR a.reading LIKE ? ESCAPE '\\'
             ORDER BY a.reading, s.title COLLATE NOCASE
             LIMIT ? OFFSET ?
-        """, (escaped, escaped, limit, offset)).fetchall()
+        """, (escaped, escaped, escaped, limit, offset)).fetchall() # escapedを3つに増やしました
         return [dict(r) for r in rows]
     finally:
         conn.close()
