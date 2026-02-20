@@ -100,7 +100,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
     const WIDTH = canvas.width;
     const HEIGHT = canvas.height;
 
-    analyserRef.current.getByteFrequencyData(dataArrayRef.current);
+    analyserRef.current.getByteFrequencyData(dataArrayRef.current as any);
 
     ctx.fillStyle = "rgb(100, 116, 139)";
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
@@ -235,15 +235,26 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
   return (
     <div className="flex flex-col items-center w-full gap-4 font-sans">
       {/* 裏声なしオプション */}
-      <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer select-none">
-        <input
-          type="checkbox"
-          checked={noFalsetto}
-          onChange={(e) => setNoFalsetto(e.target.checked)}
-          disabled={recording || loading}
-          className="w-4 h-4 rounded border-slate-500 text-blue-500 focus:ring-blue-400"
-        />
-        裏声を使わない（地声のみで判定）
+      <label className="flex items-center gap-3 text-sm cursor-pointer select-none group transition-all duration-300 text-cyan-400 [text-shadow:0_0_8px_rgba(34,211,238,0.6)] hover:text-cyan-300 hover:[text-shadow:0_0_15px_rgba(34,211,238,1)] z-10 relative">
+        <div className="relative flex items-center justify-center">
+          <input
+            type="checkbox"
+            checked={noFalsetto}
+            onChange={(e) => setNoFalsetto(e.target.checked)}
+            disabled={recording || loading}
+            className="peer appearance-none w-5 h-5 border-2 border-cyan-400 rounded-sm bg-slate-900/50 outline-none cursor-pointer transition-all duration-300 shadow-[0_0_10px_rgba(34,211,238,0.6)] group-hover:shadow-[0_0_20px_rgba(34,211,238,1)] group-hover:border-cyan-300 checked:bg-cyan-400 checked:border-cyan-400 checked:shadow-[0_0_20px_rgba(34,211,238,1)] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 focus-visible:outline-none"
+          />
+          <svg
+            className="absolute w-3.5 h-3.5 text-slate-900 pointer-events-none opacity-0 peer-checked:opacity-100 transition-all duration-300 scale-50 peer-checked:scale-100"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={4}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <span className="font-semibold tracking-wide">裏声を使わない（地声のみで判定）</span>
       </label>
 
       <div className="relative w-full max-w-4xl h-[500px] bg-slate-900/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col items-center justify-center group">
