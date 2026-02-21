@@ -46,6 +46,35 @@ const getConsonantRow = (reading: string): number => {
   return 99;
 };
 
+/**
+ * reading の先頭文字を正規化し、濁音・半濁音を清音に統合して返す
+ */
+const getBaseKana = (reading: string): string => {
+  if (!reading) return "";
+  let code = reading.codePointAt(0) ?? 0;
+  // カタカナ → ひらがな
+  if (code >= 0x30A1 && code <= 0x30F6) code -= 0x60;
+  // 小文字かな → 通常かな（ぁ→あ, ぃ→い, etc.）
+  const SMALL_TO_NORMAL: Record<number, number> = {
+    0x3041: 0x3042, 0x3043: 0x3044, 0x3045: 0x3046,
+    0x3047: 0x3048, 0x3049: 0x304A, 0x3063: 0x3064,
+    0x3083: 0x3084, 0x3085: 0x3086, 0x3087: 0x3088,
+  };
+  code = SMALL_TO_NORMAL[code] ?? code;
+  // ひらがな範囲外
+  if (code < 0x3041 || code > 0x3093) return "";
+  const char = String.fromCodePoint(code);
+  // 濁音・半濁音 → 清音
+  const DAKUTEN_MAP: Record<string, string> = {
+    'が':'か','ぎ':'き','ぐ':'く','げ':'け','ご':'こ',
+    'ざ':'さ','じ':'し','ず':'す','ぜ':'せ','ぞ':'そ',
+    'だ':'た','ぢ':'ち','づ':'つ','で':'て','ど':'と',
+    'ば':'は','び':'ひ','ぶ':'ふ','べ':'へ','ぼ':'ほ',
+    'ぱ':'は','ぴ':'ひ','ぷ':'ふ','ぺ':'へ','ぽ':'ほ',
+  };
+  return DAKUTEN_MAP[char] || char;
+};
+
 const SEARCH_ALIASES: Record<string, string> = {
   // === 超定番・現代ポップス・ロック ===
   "ミセス": "Mrs. GREEN APPLE",
@@ -406,14 +435,7 @@ const SongListPage: React.FC<{
     const targetRow = INDEX_KANA.indexOf(char);
     if (targetRow === -1 || totalArtists === 0) return;
 
-    // 1. いま表示中のページに目的の行が含まれていればスクロールだけ
-    const indexInPage = artists.findIndex(a => getConsonantRow(a.reading || "") >= targetRow);
-    if (indexInPage !== -1 && getConsonantRow(artists[indexInPage].reading || "") === targetRow) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-
-    // 2. ページ単位で二分探索し、目的の行を含む最初のページを特定
+    // ページ単位で二分探索し、目的の行を含む最初のページを特定
     setLoading(true);
     try {
       let low = 0;
@@ -718,34 +740,59 @@ const SongListPage: React.FC<{
           {loading && <p className="mt-6 text-slate-500">{'読み込み中...'}</p>}
 
           <div className="w-full max-w-3xl bg-slate-900/60 backdrop-blur-md rounded-xl shadow-[0_0_20px_rgba(0,0,0,0.5)] border border-cyan-500/20 overflow-hidden">
-            {artists.map((artist) => (
-              <div key={artist.id} className="group relative flex items-center w-full border-b border-cyan-500/10 last:border-0 hover:bg-cyan-900/20 transition-all duration-300">
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyan-400 opacity-0 group-hover:opacity-100 shadow-[0_0_10px_rgba(34,211,238,1)] transition-opacity duration-300"></div>
-                <button
-                  onClick={() => handleSelectArtist(artist)}
-                  className="flex-1 flex items-center justify-between p-4 pl-6 text-left"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="relative w-10 h-10 bg-slate-900 rounded-full flex items-center justify-center text-cyan-400 font-bold text-sm border-2 border-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.5)] group-hover:shadow-[0_0_15px_rgba(34,211,238,0.8)] transition-all duration-300">
-                      {artist.name.charAt(0)}
-                    </div>
-                    <p className="font-bold text-slate-200 group-hover:text-cyan-400 transition-colors drop-shadow-[0_0_5px_rgba(34,211,238,0)] group-hover:drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{artist.name}</p>
-                  </div>
-                  <span className="text-xs text-cyan-400 bg-slate-900/80 px-3 py-1 rounded-sm border border-cyan-500/30 shadow-[0_0_5px_rgba(34,211,238,0.2)]">{artist.song_count}{'\u66f2'}</span>
-                </button>
+            {artists.map((artist, index) => {
+              const currRow = getConsonantRow(artist.reading || "");
+              const prevRow = index > 0 ? getConsonantRow(artists[index - 1].reading || "") : -1;
+              const showHeader = currRow !== prevRow;
+              const headerLabel = currRow === 99 ? "他" : (INDEX_KANA[currRow] || "他");
 
-                <button
-                  onClick={(e) => toggleFavorite(e, artist.id, artist.name)}
-                  className="p-4 pr-6 transition-transform hover:scale-125 z-10"
-                >
-                  {favoriteIds.includes(artist.id) ? (
-                    <StarSolid className="w-6 h-6 text-amber-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]" />
-                  ) : (
-                    <StarOutline className="w-6 h-6 text-slate-500 hover:text-cyan-400 transition-colors" />
+              const currKana = getBaseKana(artist.reading || "");
+              const prevKana = index > 0 ? getBaseKana(artists[index - 1].reading || "") : "";
+              const showSubHeader = !showHeader && currKana !== prevKana && currKana !== "";
+
+              return (
+                <React.Fragment key={artist.id}>
+                  {showHeader && (
+                    <div className="flex items-center gap-3 px-5 py-2 bg-slate-950/80 border-b border-cyan-500/20">
+                      <span className="text-lg font-black text-cyan-400 drop-shadow-[0_0_6px_rgba(34,211,238,0.6)] w-7 text-center">{headerLabel}</span>
+                      <div className="flex-1 h-px bg-gradient-to-r from-cyan-500/40 to-transparent"></div>
+                    </div>
                   )}
-                </button>
-              </div>
-            ))}
+                  {showSubHeader && (
+                    <div className="flex items-center gap-3 px-5 py-1.5 bg-slate-950/60 border-b border-cyan-500/10">
+                      <span className="text-base font-black text-cyan-400/70 w-7 text-center">{currKana}</span>
+                      <div className="flex-1 h-px bg-gradient-to-r from-cyan-500/20 to-transparent"></div>
+                    </div>
+                  )}
+                  <div className="group relative flex items-center w-full border-b border-cyan-500/10 last:border-0 hover:bg-cyan-900/20 transition-all duration-300">
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyan-400 opacity-0 group-hover:opacity-100 shadow-[0_0_10px_rgba(34,211,238,1)] transition-opacity duration-300"></div>
+                    <button
+                      onClick={() => handleSelectArtist(artist)}
+                      className="flex-1 flex items-center justify-between p-4 pl-6 text-left"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="relative w-10 h-10 bg-slate-900 rounded-full flex items-center justify-center text-cyan-400 font-bold text-sm border-2 border-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.5)] group-hover:shadow-[0_0_15px_rgba(34,211,238,0.8)] transition-all duration-300">
+                          {artist.name.charAt(0)}
+                        </div>
+                        <p className="font-bold text-slate-200 group-hover:text-cyan-400 transition-colors drop-shadow-[0_0_5px_rgba(34,211,238,0)] group-hover:drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{artist.name}</p>
+                      </div>
+                      <span className="text-xs text-cyan-400 bg-slate-900/80 px-3 py-1 rounded-sm border border-cyan-500/30 shadow-[0_0_5px_rgba(34,211,238,0.2)]">{artist.song_count}{'\u66f2'}</span>
+                    </button>
+
+                    <button
+                      onClick={(e) => toggleFavorite(e, artist.id, artist.name)}
+                      className="p-4 pr-6 transition-transform hover:scale-125 z-10"
+                    >
+                      {favoriteIds.includes(artist.id) ? (
+                        <StarSolid className="w-6 h-6 text-amber-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]" />
+                      ) : (
+                        <StarOutline className="w-6 h-6 text-slate-500 hover:text-cyan-400 transition-colors" />
+                      )}
+                    </button>
+                  </div>
+                </React.Fragment>
+              );
+            })}
           </div>
 
           {/* アーティスト一覧のページネーション */}
