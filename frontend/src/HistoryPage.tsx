@@ -180,9 +180,14 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
 
   return (
     <div className="min-h-screen p-8 max-w-4xl mx-auto">
-      <h2 className="text-3xl font-bold mb-8 text-white border-b border-white/10 pb-4">
-        分析履歴
-      </h2>
+      <div className="flex flex-col mb-8 pb-4 border-b border-cyan-500/30">
+        <h2 className="text-3xl sm:text-4xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-yellow-400 drop-shadow-[0_0_15px_rgba(255,255,255,0.3)] tracking-wider">
+          HISTORY
+        </h2>
+        <p className="sm:hidden mt-2 text-xs font-bold text-cyan-400/80 tracking-widest drop-shadow-sm">
+          スワイプで削除
+        </p>
+      </div>
 
       {loading ? (
         <div className="text-center text-slate-400">読み込み中...</div>
@@ -197,24 +202,23 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
           {history.map((record) => (
             <div
               key={record.id}
-              className={`relative overflow-hidden rounded-xl transition-all duration-300 ${
-                deletingId === record.id
-                  ? "opacity-0 -translate-x-full max-h-0 my-0"
-                  : "opacity-100 translate-x-0 max-h-96"
-              }`}
+              className={`relative overflow-hidden rounded-xl transition-all duration-300 ${deletingId === record.id
+                ? "opacity-0 -translate-x-full max-h-0 my-0"
+                : "opacity-100 translate-x-0 max-h-96"
+                }`}
               onTouchStart={(e) => handleTouchStart(e, record.id)}
               onTouchMove={(e) => handleTouchMove(e, record.id)}
               onTouchEnd={() => handleTouchEnd(record.id)}
             >
               {/* === 背景：削除ボタン === */}
-              <div className="absolute inset-0 bg-red-600 flex items-center justify-end pr-6 rounded-xl">
+              <div className="absolute inset-0 bg-red-950 flex items-center justify-end pr-6 rounded-xl border border-red-500 shadow-[inset_0_0_30px_rgba(239,68,68,0.6)]">
                 <button
                   onClick={(e) => handleDelete(e, record.id)}
-                  className="flex items-center gap-2 text-white font-bold text-sm"
+                  className="flex items-center gap-2 text-red-100 font-bold text-sm drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]"
                   aria-label="削除"
                 >
                   <svg
-                    className="w-5 h-5"
+                    className="w-5 h-5 drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -241,7 +245,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                     ? "none"
                     : "transform 0.2s ease-out",
                 }}
-                className="bg-slate-800 p-6 rounded-xl border border-white/5 shadow-md flex flex-col sm:flex-row justify-between sm:items-center gap-4 relative group cursor-pointer hover:bg-slate-700/80"
+                className="bg-slate-950/80 backdrop-blur-xl p-6 rounded-xl border border-cyan-500/80 shadow-[inset_0_0_15px_rgba(34,211,238,0.2),0_0_15px_rgba(34,211,238,0.4)] flex flex-col sm:flex-row justify-between sm:items-center gap-4 relative group cursor-pointer hover:-translate-y-1 hover:scale-[1.02] hover:border-cyan-400 hover:shadow-[inset_0_0_20px_rgba(34,211,238,0.4),0_0_25px_rgba(34,211,238,0.6)] transition-all duration-300 overflow-hidden"
                 onClick={() => {
                   if (swipedId === record.id) {
                     cancelSwipe();
@@ -250,18 +254,20 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                   }
                 }}
               >
+                {/* === スキャンライン（デジタルテクスチャ） === */}
+                <div className="absolute inset-0 pointer-events-none bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,rgba(255,255,255,0.03)_2px,rgba(255,255,255,0.03)_4px)] z-0"></div>
+
                 {/* === 左側のメタデータ部分 === */}
-                <div>
-                  <p className="text-sm text-slate-400 mb-1">
+                <div className="relative z-10">
+                  <p className="text-sm text-cyan-400/80 font-bold mb-1 tracking-widest drop-shadow-sm">
                     {new Date(record.created_at).toLocaleString("ja-JP")}
                   </p>
                   <div className="flex items-center gap-2">
                     <span
-                      className={`text-xs px-2 py-1 rounded font-bold ${
-                        record.source_type === "karaoke"
-                          ? "bg-purple-900 text-purple-300"
-                          : "bg-cyan-900 text-cyan-300"
-                      }`}
+                      className={`text-xs px-2 py-1 rounded font-bold ${record.source_type === "karaoke"
+                        ? "bg-purple-900 text-purple-300"
+                        : "bg-cyan-900 text-cyan-300"
+                        }`}
                     >
                       {record.source_type === "karaoke"
                         ? "カラオケ"
@@ -278,17 +284,17 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                 </div>
 
                 {/* === 右側の音域表示と削除ボタン（PC用） === */}
-                <div className="flex items-center gap-4">
-                  <div className="bg-slate-900 px-4 py-2 rounded-lg text-center min-w-[100px]">
-                    <p className="text-xs text-slate-500 mb-1">地声</p>
-                    <p className="font-mono font-bold text-cyan-400">
+                <div className="relative z-10 flex items-center gap-4">
+                  <div className="bg-transparent border border-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.3)] px-4 py-2 rounded-lg text-center min-w-[100px]">
+                    <p className="text-xs text-cyan-400 font-bold mb-1 opacity-80">地声</p>
+                    <p className="font-mono font-bold text-cyan-300 drop-shadow-[0_0_5px_rgba(34,211,238,0.8)]">
                       {record.vocal_range_min || "-"} ~{" "}
                       {record.vocal_range_max || "-"}
                     </p>
                   </div>
-                  <div className="bg-slate-900 px-4 py-2 rounded-lg text-center min-w-[80px]">
-                    <p className="text-xs text-slate-500 mb-1">裏声最高</p>
-                    <p className="font-mono font-bold text-pink-400">
+                  <div className="bg-transparent border border-pink-400 shadow-[0_0_8px_rgba(244,114,182,0.3)] px-4 py-2 rounded-lg text-center min-w-[80px]">
+                    <p className="text-xs text-pink-400 font-bold mb-1 opacity-80">裏声最高</p>
+                    <p className="font-mono font-bold text-pink-300 drop-shadow-[0_0_5px_rgba(244,114,182,0.8)]">
                       {record.falsetto_max || "-"}
                     </p>
                   </div>
@@ -296,18 +302,13 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                   {/* 削除ボタン（PC用 - タッチデバイスでは非表示） */}
                   <button
                     onClick={(e) => handleDelete(e, record.id)}
-                    className="hidden sm:block ml-2 px-3 py-2 bg-red-900/40 text-red-400 hover:bg-red-600 hover:text-white rounded-lg transition-colors text-sm font-bold z-10"
+                    className="hidden sm:block ml-2 px-6 py-2 bg-transparent border border-red-500 text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)] hover:bg-red-600 hover:text-white hover:border-red-400 hover:shadow-[0_0_20px_rgba(239,68,68,0.9)] rounded-lg transition-all duration-300 text-sm font-bold tracking-widest z-10"
                     aria-label="履歴を削除"
                   >
                     削除
                   </button>
 
-                  {/* スワイプ状態インジケーター（モバイル用） */}
-                  {swipedId === record.id && (
-                    <div className="sm:hidden text-red-400 text-xs font-bold">
-                      スワイプで削除
-                    </div>
-                  )}
+
                 </div>
               </div>
             </div>
