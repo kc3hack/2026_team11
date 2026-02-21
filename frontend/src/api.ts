@@ -9,30 +9,62 @@ const API = axios.create({
   timeout: TIMEOUT_MS,
 });
 
+// 認証が必要なパス（トークン未取得時に短い待機して再取得する対象）
+const AUTH_PATHS = ["/favorites", "/favorite-artists", "/analysis", "/recommend"];
+
 // Supabaseのセッショントークンを自動でAuthorizationヘッダーに付与
 API.interceptors.request.use(async (config) => {
-  if (supabase) {
+  if (!supabase) return config;
+  const client = supabase;
+
+  const tryAttachToken = async (): Promise<string | null> => {
     try {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
+      const { data } = await client.auth.getSession();
+      return data.session?.access_token ?? null;
     } catch (e: unknown) {
-      // Invalid Refresh Token などで getSession が失敗したらサインアウトして続行
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes("Refresh Token") || msg.includes("refresh_token")) {
-        await supabase.auth.signOut();
+        await client.auth.signOut();
       }
+      return null;
     }
+  };
+
+  try {
+    let token = await tryAttachToken();
+    const url = config.url ?? "";
+    const needsAuth = AUTH_PATHS.some((p) => url.includes(p));
+    // 認証系パスでトークンが無い場合のみ、短く待って1回だけ再取得（認証復元のタイミングずれ対策）
+    if (!token && needsAuth) {
+      await new Promise((r) => setTimeout(r, 80));
+      token = await tryAttachToken();
+    }
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  } catch (_) {
+    // 付与失敗時はそのまま送信（バックエンドで 401）
   }
   return config;
 });
 
-// 401 のときはセッション無効なのでサインアウト（Supabase側をクリア）
+// 401 のときはリフレッシュを1回試してリトライ。リトライ後も 401 またはリフレッシュ失敗時はログアウトする
 API.interceptors.response.use(
   (res) => res,
   async (err) => {
+    const config = err?.config;
+    if (err?.response?.status === 401 && supabase && config && !(config as { _retried?: boolean })._retried) {
+      (config as { _retried?: boolean })._retried = true;
+      try {
+        const { data } = await supabase.auth.refreshSession();
+        if (data.session?.access_token) {
+          config.headers.Authorization = `Bearer ${data.session.access_token}`;
+          return API.request(config);
+        }
+      } catch (_) {
+        // リフレッシュ失敗時はログアウト
+      }
+    }
     if (err?.response?.status === 401 && supabase) {
       await supabase.auth.signOut();
     }

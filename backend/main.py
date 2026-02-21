@@ -35,7 +35,7 @@ from database_supabase import (
 
 # 認証関連
 from auth import (
-    get_current_user, get_optional_user, get_optional_user_and_token,
+    get_current_user, get_current_user_and_token, get_optional_user, get_optional_user_and_token,
     sign_up_with_email, sign_in_with_email, sign_out,
     refresh_session, request_password_reset, update_password
 )
@@ -210,33 +210,37 @@ def delete_my_analysis_history(record_id: str, user: dict = Depends(get_current_
 # ============================================================
 
 @app.post("/favorites")
-def add_favorite(data: FavoriteSongAdd, user: dict = Depends(get_current_user)):
-    """お気に入りに楽曲を追加"""
-    result = add_favorite_song(user["id"], data.song_id)
+def add_favorite(data: FavoriteSongAdd, user_and_token: tuple = Depends(get_current_user_and_token)):
+    """お気に入りに楽曲を追加（RLS 通過のため JWT を渡す）"""
+    user, token = user_and_token
+    result = add_favorite_song(user["id"], data.song_id, access_token=token)
     if not result:
         raise HTTPException(status_code=400, detail="既にお気に入りに登録されています")
     return result
 
 
 @app.delete("/favorites/{song_id}")
-def remove_favorite(song_id: int, user: dict = Depends(get_current_user)):
+def remove_favorite(song_id: int, user_and_token: tuple = Depends(get_current_user_and_token)):
     """お気に入りから楽曲を削除"""
-    success = remove_favorite_song(user["id"], song_id)
+    user, token = user_and_token
+    success = remove_favorite_song(user["id"], song_id, access_token=token)
     if success:
         return {"message": "お気に入りから削除しました"}
     raise HTTPException(status_code=404, detail="お気に入りに登録されていません")
 
 
 @app.get("/favorites")
-def get_my_favorites(user: dict = Depends(get_current_user), limit: int = 100):
+def get_my_favorites(user_and_token: tuple = Depends(get_current_user_and_token), limit: int = 100):
     """自分のお気に入り楽曲一覧を取得"""
-    return get_favorite_songs(user["id"], limit)
+    user, token = user_and_token
+    return get_favorite_songs(user["id"], limit, access_token=token)
 
 
 @app.get("/favorites/check/{song_id}")
-def check_favorite(song_id: int, user: dict = Depends(get_current_user)):
+def check_favorite(song_id: int, user_and_token: tuple = Depends(get_current_user_and_token)):
     """楽曲がお気に入りに登録されているか確認"""
-    return {"is_favorite": is_favorite(user["id"], song_id)}
+    user, token = user_and_token
+    return {"is_favorite": is_favorite(user["id"], song_id, access_token=token)}
 
 
 # ============================================================
@@ -246,16 +250,16 @@ def check_favorite(song_id: int, user: dict = Depends(get_current_user)):
 @app.post("/favorite-artists")
 def add_favorite_artist_endpoint(
     data: FavoriteArtistAdd,
-    user: dict = Depends(get_current_user),
+    user_and_token: tuple = Depends(get_current_user_and_token),
 ):
     """
     お気に入りアーティストを追加（上限10組）。
     artist_id と artist_name は /songs?q= などで検索して取得してください。
     """
-    result = add_favorite_artist(user["id"], data.artist_id, data.artist_name)
+    user, token = user_and_token
+    result = add_favorite_artist(user["id"], data.artist_id, data.artist_name, access_token=token)
     if result is None:
-        # 上限 or 重複
-        existing = is_favorite_artist(user["id"], data.artist_id)
+        existing = is_favorite_artist(user["id"], data.artist_id, access_token=token)
         if existing:
             raise HTTPException(status_code=400, detail="既にお気に入りに登録されています")
         raise HTTPException(status_code=400, detail="お気に入りアーティストは10組まで登録できます")
@@ -265,25 +269,28 @@ def add_favorite_artist_endpoint(
 @app.delete("/favorite-artists/{artist_id}")
 def remove_favorite_artist_endpoint(
     artist_id: int,
-    user: dict = Depends(get_current_user),
+    user_and_token: tuple = Depends(get_current_user_and_token),
 ):
     """お気に入りアーティストを削除"""
-    success = remove_favorite_artist(user["id"], artist_id)
+    user, token = user_and_token
+    success = remove_favorite_artist(user["id"], artist_id, access_token=token)
     if success:
         return {"message": "お気に入りから削除しました"}
     raise HTTPException(status_code=404, detail="お気に入りに登録されていません")
 
 
 @app.get("/favorite-artists")
-def get_my_favorite_artists(user: dict = Depends(get_current_user)):
+def get_my_favorite_artists(user_and_token: tuple = Depends(get_current_user_and_token)):
     """自分のお気に入りアーティスト一覧を取得"""
-    return get_favorite_artists(user["id"])
+    user, token = user_and_token
+    return get_favorite_artists(user["id"], access_token=token)
 
 
 @app.get("/favorite-artists/check/{artist_id}")
-def check_favorite_artist(artist_id: int, user: dict = Depends(get_current_user)):
+def check_favorite_artist(artist_id: int, user_and_token: tuple = Depends(get_current_user_and_token)):
     """アーティストがお気に入りに登録されているか確認"""
-    return {"is_favorite": is_favorite_artist(user["id"], artist_id)}
+    user, token = user_and_token
+    return {"is_favorite": is_favorite_artist(user["id"], artist_id, access_token=token)}
 
 
 # ============================================================
@@ -381,10 +388,11 @@ def get_recommendations(
     chest_avg_hz: float = Query(...),
     falsetto_max_hz: float | None = Query(None),
     limit: int = Query(10, ge=1, le=50),
-    user: dict | None = Depends(get_optional_user),
+    user_and_token: tuple = Depends(get_optional_user_and_token),
 ):
     """音域Hzを指定しておすすめ曲を取得（ログイン済みならお気に入りアーティスト優先）"""
-    fav_ids = get_favorite_artist_ids(user["id"]) if user else []
+    user, token = user_and_token or (None, None)
+    fav_ids = get_favorite_artist_ids(user["id"], access_token=token) if user else []
     return recommend_songs(
         chest_min_hz, chest_max_hz, chest_avg_hz, falsetto_max_hz,
         limit=limit, favorite_artist_ids=fav_ids,
@@ -426,7 +434,7 @@ def cleanup_files(*paths):
             print(f"[WARN] Cleanup failed for {path}: {e}")
 
 
-def _enrich_result(result: dict, user: dict | None = None) -> dict:
+def _enrich_result(result: dict, user: dict | None = None, access_token: str | None = None) -> dict:
     """解析結果におすすめ曲・似てるアーティストを追加"""
     if "error" in result:
         return result
@@ -441,11 +449,11 @@ def _enrich_result(result: dict, user: dict | None = None) -> dict:
     result.setdefault("voice_type", {})
 
     if chest_min_hz > 0 and chest_max_hz > 0:
-        # ログイン済みならお気に入りアーティストIDを取得
+        # ログイン済みならお気に入りアーティストIDを取得（RLS 通過のため token を渡す）
         fav_ids: list[int] = []
         if user:
             try:
-                fav_ids = get_favorite_artist_ids(user["id"])
+                fav_ids = get_favorite_artist_ids(user["id"], access_token=access_token)
             except Exception as e:
                 print(f"[WARN] お気に入りアーティストID取得失敗: {e}")
 
@@ -514,7 +522,7 @@ async def analyze_voice(
         result = analyze(converted_wav_path, no_falsetto=no_falsetto)
 
         # 2. その result におすすめ曲などを追加する
-        result = _enrich_result(result, user)
+        result = _enrich_result(result, user, access_token)
 
         # 3. 最後に、完全な result を使って履歴を保存する
         if user and not result.get("error"):
@@ -595,7 +603,7 @@ async def analyze_karaoke(
         result = analyze(vocal_path, already_separated=True, no_falsetto=no_falsetto)
 
         # 2. その result におすすめ曲などを追加する
-        result = _enrich_result(result, user)
+        result = _enrich_result(result, user, access_token)
 
         # 3. 最後に、完全な result を使って履歴を保存する
         if user and not result.get("error"):

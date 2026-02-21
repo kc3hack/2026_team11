@@ -41,6 +41,31 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
         )
 
 
+def get_current_user_and_token(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> Tuple[Dict[str, Any], str]:
+    """
+    認証必須。(user_dict, access_token) を返す。
+    RLS 付きテーブル（favorite_songs, favorite_artists 等）操作用。
+    """
+    token = credentials.credentials
+    try:
+        user = supabase.auth.get_user(token)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="無効なトークンです"
+            )
+        return user.user.model_dump(), token
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"認証エラー: {str(e)}"
+        )
+
+
 def get_optional_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False))) -> Optional[Dict[str, Any]]:
     """
     オプショナルな認証（ログインしていなくてもアクセス可能）

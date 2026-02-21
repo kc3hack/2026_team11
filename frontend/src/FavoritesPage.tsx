@@ -9,13 +9,14 @@ interface FavoritesPageProps {
 }
 
 const FavoritesPage: React.FC<FavoritesPageProps> = ({ onLoginClick }) => {
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, isLoading: authLoading } = useAuth();
     const [favorites, setFavorites] = useState<FavoriteSong[]>([]);
     const [loading, setLoading] = useState(true);
     const [removingIds, setRemovingIds] = useState<Set<number>>(new Set());
 
+    // 認証完了後にのみ取得（認証復元前のリクエストで 401 が出るのを防ぐ）
     useEffect(() => {
-        if (!isAuthenticated) {
+        if (!isAuthenticated || authLoading) {
             setLoading(false);
             return;
         }
@@ -24,7 +25,7 @@ const FavoritesPage: React.FC<FavoritesPageProps> = ({ onLoginClick }) => {
             .then(setFavorites)
             .catch(err => console.error("お気に入り取得失敗:", err))
             .finally(() => setLoading(false));
-    }, [isAuthenticated]);
+    }, [isAuthenticated, authLoading]);
 
     const handleRemove = useCallback(async (songId: number) => {
         if (removingIds.has(songId)) return;
@@ -50,6 +51,15 @@ const FavoritesPage: React.FC<FavoritesPageProps> = ({ onLoginClick }) => {
             });
         }
     }, [favorites, removingIds]);
+
+    // 認証状態読み込み中
+    if (authLoading) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] bg-transparent p-8">
+                <p className="text-slate-500">読み込み中...</p>
+            </div>
+        );
+    }
 
     // 未ログイン
     if (!isAuthenticated) {

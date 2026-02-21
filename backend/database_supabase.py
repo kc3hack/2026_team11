@@ -208,8 +208,18 @@ def get_analysis_history(user_id: str, limit: int = 50) -> List[Dict[str, Any]]:
 # お気に入り楽曲関連
 # ============================================================
 
-def add_favorite_song(user_id: str, song_id: int) -> Optional[Dict[str, Any]]:
-    """お気に入りに楽曲を追加"""
+def _set_session_if_token(access_token: Optional[str] = None) -> None:
+    """RLS を通すため access_token があれば set_session する"""
+    if access_token:
+        try:
+            supabase.auth.set_session(access_token, "")
+        except Exception as e:
+            print(f"[WARN] set_session for RLS failed: {e}")
+
+
+def add_favorite_song(user_id: str, song_id: int, *, access_token: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """お気に入りに楽曲を追加。RLS を通すため access_token を渡す。"""
+    _set_session_if_token(access_token)
     try:
         data = {"user_id": user_id, "song_id": song_id}
         response = supabase.table("favorite_songs").insert(data).execute()
@@ -219,8 +229,9 @@ def add_favorite_song(user_id: str, song_id: int) -> Optional[Dict[str, Any]]:
         return None
 
 
-def remove_favorite_song(user_id: str, song_id: int) -> bool:
+def remove_favorite_song(user_id: str, song_id: int, *, access_token: Optional[str] = None) -> bool:
     """お気に入りから楽曲を削除"""
+    _set_session_if_token(access_token)
     try:
         supabase.table("favorite_songs").delete().eq("user_id", user_id).eq("song_id", song_id).execute()
         return True
@@ -228,8 +239,9 @@ def remove_favorite_song(user_id: str, song_id: int) -> bool:
         return False
 
 
-def get_favorite_songs(user_id: str, limit: int = 100) -> List[Dict[str, Any]]:
+def get_favorite_songs(user_id: str, limit: int = 100, *, access_token: Optional[str] = None) -> List[Dict[str, Any]]:
     """ユーザーのお気に入り楽曲一覧を取得"""
+    _set_session_if_token(access_token)
     response = supabase.table("favorite_songs").select(
         "id, song_id, created_at"
     ).eq("user_id", user_id).order("created_at", desc=True).limit(limit).execute()
@@ -255,8 +267,9 @@ def get_favorite_songs(user_id: str, limit: int = 100) -> List[Dict[str, Any]]:
     return favorites
 
 
-def is_favorite(user_id: str, song_id: int) -> bool:
+def is_favorite(user_id: str, song_id: int, *, access_token: Optional[str] = None) -> bool:
     """楽曲がお気に入りに登録されているか確認"""
+    _set_session_if_token(access_token)
     response = supabase.table("favorite_songs").select("id").eq(
         "user_id", user_id
     ).eq("song_id", song_id).execute()
@@ -267,11 +280,12 @@ def is_favorite(user_id: str, song_id: int) -> bool:
 # お気に入りアーティスト関連
 # ============================================================
 
-def add_favorite_artist(user_id: str, artist_id: int, artist_name: str) -> Optional[Dict[str, Any]]:
+def add_favorite_artist(user_id: str, artist_id: int, artist_name: str, *, access_token: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """
     お気に入りアーティストを追加（上限10組）。
     既に登録済みの場合はNoneを返す。
     """
+    _set_session_if_token(access_token)
     try:
         # 上限チェック
         count_resp = supabase.table("favorite_artists").select(
@@ -292,8 +306,9 @@ def add_favorite_artist(user_id: str, artist_id: int, artist_name: str) -> Optio
         return None
 
 
-def remove_favorite_artist(user_id: str, artist_id: int) -> bool:
+def remove_favorite_artist(user_id: str, artist_id: int, *, access_token: Optional[str] = None) -> bool:
     """お気に入りアーティストを削除"""
+    _set_session_if_token(access_token)
     try:
         supabase.table("favorite_artists").delete().eq(
             "user_id", user_id
@@ -303,27 +318,30 @@ def remove_favorite_artist(user_id: str, artist_id: int) -> bool:
         return False
 
 
-def get_favorite_artists(user_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+def get_favorite_artists(user_id: str, limit: int = 50, *, access_token: Optional[str] = None) -> List[Dict[str, Any]]:
     """ユーザーのお気に入りアーティスト一覧を取得（登録が古い順）"""
+    _set_session_if_token(access_token)
     response = supabase.table("favorite_artists").select(
         "id, artist_id, artist_name, created_at"
     ).eq("user_id", user_id).order("created_at", desc=False).limit(limit).execute()
     return response.data or []
 
 
-def is_favorite_artist(user_id: str, artist_id: int) -> bool:
+def is_favorite_artist(user_id: str, artist_id: int, *, access_token: Optional[str] = None) -> bool:
     """アーティストがお気に入りに登録されているか確認"""
+    _set_session_if_token(access_token)
     response = supabase.table("favorite_artists").select("id").eq(
         "user_id", user_id
     ).eq("artist_id", artist_id).execute()
     return len(response.data) > 0
 
 
-def get_favorite_artist_ids(user_id: str) -> List[int]:
+def get_favorite_artist_ids(user_id: str, *, access_token: Optional[str] = None) -> List[int]:
     """
     お気に入りアーティストのIDリストを返す（recommenderで使用）。
     DBエラー時は空リストを返してフォールバック。
     """
+    _set_session_if_token(access_token)
     try:
         response = supabase.table("favorite_artists").select(
             "artist_id"
