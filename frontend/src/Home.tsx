@@ -63,7 +63,7 @@ const Home: React.FC<Props> = ({ onNormalClick, onKaraokeClick, onUploadClick, o
                         <div className="absolute inset-0 flex flex-col items-center justify-center z-10 p-8">
                             <MicrophoneIcon className="w-24 h-24 md:w-32 md:h-32 text-cyan-400 group-hover:text-cyan-300 transition-colors duration-300 drop-shadow-[0_0_15px_rgba(6,182,212,0.8)] group-hover:drop-shadow-[0_0_25px_rgba(6,182,212,1)] animate-pulse" />
                             <h2 className="text-3xl md:text-5xl font-black italic text-white mt-4 tracking-tighter uppercase transform -skew-x-6 drop-shadow-[0_0_10px_rgba(6,182,212,0.8)] group-hover:drop-shadow-[0_0_20px_rgba(6,182,212,1)]">
-                                Start<br />Recording
+                                Akapera<br />Mode
                             </h2>
                         </div>
                     </button>
