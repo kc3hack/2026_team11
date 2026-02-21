@@ -10,6 +10,7 @@ import {
 import { StarIcon as StarSolid } from "@heroicons/react/24/solid";
 import { StarIcon as StarOutline } from "@heroicons/react/24/outline";
 import { useAuth } from "./contexts/AuthContext";
+import { parseNoteToJapanese } from "./utils/noteDisplay";
 
 interface AnalysisResultPageProps {
   result: AnalysisResult | null;
@@ -90,7 +91,7 @@ const AnalysisResultPage: React.FC<AnalysisResultPageProps> = ({ result }) => {
       setLoadingIntegrated(true);
       try {
         const data = await getIntegratedVocalRange(20);
-        setIntegratedRange(data);
+        setIntegratedRange(data.data_count > 0 ? data : null);
       } catch (e) {
         console.error("Failed to fetch integrated range", e);
         setIntegratedRange(null);
@@ -177,19 +178,19 @@ const AnalysisResultPage: React.FC<AnalysisResultPageProps> = ({ result }) => {
 
               <div className="flex items-baseline gap-4 mb-8">
                 <span className="text-4xl sm:text-6xl font-black text-white tracking-tighter">
-                  {displayData.overall_min} <span className="text-slate-600 mx-1">~</span> {displayData.overall_max}
+                  {parseNoteToJapanese(displayData.overall_min)} <span className="text-slate-600 mx-1">~</span> {parseNoteToJapanese(displayData.overall_max)}
                 </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
                 <div className="bg-indigo-900/30 p-4 rounded-2xl border border-indigo-500/30">
                   <p className="text-xs font-bold text-indigo-400 mb-1">地声範囲 (Chest)</p>
-                  <p className="text-xl font-bold text-slate-100">{displayData.chest_min ?? displayData.overall_min} ~ {displayData.chest_max ?? displayData.overall_max}</p>
+                  <p className="text-xl font-bold text-slate-100">{parseNoteToJapanese(displayData.chest_min ?? displayData.overall_min)} ~ {parseNoteToJapanese(displayData.chest_max ?? displayData.overall_max)}</p>
                 </div>
                 {displayData.falsetto_max && (
                   <div className="bg-emerald-900/30 p-4 rounded-2xl border border-emerald-500/30">
                     <p className="text-xs font-bold text-emerald-400 mb-1">裏声最高音 (Falsetto)</p>
-                    <p className="text-xl font-bold text-slate-100">{displayData.falsetto_max}</p>
+                    <p className="text-xl font-bold text-slate-100">{parseNoteToJapanese(displayData.falsetto_max)}</p>
                   </div>
                 )}
               </div>

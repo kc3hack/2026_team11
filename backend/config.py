@@ -11,13 +11,21 @@ VOICE_MAX_HZ = 1324.0     # 人声の絶対上限 (E6付近)
 CREPE_SR = 16000           # CREPEのサンプリングレート
 CREPE_HOP_LENGTH = 160     # 10ms (高速化: フレーム数半減)
 
+# === ノイズ除去 (Desktop analyzer.py と同一) ===
+# prop_decrease=0.5, top_db=40, カット後が0.3秒未満なら denoised のみ使用
+NOISE_PROP_DECREASE = 0.5
+NOISE_N_FFT = 2048
+NOISE_HOP_LENGTH = 512
+NOISE_SPLIT_TOP_DB = 40
+MIN_DURATION_AFTER_TRIM = 0.3
+
 # === フィルタリング ===
 UNREALISTIC_LOWER_OCT = 1.5    # 下限: medianから1.5オクターブ下
 UNREALISTIC_UPPER_OCT = 1.75   # 上限: medianから1.75オクターブ上
 FALSETTO_DISPLAY_MIN_HZ = 330.0  # mid2E: 裏声の生理的下限 (表示フィルタ)
 
 # === 信頼度フィルタリング ===
-CONF_THRESHOLDS = [0.5, 0.35, 0.2, 0.1, 0.05, 0.01]  # 有効フレーム検出の閾値候補
+CONF_THRESHOLDS = [0.2, 0.1, 0.05, 0.01]  # 有効フレーム検出の閾値候補
 CONF_MIN_FRAMES = 5  # 有効フレームの最小数
 
 # === 外れ値除去 ===
@@ -38,10 +46,11 @@ GRADUATED_CONF_NEAR = 0.35   # その他
 
 # === レジスター判定 (register_classifier.py) ===
 FALSETTO_HARD_MIN_HZ = 270.0       # これ以下は地声確定
-ML_CONF_THRESHOLD_LOW_F0 = 0.75    # f0 < 500Hz (遷移帯域)
-ML_CONF_THRESHOLD_HIGH = 0.70      # f0 >= 500Hz
-ML_CONF_THRESHOLD_NOISY = 0.80     # CREPE信頼度低 + 高f0
-ML_CONF_CHEST_HIGH_F0 = 0.85       # 地声 + f0 >= 400Hz
+# ML信頼度閾値: 0.95以上のみMLを採用し、それ以外はルート準拠の3分類（chest/mix/falsetto）にフォールバック
+ML_CONF_THRESHOLD_LOW_F0 = 0.95    # f0 < 500Hz (遷移帯域)
+ML_CONF_THRESHOLD_HIGH = 0.95      # f0 >= 500Hz
+ML_CONF_THRESHOLD_NOISY = 0.95     # CREPE信頼度低 + 高f0
+ML_CONF_CHEST_HIGH_F0 = 0.95       # 地声 + f0 >= 400Hz
 CREPE_NOISE_GATE = 0.35            # ピッチ推定ノイズゲート
 
 # === ピッチ安定性 ===

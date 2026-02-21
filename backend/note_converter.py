@@ -122,9 +122,43 @@ def hz_to_label_and_hz(hz: float) -> tuple:
     return label, defined_hz
 
 
-# 後方互換（librosaのnote文字列から変換）
+# 後方互換（librosaの音名文字列から変換）
 def to_japanese_notation(note: str) -> str:
     for note_name, label, _ in NOTE_TABLE:
         if note_name == note:
             return label
     return note
+
+
+# 表示用: "C♯3" / "C#3" / "G♯4" などを low / mid1 / mid2 等の日本式表記に変換
+def parse_note_to_japanese(s: str) -> str:
+    """
+    'C♯3', 'C#3', 'G♯4', 'Bb2' などの表記を日本式（mid1C#, mid2G#, lowBb 等）に変換する。
+    既に日本式の場合はそのまま返す。変換できない場合は入力文字列をそのまま返す。
+    """
+    import re
+    if not s or not isinstance(s, str):
+        return s
+    s = s.strip()
+    # 全角・音楽記号を ASCII に正規化
+    s = s.replace("♯", "#").replace("♭", "b")
+    # 既に日本式のプレフィックスが付いている場合はそのまま返す
+    if any(s.startswith(prefix) for prefix in ("lowlow", "low", "mid1", "mid2", "hi", "hihi", "hihihi")):
+        return s
+    # パターン: 音名(A-G) + 臨時記号(# or b) + オクターブ番号(1-7)
+    m = re.match(r"^([A-Ga-g])([#b])?(\d+)?$", s)
+    if not m:
+        return s
+    pitch = m.group(1).upper()
+    acc = m.group(2) or ""
+    oct_str = m.group(3)
+    if not oct_str:
+        return s
+    octave = int(oct_str)
+    if octave < 1 or octave > 7:
+        return s
+    note_name = f"{pitch}{acc}{octave}"
+    for note_name_row, label, _ in NOTE_TABLE:
+        if note_name_row == note_name:
+            return label
+    return s

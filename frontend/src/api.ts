@@ -12,14 +12,33 @@ const API = axios.create({
 // Supabaseのセッショントークンを自動でAuthorizationヘッダーに付与
 API.interceptors.request.use(async (config) => {
   if (supabase) {
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (e: unknown) {
+      // Invalid Refresh Token などで getSession が失敗したらサインアウトして続行
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("Refresh Token") || msg.includes("refresh_token")) {
+        await supabase.auth.signOut();
+      }
     }
   }
   return config;
 });
+
+// 401 のときはセッション無効なのでサインアウト（Supabase側をクリア）
+API.interceptors.response.use(
+  (res) => res,
+  async (err) => {
+    if (err?.response?.status === 401 && supabase) {
+      await supabase.auth.signOut();
+    }
+    return Promise.reject(err);
+  }
+);
 
 // ── 型定義 ────────────────────────────────────────────
 

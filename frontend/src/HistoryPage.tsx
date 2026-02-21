@@ -6,6 +6,7 @@ import {
   deleteAnalysisHistory,
 } from "./api";
 import { useAuth } from "./contexts/AuthContext";
+import { parseNoteToJapanese } from "./utils/noteDisplay";
 
 interface HistoryPageProps {
   onLoginClick: () => void;
@@ -288,8 +289,8 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                   <div className="bg-transparent border border-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.3)] px-4 py-2 rounded-lg text-center min-w-[100px]">
                     <p className="text-xs text-cyan-400 font-bold mb-1 opacity-80">地声</p>
                     <p className="font-mono font-bold text-cyan-300 drop-shadow-[0_0_5px_rgba(34,211,238,0.8)]">
-                      {record.vocal_range_min || "-"} ~{" "}
-                      {record.vocal_range_max || "-"}
+                      {parseNoteToJapanese(record.vocal_range_min) || "—"} ~{" "}
+                      {parseNoteToJapanese(record.vocal_range_max) || "—"}
                     </p>
                   </div>
                   <div className="bg-transparent border border-pink-400 shadow-[0_0_8px_rgba(244,114,182,0.3)] px-4 py-2 rounded-lg text-center min-w-[80px]">

@@ -1,80 +1,92 @@
+"""
+backend/vocal_separator.py — ルートの処理に準拠したボーカル分離
+
+Demucs の Python API を使用（CLI ではなく get_model / apply_model）。
+モデル: htdemucs 固定。最大 30 秒にカット。出力: output_dir/vocals_extracted.wav
+"""
 import os
-import subprocess
-from pathlib import Path
+import numpy as np
+import torch
+import torchaudio
+import soundfile as sf
 
-def separate_vocals(input_wav_path: str, output_dir: str = "separated", 
-                    fast_mode: bool = False, ultra_fast_mode: bool = False) -> str:
+
+def separate_vocals(
+    input_path: str,
+    output_dir: str = "separated",
+    max_duration: int = 30,
+    progress_callback=None,
+    *,
+    fast_mode: bool = False,
+    ultra_fast_mode: bool = False,
+) -> str:
     """
-    Demucsを使ってボーカル分離を行う
-    
+    Demucs でボーカルのみ抽出する（Python API版 - ルート準拠）。
+
     Args:
-        input_wav_path: 入力WAVファイルのパス
+        input_path: 入力音声ファイルのパス
         output_dir: 出力ディレクトリ
-        fast_mode: True時は軽量モデル(htdemucs)を使用 (約2-3倍高速)
-        ultra_fast_mode: True時は超軽量モデル(htdemucs_6s)を使用 (約3-5倍高速)
-    
-    戻り値: 分離されたボーカル(wav)のパス
+        max_duration: 処理する最大秒数（デフォルト 30 秒）
+        progress_callback: 未使用（互換用）
+        fast_mode, ultra_fast_mode: backend/main からの互換用（無視し、htdemucs 固定）
+
+    戻り値: 分離されたボーカル WAV のパス（output_dir/vocals_extracted.wav）
     """
-    input_file = Path(input_wav_path)
-    if not input_file.exists():
-        raise FileNotFoundError(f"Input file not found: {input_wav_path}")
+    from demucs.pretrained import get_model
+    from demucs.apply import apply_model
 
-    # モデル選択: ultra_fast > fast > default
-    if ultra_fast_mode:
-        model_name = "htdemucs_6s"
-        mode_label = "⚡ ULTRA FAST MODE (3-5x faster)"
-    elif fast_mode:
-        model_name = "htdemucs"
-        mode_label = "🚀 FAST MODE (2-3x faster)"
-    else:
-        model_name = "htdemucs_ft"
-        mode_label = "💎 HIGH QUALITY"
-    
-    cmd = [
-        "demucs",
-        "-n", model_name,
-        "--two-stems=vocals",
-        "-o", output_dir,
-    ]
-    
-    # GPUが使える場合は自動的に使用される（PyTorchのデフォルト動作）
-    # CPUを強制したい場合は --device cpu を追加
-    
-    cmd.append(str(input_wav_path))
-    
-    print(f"[INFO] Starting Demucs separation for: {input_wav_path}")
-    print(f"[INFO] Model: {model_name} {mode_label}")
-    try:
-        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"ボーカル分離に失敗しました (Demucs error): {e.stderr.decode()}")
-    except FileNotFoundError:
-        raise RuntimeError("demucsコマンドが見つかりません。'pip install demucs' を実行してください。")
+    _ = progress_callback, fast_mode, ultra_fast_mode  # 互換用
 
-    # 出力パスの特定 ({model_name}/input_filename/vocals.wav)
-    stem_name = input_file.stem
-    expected_path = Path(output_dir) / model_name / stem_name / "vocals.wav"
-    
-    if not expected_path.exists():
-        # ファイル名によってはフォルダ名が変わる可能性があるため、フォルダ内を検索
-        search_dir = Path(output_dir) / model_name
-        found = list(search_dir.glob(f"**/{stem_name}/vocals.wav"))
-        if not found:
-            # 旧モデル名でも検索（互換性のため）
-            search_dir_ft = Path(output_dir) / "htdemucs_ft"
-            if search_dir_ft.exists():
-                found = list(search_dir_ft.glob(f"**/{stem_name}/vocals.wav"))
-            if not found:
-                # さらに緩く検索
-                found = list(search_dir.glob("**/vocals.wav"))
-                if not found and search_dir_ft.exists():
-                    found = list(search_dir_ft.glob("**/vocals.wav"))
-            if not found:
-                 raise RuntimeError(f"分離後のファイルが見つかりません: {expected_path}")
-            # 最新のものを採用
-            expected_path = max(found, key=os.path.getctime)
-        else:
-             expected_path = found[0]
-        
-    print(f"[INFO] Separation complete: {expected_path}")
-    return str(expected_path)
+    # === モデル読み込み ===
+    device = "cpu"  # ルート準拠
+    model = get_model("htdemucs")
+    model.to(device)
+    model.eval()
+
+    # === 音声読み込み ===
+    wav, sr = torchaudio.load(input_path)
+    print(f"[DEBUG] Input: SR={sr}, shape={wav.shape}")
+
+    # 最大 max_duration 秒にカット
+    max_samples = max_duration * sr
+    if wav.shape[1] > max_samples:
+        wav = wav[:, :max_samples]
+
+    # モノラル→ステレオに変換（Demucsはステレオ入力が必要）
+    if wav.shape[0] == 1:
+        wav = wav.repeat(2, 1)
+
+    # 44100Hz にリサンプル（Demucsの要求）
+    if sr != 44100:
+        wav = torchaudio.transforms.Resample(sr, 44100)(wav)
+        sr = 44100
+
+    # === clone() してバグ回避 ===
+    wav = wav.clone()
+
+    # バッチ次元を追加 [channels, samples] → [1, channels, samples]
+    wav = wav.unsqueeze(0).to(device)
+
+    # === 分離実行 ===
+    with torch.no_grad():
+        sources = apply_model(model, wav, device=device, segment=7, overlap=0.1)
+
+    # sources: [1, num_sources, channels, samples]
+    # htdemucs のソース順: drums, bass, other, vocals
+    source_names = model.sources
+    print(f"[DEBUG] Source names: {source_names}")
+
+    vocals_idx = source_names.index("vocals")
+    vocals = sources[0, vocals_idx]  # [channels, samples]
+
+    # ステレオ→モノラル
+    vocals_mono = vocals.mean(dim=0).cpu().numpy()
+
+    # === 保存 ===
+    os.makedirs(output_dir, exist_ok=True)
+    vocal_path = os.path.join(output_dir, "vocals_extracted.wav")
+    sf.write(vocal_path, vocals_mono, sr)
+
+    print(f"[DEBUG] Vocals saved: {vocal_path}, duration={len(vocals_mono)/sr:.2f}s")
+
+    return vocal_path

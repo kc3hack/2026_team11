@@ -2,7 +2,7 @@
 Supabase認証のヘルパー関数
 """
 import os
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from supabase import Client
@@ -54,6 +54,24 @@ def get_optional_user(credentials: Optional[HTTPAuthorizationCredentials] = Depe
         return user.user.model_dump() if user else None
     except Exception:
         return None
+
+
+def get_optional_user_and_token(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """
+    オプショナルな認証。ログイン済みなら (user_dict, access_token) を返す。
+    RLS 付きテーブルへの INSERT 時に access_token を渡すために使用する。
+    """
+    if not credentials:
+        return None, None
+    try:
+        user = supabase.auth.get_user(credentials.credentials)
+        if not user:
+            return None, None
+        return user.user.model_dump(), credentials.credentials
+    except Exception:
+        return None, None
 
 
 # ============================================================

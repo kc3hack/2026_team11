@@ -291,12 +291,22 @@ REACT_APP_SUPABASE_ANON_KEY=your_supabase_anon_key
 
 ## 実行
 
-**バックエンド:**
+**バックエンド（必ず `backend` ディレクトリで起動）:**
 
 ```bash
 cd backend
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+またはプロジェクトルートから:
+
+```bash
+chmod +x backend/run_server.sh
+./backend/run_server.sh
+```
+
+起動確認: `curl http://127.0.0.1:8000/health` → `{"status":"ok"}` が返ればOK。  
+`/favorites` や `/favorite-artists` が 404 になる場合は、**別のプロセスが 8000 番を使っている**か、**ルートで `uvicorn main:app` を実行している**可能性があります。一度 8000 番のプロセスを止めてから、上記のとおり `cd backend` してから起動してください。
 
 **フロントエンド:**
 

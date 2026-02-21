@@ -1,5 +1,6 @@
 import React from "react";
 import { AnalysisResult } from "../api";
+import { parseNoteToJapanese } from "../utils/noteDisplay";
 
 interface Props {
   result: AnalysisResult;
@@ -7,7 +8,7 @@ interface Props {
 
 /* ───── helpers ───── */
 const fmtHz = (hz: number) => `${Math.round(hz)} Hz`;
-const fmtNote = (label: string | undefined) => label || "—";
+const fmtNote = (label: string | undefined) => parseNoteToJapanese(label);
 
 /* ───── score → color ───── */
 const scoreColor = (score: number) => {

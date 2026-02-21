@@ -35,7 +35,7 @@ from database_supabase import (
 
 # 認証関連
 from auth import (
-    get_current_user, get_optional_user,
+    get_current_user, get_optional_user, get_optional_user_and_token,
     sign_up_with_email, sign_in_with_email, sign_out,
     refresh_session, request_password_reset, update_password
 )
@@ -51,10 +51,25 @@ from models import (
 
 app = FastAPI(title="Voice Range Analysis API")
 
+
+@app.get("/health")
+def health():
+    """起動確認用。404 が出る場合は別プロセスが 8000 番で動いている可能性あり"""
+    return {"status": "ok"}
+
+
 # 【修正】DB初期化をサーバー起動時に実行するように変更
 @app.on_event("startup")
 def on_startup():
     init_db()
+    # 起動時にルート一覧を表示（404 のとき「別プロセスが 8000 番」かどうかの手がかり）
+    routes = sorted(
+        (r.path for r in app.routes if hasattr(r, "path") and r.path.startswith("/") and "openapi" not in r.path),
+        key=lambda x: (x.count("/"), x),
+    )
+    print("[BACKEND] 登録ルート数:", len(routes))
+    if "/artists" not in routes or "/favorite-artists" not in routes:
+        print("[BACKEND] WARNING: /artists または /favorite-artists がありません。別の main が読み込まれている可能性があります。")
 
 app.add_middleware(
     CORSMiddleware,
@@ -175,10 +190,10 @@ def get_my_analysis_history(user: dict = Depends(get_current_user), limit: int =
 
 @app.get("/analysis/integrated-range")
 def get_my_integrated_range(user: dict = Depends(get_current_user), limit: int = Query(20, ge=1, le=100)):
-    """直近N件の分析履歴から統合音域を取得"""
+    """直近N件の分析履歴から統合音域を取得。履歴がない場合は 200 で data_count=0 を返す（404にしない）。"""
     result = get_integrated_vocal_range(user["id"], limit)
     if not result:
-        raise HTTPException(status_code=404, detail="統合可能な分析データが見つかりません")
+        return {"data_count": 0, "limit": limit}
     return result
 
 @app.delete("/analysis/history/{record_id}")
@@ -470,9 +485,10 @@ async def analyze_voice(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     no_falsetto: bool = Form(False),
-    user: dict | None = Depends(get_optional_user),
+    user_and_token: tuple = Depends(get_optional_user_and_token),
 ):
     """アカペラ/マイク録音用 (Demucsなし)。ログイン済みなら履歴に自動保存"""
+    user, access_token = user_and_token
     start_time = time.time()
     print(f"\n{'#'*60}")
     print(f"[API] 📥 アカペラ音源分析リクエスト受信: {file.filename}")
@@ -510,7 +526,8 @@ async def analyze_voice(
                     falsetto=result.get("falsetto_max"),
                     source_type="microphone",
                     file_name=file.filename,
-                    result_json=jsonable_encoder(result)
+                    result_json=jsonable_encoder(result),
+                    access_token=access_token,
                 )
                 update_vocal_range(
                     user["id"],
@@ -540,9 +557,10 @@ async def analyze_karaoke(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     no_falsetto: bool = Form(False),
-    user: dict | None = Depends(get_optional_user),
+    user_and_token: tuple = Depends(get_optional_user_and_token),
 ):
     """カラオケ音源用 (Demucsあり)。ログイン済みなら履歴に自動保存"""
+    user, access_token = user_and_token or (None, None)
     start_time = time.time()
     print(f"\n{'#'*60}")
     print(f"[API] 📥 カラオケ音源分析リクエスト受信: {file.filename}")
@@ -569,7 +587,7 @@ async def analyze_karaoke(
         vocal_path = separate_vocals(
             converted_wav_path,
             output_dir=SEPARATED_DIR,
-            ultra_fast_mode=True,
+            ultra_fast_mode=False,
         )
         print(f"[API] ✅ ボーカル分離完了: {vocal_path}")
 
@@ -589,7 +607,8 @@ async def analyze_karaoke(
                     falsetto=result.get("falsetto_max"),
                     source_type="karaoke",
                     file_name=file.filename,
-                    result_json=jsonable_encoder(result)
+                    result_json=jsonable_encoder(result),
+                    access_token=access_token,
                 )
                 update_vocal_range(
                     user["id"],

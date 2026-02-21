@@ -173,9 +173,16 @@ def create_analysis_record(
     falsetto: Optional[str],
     source_type: str,
     file_name: Optional[str] = None,
-    result_json: Optional[Dict[str, Any]] = None
+    result_json: Optional[Dict[str, Any]] = None,
+    *,
+    access_token: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    """分析履歴を新規作成"""
+    """分析履歴を新規作成。RLS を通すため access_token を渡すと set_session してから INSERT する。"""
+    if access_token:
+        try:
+            supabase.auth.set_session(access_token, "")
+        except Exception as e:
+            print(f"[WARN] set_session for RLS failed: {e}")
     data = {
         "user_id": user_id,
         "vocal_range_min": vocal_min,
