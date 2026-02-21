@@ -13,7 +13,7 @@ const Home: React.FC<Props> = ({ onNormalClick, onKaraokeClick, onUploadClick, o
     const { isAnalyzing } = useAnalysis();
 
     return (
-        <div className="min-h-[100dvh] relative bg-slate-950 overflow-hidden">
+        <div className="min-h-[100dvh] relative bg-transparent overflow-hidden">
 
             {/* Cyberpunk Background Grid & Scanlines */}
             <div

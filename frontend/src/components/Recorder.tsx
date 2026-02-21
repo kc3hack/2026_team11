@@ -11,13 +11,13 @@ interface Props {
 
 const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
   const [recording, setRecording] = useState(false);
-  const { 
+  const {
     isAnalyzing: loading, setIsAnalyzing: setLoading,
     progress, setProgress,
     stepLabel, setStepLabel,
     startAnalysisTimer, stopAnalysisTimer
   } = useAnalysis();
-  
+
   const [noFalsetto, setNoFalsetto] = useState(false);
 
   const mediaRecorder = useRef<MediaRecorder | null>(null);
@@ -72,8 +72,7 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
 
     analyserRef.current.getByteFrequencyData(dataArrayRef.current as any);
 
-    ctx.fillStyle = "rgb(100, 116, 139)";
-    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    ctx.clearRect(0, 0, WIDTH, HEIGHT);
 
     if (!gradientRef.current) {
       const gradient = ctx.createLinearGradient(0, HEIGHT, 0, 0);
@@ -240,24 +239,24 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
       <div className="relative w-full max-w-4xl h-[500px] bg-slate-900/80 backdrop-blur-xl border border-slate-700/50 rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col items-center justify-center group">
         {/* Visualizer Canvas during recording */}
         {recording && (
-          <div className="absolute inset-0 w-full h-full opacity-60">
+          <div className="absolute inset-0 w-full h-full z-10">
             <canvas
               ref={canvasRef}
               width={800}
               height={500}
-              className="absolute inset-0 w-full h-full"
+              className="absolute inset-0 w-full h-full drop-shadow-[0_0_10px_rgba(56,189,248,0.8)]"
             />
           </div>
         )}
 
         {/* Ambient background glow (idle) */}
+        {!loading && (
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-cyan-500/20 rounded-full blur-[80px] pointer-events-none"></div>
+        )}
         {!recording && !loading && (
-          <>
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-cyan-500/20 rounded-full blur-[80px] pointer-events-none"></div>
-            <div className="absolute inset-0 flex items-center justify-center text-cyan-400/10 text-6xl sm:text-8xl md:text-[10rem] font-black italic tracking-widest select-none pointer-events-none drop-shadow-[0_0_15px_rgba(34,211,238,0.3)] z-0 mix-blend-screen">
-              READY
-            </div>
-          </>
+          <div className="absolute inset-0 flex items-center justify-center text-cyan-400/10 text-6xl sm:text-8xl md:text-[10rem] font-black italic tracking-widest select-none pointer-events-none drop-shadow-[0_0_15px_rgba(34,211,238,0.3)] z-0 mix-blend-screen">
+            READY
+          </div>
         )}
 
         {/* Loading State */}

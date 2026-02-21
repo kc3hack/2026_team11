@@ -17,7 +17,7 @@ const RecorderPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-transparent p-8">
+    <div className="min-h-[calc(100vh-80px)] bg-transparent p-6 sm:p-8 overflow-hidden font-sans text-slate-300">
       <button
         onClick={() => navigate("/menu")}
         className="mb-6 text-slate-500 hover:text-cyan-400 font-bold flex items-center gap-2 transition-colors"
