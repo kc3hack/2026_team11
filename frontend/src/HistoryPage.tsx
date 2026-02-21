@@ -180,9 +180,14 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
 
   return (
     <div className="min-h-screen p-8 max-w-4xl mx-auto">
-      <h2 className="text-3xl sm:text-4xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-yellow-400 mb-8 pb-4 border-b border-cyan-500/30 drop-shadow-[0_0_15px_rgba(255,255,255,0.3)] tracking-wider">
-        HISTORY
-      </h2>
+      <div className="flex flex-col mb-8 pb-4 border-b border-cyan-500/30">
+        <h2 className="text-3xl sm:text-4xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-yellow-400 drop-shadow-[0_0_15px_rgba(255,255,255,0.3)] tracking-wider">
+          HISTORY
+        </h2>
+        <p className="sm:hidden mt-2 text-xs font-bold text-cyan-400/80 tracking-widest drop-shadow-sm">
+          スワイプで削除
+        </p>
+      </div>
 
       {loading ? (
         <div className="text-center text-slate-400">読み込み中...</div>
@@ -303,12 +308,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                     削除
                   </button>
 
-                  {/* スワイプ状態インジケーター（モバイル用） */}
-                  {swipedId === record.id && (
-                    <div className="sm:hidden text-red-400 text-xs font-bold">
-                      スワイプで削除
-                    </div>
-                  )}
+
                 </div>
               </div>
             </div>
