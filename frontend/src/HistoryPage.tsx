@@ -297,7 +297,7 @@ const HistoryPage: React.FC<HistoryPageProps> = ({
                   {/* 削除ボタン（PC用 - タッチデバイスでは非表示） */}
                   <button
                     onClick={(e) => handleDelete(e, record.id)}
-                    className="hidden sm:block ml-2 px-6 py-2 bg-transparent border border-red-500 text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)] hover:bg-red-600 hover:text-white hover:border-red-400 hover:shadow-[0_0_20px_rgba(239,68,68,0.9)] rounded-lg transition-all duration-300 text-sm font-bold tracking-widest z-10 uppercase"
+                    className="hidden sm:block ml-2 px-6 py-2 bg-transparent border border-red-500 text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)] hover:bg-red-600 hover:text-white hover:border-red-400 hover:shadow-[0_0_20px_rgba(239,68,68,0.9)] rounded-lg transition-all duration-300 text-sm font-bold tracking-widest z-10"
                     aria-label="履歴を削除"
                   >
                     削除
