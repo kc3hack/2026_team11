@@ -100,24 +100,21 @@ const FavoritesPage: React.FC<FavoritesPageProps> = ({ onLoginClick }) => {
     return (
         <div className="flex flex-col items-center min-h-[calc(100vh-80px)] bg-transparent p-4 sm:p-8">
             <div className="w-full max-w-5xl mb-6">
-                <h1 className="text-3xl sm:text-4xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-fuchsia-400 drop-shadow-[0_0_15px_rgba(236,72,153,0.4)] tracking-wider">
+                <h1 className="text-3xl sm:text-4xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-yellow-400 drop-shadow-[0_0_15px_rgba(255,255,255,0.3)] tracking-wider">
                     FAVORITES
                 </h1>
-                <p className="text-sm text-pink-400 mt-1 font-bold tracking-widest drop-shadow-sm">{favorites.length} 曲</p>
+                <p className="text-sm text-cyan-400 mt-1 font-bold tracking-widest drop-shadow-sm">{favorites.length} 曲</p>
             </div>
 
             <div className="w-full max-w-5xl bg-slate-900/40 backdrop-blur-xl shadow-[0_0_20px_rgba(236,72,153,0.1)] rounded-xl overflow-hidden border border-pink-500/20">
                 <table className="w-full text-left relative">
                     <thead>
-                        <tr className="text-xs text-pink-300/80 uppercase tracking-widest relative">
+                        <tr className="bg-slate-800/50 text-xs text-slate-400 uppercase tracking-widest relative">
                             {/* シアンのグラデーションライン */}
                             <th className="absolute bottom-0 left-0 w-full h-[1px] bg-gradient-to-r from-cyan-400 via-cyan-400/50 to-transparent shadow-[0_0_5px_rgba(34,211,238,0.8)]"></th>
                             <th className="py-4 px-5 font-bold">#</th>
-                            <th className="py-4 px-4 font-bold">Title</th>
-                            <th className="py-4 px-4 font-bold">Artist</th>
-                            <th className="py-4 px-4 font-bold">Lowest</th>
-                            <th className="py-4 px-4 font-bold">Highest</th>
-                            <th className="py-4 px-4 font-bold hidden sm:table-cell">Falsetto</th>
+                            <th className="py-4 px-4 font-bold">楽曲</th>
+                            <th className="py-4 px-4 font-bold">アーティスト</th>
                             <th className="py-4 px-2 font-bold w-12 text-center"></th>
                         </tr>
                     </thead>
@@ -130,9 +127,6 @@ const FavoritesPage: React.FC<FavoritesPageProps> = ({ onLoginClick }) => {
                                 <td className="py-4 px-5 text-slate-500 text-xs group-hover:text-cyan-300 transition-colors font-mono">{i + 1}</td>
                                 <td className="py-4 px-4 text-slate-200 font-bold group-hover:text-white transition-colors tracking-wide drop-shadow-sm">{fav.title}</td>
                                 <td className="py-4 px-4 text-slate-400 group-hover:text-slate-300 transition-colors">{fav.artist || '-'}</td>
-                                <td className="py-4 px-4 text-slate-400 whitespace-nowrap group-hover:text-slate-300 font-mono transition-colors">{fav.lowest_note || '-'}</td>
-                                <td className="py-4 px-4 text-slate-400 whitespace-nowrap group-hover:text-slate-300 font-mono transition-colors">{fav.highest_note || '-'}</td>
-                                <td className="py-4 px-4 text-slate-400 whitespace-nowrap hidden sm:table-cell group-hover:text-slate-300 font-mono transition-colors">{fav.falsetto_note || '-'}</td>
                                 <td className="py-4 px-2 text-center">
                                     <button
                                         onClick={() => handleRemove(fav.song_id)}
