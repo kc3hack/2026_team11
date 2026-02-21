@@ -5,13 +5,14 @@ import { useAppContext } from "../contexts/AppContext";
 
 const SongListRoute: React.FC = () => {
   const navigate = useNavigate();
-  const { searchQuery, userRange } = useAppContext();
+  const { searchQuery, setSearchQuery, userRange } = useAppContext();
 
   return (
     <SongListPage
       searchQuery={searchQuery}
       userRange={userRange}
       onLoginClick={() => navigate("/login")}
+      onSearchChange={setSearchQuery}
     />
   );
 };

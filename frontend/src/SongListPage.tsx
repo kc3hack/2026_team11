@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { getArtists, getArtistSongs, Artist, UserRange, getFavoriteArtists, addFavoriteArtist, removeFavoriteArtist, getFavorites, addFavorite, removeFavorite, Song, getSongs } from './api';
 import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
-import { StarIcon as StarOutline } from '@heroicons/react/24/outline';
+import { StarIcon as StarOutline, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { HeartIcon } from '@heroicons/react/24/outline';
 import { HeartIcon as HeartIconSolid } from '@heroicons/react/24/solid';
 import { useAuth } from './contexts/AuthContext';
@@ -168,8 +168,21 @@ const SEARCH_ALIASES: Record<string, string> = {
 const ARTISTS_PER_PAGE = 10;
 const SONGS_PER_PAGE = 10;
 
-const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | null; onLoginClick?: () => void }> = ({ searchQuery = "", userRange, onLoginClick }) => {
+const SongListPage: React.FC<{ 
+  searchQuery?: string; 
+  userRange?: UserRange | null; 
+  onLoginClick?: () => void;
+  onSearchChange?: (query: string) => void;
+}> = ({ searchQuery = "", userRange, onLoginClick, onSearchChange }) => { 
   const { isAuthenticated } = useAuth();
+
+  // 検索クエリ
+  const [activeQuery, setActiveQuery] = useState(searchQuery);
+  const [searchInput, setSearchInput] = useState(searchQuery);
+  useEffect(() => {
+    setActiveQuery(searchQuery);
+    setSearchInput(searchQuery);
+  }, [searchQuery]);
 
   // アーティスト一覧
   const [artists, setArtists] = useState<Artist[]>([]);
@@ -203,7 +216,7 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
     setLoading(true);
     try {
       // 検索クエリを略称辞書で変換（ヒットしなければそのままのクエリを使用）
-      const effectiveQuery = SEARCH_ALIASES[searchQuery] || searchQuery;
+      const effectiveQuery = SEARCH_ALIASES[activeQuery] || activeQuery;
       const data = await getArtists(ARTISTS_PER_PAGE, page * ARTISTS_PER_PAGE, effectiveQuery);
       setArtists(data.artists);
       setTotalArtists(data.total);
@@ -213,18 +226,18 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
     } finally {
       setLoading(false);
     }
-  }, [searchQuery]);
+  }, [activeQuery]);
 
   // 楽曲検索
   const fetchSearchSongs = useCallback(async (page: number) => {
-    if (!searchQuery) {
+    if (!activeQuery) {
       setSearchSongs([]);
       setTotalSearchSongs(0);
       return;
     }
     setSearchLoading(true);
     try {
-      const data = await getSongs(SONGS_PER_PAGE, page * SONGS_PER_PAGE, searchQuery, userRange);
+      const data = await getSongs(SONGS_PER_PAGE, page * SONGS_PER_PAGE, activeQuery, userRange);
       setSearchSongs(data.songs);
       setTotalSearchSongs(data.total);
       setError(null);
@@ -235,11 +248,11 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
     } finally {
       setSearchLoading(false);
     }
-  }, [searchQuery, userRange]);
+  }, [activeQuery, userRange]);
 
   // 検索クエリが変わったらページをリセット（フェッチはページ変更effectで実行）
   useEffect(() => {
-    if (searchQuery) {
+    if (activeQuery) {
       setSearchPage(0);
       setSearchPageInput("1");
     } else {
@@ -247,25 +260,25 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
       setPageInput("1");
       setSelectedArtist(null);
     }
-  }, [searchQuery]);
+  }, [activeQuery]);
 
   // ページが変わったら取得（アーティスト）
   useEffect(() => {
-    if (!searchQuery) {
+    if (!activeQuery) {
       fetchArtists(artistPage);
       setPageInput((artistPage + 1).toString());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [artistPage, searchQuery]);
+  }, [artistPage, activeQuery]);
 
   // ページが変わったら取得（楽曲検索）
   useEffect(() => {
-    if (searchQuery) {
+    if (activeQuery) {
       fetchSearchSongs(searchPage);
       setSearchPageInput((searchPage + 1).toString());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchPage, searchQuery]);
+  }, [searchPage, activeQuery]);
 
   // お気に入りアーティスト取得
   useEffect(() => {
@@ -357,7 +370,7 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
   const totalSearchPages = Math.ceil(totalSearchSongs / SONGS_PER_PAGE);
 
   const handleNext = () => {
-    if (searchQuery) {
+    if (activeQuery) {
       if (searchPage + 1 < totalSearchPages) setSearchPage(p => p + 1);
     } else {
       if (artistPage + 1 < totalPages) setArtistPage(p => p + 1);
@@ -366,7 +379,7 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
   };
 
   const handlePrev = () => {
-    if (searchQuery) {
+    if (activeQuery) {
       if (searchPage > 0) setSearchPage(p => p - 1);
     } else {
       if (artistPage > 0) setArtistPage(p => p - 1);
@@ -375,7 +388,7 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
   };
 
   const handlePageJump = () => {
-    if (searchQuery) {
+    if (activeQuery) {
       let p = parseInt(searchPageInput, 10);
       if (isNaN(p)) { setSearchPageInput((searchPage + 1).toString()); return; }
       if (p < 1) p = 1; if (p > totalSearchPages) p = totalSearchPages;
@@ -493,19 +506,56 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
   return (
     <div className="flex flex-col items-center min-h-[calc(100vh-80px)] bg-transparent p-4 sm:p-8">
       <div className="w-full max-w-3xl flex flex-col mb-4 gap-4">
+        <form 
+          className="relative w-full"
+          onSubmit={(e) => {
+            e.preventDefault(); // エンターキーでのページリロードを防ぐ
+            if (onSearchChange) {
+              onSearchChange(searchInput);
+            }
+          }}
+        >
+          <input
+            type="text"
+            placeholder="楽曲名・アーティスト名で検索..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="w-full pl-10 pr-10 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 placeholder-slate-500 shadow-inner transition-all"
+          />
+          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+          
+          {/* クリアボタン (入力がある時のみ表示) */}
+          {searchInput && (
+            <button
+              type="button" // ★重要: エンターキーでこのボタンが誤爆しないように type="button" を追加
+              onClick={() => {
+                setSearchInput('');
+                setActiveQuery('');
+                if (onSearchChange) {
+                  onSearchChange('');
+                }
+              }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-200 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </form>
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 drop-shadow-md">
-              {searchQuery ? '楽曲検索結果' : 'アーティスト一覧'}
+              {activeQuery ? '楽曲検索結果' : 'アーティスト一覧'}
             </h1>
             <p className="text-xs text-slate-400">
-              {searchQuery
-                ? `"${searchQuery}" の検索結果`
+              {activeQuery
+                ? `"${activeQuery}" の検索結果`
                 : (userRange ? "音域に合わせたキーおすすめを表示中" : "録音すると、キーおすすめが表示されます")
               }
             </p>
           </div>
-          {!searchQuery && (
+          {!activeQuery && (
             <div className="flex flex-wrap gap-1 justify-end">
               {INDEX_KANA.map(char => (
                 <button
@@ -523,7 +573,7 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
 
       {error && <p className="text-rose-400 mb-4">{error}</p>}
 
-      {searchQuery ? (
+      {activeQuery ? (
         // 楽曲検索結果表示
         <>
           {searchLoading ? (
