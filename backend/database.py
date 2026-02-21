@@ -4,6 +4,7 @@ database.py — 楽曲音域データベースの接続管理とクエリ関数
 import sqlite3
 import os
 import unicodedata
+import re
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "songs.db")
 
@@ -41,6 +42,14 @@ def _hiragana_normalize(text: str) -> str:
             result.append(char)
     
     return ''.join(result)
+
+
+def _query_mode(query: str) -> str:
+    """ひらがな/カタカナだけなら kana、それ以外は name 検索"""
+    if not query:
+        return "name"
+    nfkc = unicodedata.normalize('NFKC', query)
+    return "kana" if re.fullmatch(r"[ぁ-ゖァ-ヺーﾞﾟ]+", nfkc) else "name"
 
 def init_db(db_path: str = DB_PATH):
     """データベースの初期化とマイグレーション"""
@@ -261,17 +270,21 @@ def count_artists(query: str = "") -> int:
     conn = get_connection()
     try:
         if query:
-            # name には NFKC 正規化のみ、reading にはひらがな正規化を使用
+            mode = _query_mode(query)
             nfkc_query = unicodedata.normalize('NFKC', query)
-            normalized_query = _hiragana_normalize(query)
-            
             escaped_nfkc = f"%{_escape_like(nfkc_query)}%"
-            escaped_normalized = f"%{_escape_like(normalized_query)}%"
-            
-            row = conn.execute(
-                "SELECT COUNT(*) FROM artists WHERE song_count > 0 AND (name LIKE ? ESCAPE '\\' OR reading LIKE ? ESCAPE '\\')",
-                (escaped_nfkc, escaped_normalized),
-            ).fetchone()
+            if mode == "kana":
+                normalized_query = _hiragana_normalize(query)
+                escaped_normalized = f"{_escape_like(normalized_query)}%"  # 前方一致
+                row = conn.execute(
+                    "SELECT COUNT(*) FROM artists WHERE song_count > 0 AND reading LIKE ? ESCAPE '\\'",
+                    (escaped_normalized,),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT COUNT(*) FROM artists WHERE song_count > 0 AND name LIKE ? ESCAPE '\\'",
+                    (escaped_nfkc,),
+                ).fetchone()
         else:
             row = conn.execute(
                 "SELECT COUNT(*) FROM artists WHERE song_count > 0"
@@ -282,23 +295,33 @@ def count_artists(query: str = "") -> int:
 
 
 def search_artists(query: str, limit: int = 100, offset: int = 0) -> list[dict]:
-    """アーティスト名またはふりがなであいまい検索（カタカナ対応）"""
+    """アーティスト検索: かな入力なら reading 前方一致、その他は name 部分一致"""
     conn = get_connection()
     try:
-        # name には NFKC 正規化のみ、reading にはひらがな正規化を使用
+        mode = _query_mode(query)
         nfkc_query = unicodedata.normalize('NFKC', query)
-        normalized_query = _hiragana_normalize(query)
-        
         escaped_nfkc = f"%{_escape_like(nfkc_query)}%"
-        escaped_normalized = f"%{_escape_like(normalized_query)}%"
-        
-        rows = conn.execute("""
-            SELECT id, name, slug, song_count, reading
-            FROM artists
-            WHERE song_count > 0 AND (name LIKE ? ESCAPE '\\' OR reading LIKE ? ESCAPE '\\')
-            ORDER BY reading
-            LIMIT ? OFFSET ?
-        """, (escaped_nfkc, escaped_normalized, limit, offset)).fetchall()
+
+        if mode == "kana":
+            normalized_query = _hiragana_normalize(query)
+            escaped_normalized = f"{_escape_like(normalized_query)}%"  # 前方一致
+            params = (escaped_normalized, limit, offset)
+            rows = conn.execute("""
+                SELECT id, name, slug, song_count, reading
+                FROM artists
+                WHERE song_count > 0 AND reading LIKE ? ESCAPE '\\'
+                ORDER BY reading
+                LIMIT ? OFFSET ?
+            """, params).fetchall()
+        else:
+            params = (escaped_nfkc, limit, offset)
+            rows = conn.execute("""
+                SELECT id, name, slug, song_count, reading
+                FROM artists
+                WHERE song_count > 0 AND name LIKE ? ESCAPE '\\'
+                ORDER BY reading
+                LIMIT ? OFFSET ?
+            """, params).fetchall()
         return [dict(r) for r in rows]
     finally:
         conn.close()
