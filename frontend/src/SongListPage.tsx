@@ -526,7 +526,6 @@ const SongListPage: React.FC<{
             placeholder="楽曲名・アーティスト名で検索..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            /* onKeyDownはformが処理するので削除してOKです */
             className="w-full pl-10 pr-10 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 placeholder-slate-500 shadow-inner transition-all"
           />
           <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
