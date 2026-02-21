@@ -168,7 +168,12 @@ const SEARCH_ALIASES: Record<string, string> = {
 const ARTISTS_PER_PAGE = 10;
 const SONGS_PER_PAGE = 10;
 
-const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | null; onLoginClick?: () => void }> = ({ searchQuery = "", userRange, onLoginClick }) => {
+const SongListPage: React.FC<{ 
+  searchQuery?: string; 
+  userRange?: UserRange | null; 
+  onLoginClick?: () => void;
+  onSearchChange?: (query: string) => void;
+}> = ({ searchQuery = "", userRange, onLoginClick, onSearchChange }) => { 
   const { isAuthenticated } = useAuth();
 
   // 検索クエリ
@@ -180,6 +185,9 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
   }, [searchQuery]);
   const handleSearch = () => {
     setActiveQuery(searchInput);
+    if (onSearchChange) {
+      onSearchChange(searchInput);
+    }
   };
 
   // アーティスト一覧
@@ -508,7 +516,9 @@ const SongListPage: React.FC<{ searchQuery?: string; userRange?: UserRange | nul
           className="relative w-full"
           onSubmit={(e) => {
             e.preventDefault(); // エンターキーでのページリロードを防ぐ
-            setActiveQuery(searchInput); // 検索を実行
+            if (onSearchChange) {
+              onSearchChange(searchInput);
+            }
           }}
         >
           <input
