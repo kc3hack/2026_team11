@@ -61,7 +61,7 @@ const KaraokeUploader: React.FC<Props> = ({ onResult }) => {
       const axiosErr = err as { code?: string; message?: string; response?: { data?: { error?: string } } };
       if ( axiosErr?.message?.includes("timeout")) {
         setError(
-          "⏱️ 処理時間が15分を超えたため、タイムアウトしました。音源が長すぎるか、サーバーの負荷が高い可能性があります。もう一度お試しください。"
+          "⏱️ 処理時間が10分を超えたため、タイムアウトしました。音源が長すぎるか、サーバーの負荷が高い可能性があります。もう一度お試しください。"
         );
       } else if (axiosErr?.code === "ECONNABORTED" || axiosErr?.message?.includes("Network Error")) {
         setError(
