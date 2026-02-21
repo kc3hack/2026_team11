@@ -141,11 +141,13 @@ const Recorder: React.FC<Props> = ({ onResult, initialUseDemucs = false }) => {
           const axiosErr = err as { code?: string; message?: string; response?: { data?: { error?: string } } };
           let errorMsg: string;
           if (
-            axiosErr?.code === "ECONNABORTED" ||
             axiosErr?.message?.includes("timeout")
           ) {
             errorMsg =
-              "⏱️ 処理時間が5分を超えたため、タイムアウトしました。録音が長すぎるか、サーバーの負荷が高い可能性があります。もう一度お試しください。";
+              "⏱️ 処理時間が10分を超えたため、タイムアウトしました。録音が長すぎるか、サーバーの負荷が高い可能性があります。もう一度お試しください。";
+          } else if (axiosErr?.code === "ECONNABORTED" || axiosErr?.message?.includes("Network Error")) {
+            errorMsg =
+              "ネットワークエラーが発生しました。サーバーに接続できないか、通信が途中で切断された可能性があります。もう一度お試しください。";
           } else {
             errorMsg =
               axiosErr?.response?.data?.error ||
