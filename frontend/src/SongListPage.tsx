@@ -183,12 +183,6 @@ const SongListPage: React.FC<{
     setActiveQuery(searchQuery);
     setSearchInput(searchQuery);
   }, [searchQuery]);
-  const handleSearch = () => {
-    setActiveQuery(searchInput);
-    if (onSearchChange) {
-      onSearchChange(searchInput);
-    }
-  };
 
   // アーティスト一覧
   const [artists, setArtists] = useState<Artist[]>([]);
