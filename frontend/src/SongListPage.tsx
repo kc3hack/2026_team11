@@ -402,19 +402,56 @@ const SongListPage: React.FC<{
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleIndexJump = (char: string) => {
+  const handleIndexJump = useCallback(async (char: string) => {
     const targetRow = INDEX_KANA.indexOf(char);
-    if (targetRow === -1) return;
-    const index = artists.findIndex(a => getConsonantRow(a.reading || "") >= targetRow);
-    if (index !== -1) {
+    if (targetRow === -1 || totalArtists === 0) return;
+
+    // 1. いま表示中のページに目的の行が含まれていればスクロールだけ
+    const indexInPage = artists.findIndex(a => getConsonantRow(a.reading || "") >= targetRow);
+    if (indexInPage !== -1 && getConsonantRow(artists[indexInPage].reading || "") === targetRow) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      const estimatedOffset = Math.floor((totalArtists / 10) * targetRow);
-      const estimatedPage = Math.floor(estimatedOffset / ARTISTS_PER_PAGE);
-      setArtistPage(Math.min(estimatedPage, totalPages - 1));
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
     }
-  };
+
+    // 2. ページ単位で二分探索し、目的の行を含む最初のページを特定
+    setLoading(true);
+    try {
+      let low = 0;
+      let high = Math.max(totalPages - 1, 0);
+      let found = 0;
+
+      while (low <= high) {
+        const mid = Math.floor((low + high) / 2);
+        const offset = mid * ARTISTS_PER_PAGE;
+        const { artists: page } = await getArtists(ARTISTS_PER_PAGE, offset);
+        if (!page.length) break;
+
+        const firstRow = getConsonantRow(page[0].reading || "");
+        const lastRow = getConsonantRow(page[page.length - 1].reading || "");
+
+        if (targetRow < firstRow) {
+          high = mid - 1;
+          continue;
+        }
+        if (targetRow > lastRow) {
+          low = mid + 1;
+          continue;
+        }
+
+        found = mid;
+        // さらに前方に同じ行がないか確認するため high を縮める
+        high = mid - 1;
+      }
+
+      setArtistPage(found);
+      setPageInput((found + 1).toString());
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      console.error('Index jump failed', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [artists, totalArtists, totalPages]);
 
   // アーティスト別曲一覧表示
   if (selectedArtist) {
