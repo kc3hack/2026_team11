@@ -51,7 +51,7 @@ const Header: React.FC<HeaderProps> = ({
                     声域分析
                 </button>
                 <button type="button" onClick={() => navigate("/songs")} className={navClass(isActive(["/songs"]))}>
-                    楽曲一覧
+                    アーティスト一覧
                 </button>
                 <button type="button" onClick={() => navigate("/favorites")} className={navClass(isActive(["/favorites"]))}>
                     お気に入り
