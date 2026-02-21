@@ -35,7 +35,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ currentPath, isAuthenticated = fa
           className={`flex-1 flex flex-col items-center justify-end h-full py-1 ${getItemClass("/songs")}`}
         >
           <MusicalNoteIcon className="w-6 h-6 mb-1" />
-          <span className="text-[10px] font-medium">楽曲一覧</span>
+          <span className="text-[10px] font-medium">アーティスト</span>
         </button>
 
         {/* 2. お気に入り */}

@@ -168,12 +168,12 @@ const SEARCH_ALIASES: Record<string, string> = {
 const ARTISTS_PER_PAGE = 10;
 const SONGS_PER_PAGE = 10;
 
-const SongListPage: React.FC<{ 
-  searchQuery?: string; 
-  userRange?: UserRange | null; 
+const SongListPage: React.FC<{
+  searchQuery?: string;
+  userRange?: UserRange | null;
   onLoginClick?: () => void;
   onSearchChange?: (query: string) => void;
-}> = ({ searchQuery = "", userRange, onLoginClick, onSearchChange }) => { 
+}> = ({ searchQuery = "", userRange, onLoginClick, onSearchChange }) => {
   const { isAuthenticated } = useAuth();
 
   // 検索クエリ
@@ -460,17 +460,19 @@ const SongListPage: React.FC<{
         <div className="w-full max-w-5xl mb-6">
           <button
             onClick={() => setSelectedArtist(null)}
-            className="text-slate-400 hover:text-cyan-400 font-bold flex items-center gap-2 transition-colors mb-4"
+            className="text-slate-500 hover:text-cyan-400 font-bold flex items-center gap-2 transition-all duration-300 mb-6 drop-shadow-[0_0_5px_rgba(34,211,238,0)] hover:drop-shadow-[0_0_8px_rgba(34,211,238,0.5)]"
           >
             &larr; アーティスト一覧に戻る
           </button>
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-lg ring-2 ring-white/10">
+          <div className="flex items-center gap-6">
+            <div className="relative w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center text-cyan-400 text-2xl font-bold border-2 border-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.6)]">
               {selectedArtist.name.charAt(0)}
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-white drop-shadow-md">{selectedArtist.name}</h1>
-              <p className="text-sm text-slate-400">{artistSongs.length}\u66f2</p>
+              <h1 className="text-3xl sm:text-4xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.3)] tracking-wider">
+                {selectedArtist.name}
+              </h1>
+              <p className="text-sm text-cyan-400 mt-1 font-bold tracking-widest">{artistSongs.length}{'\u66f2'}</p>
             </div>
           </div>
         </div>
@@ -493,7 +495,7 @@ const SongListPage: React.FC<{
               </thead>
               <tbody>
                 {artistSongs.map((song, i) => (
-                  <tr key={song.id} className="border-b border-white/5 hover:bg-white/5 transition-colors text-sm group">
+                  <tr key={song.id} className="border-b border-cyan-500/10 hover:bg-cyan-900/20 transition-all duration-300 text-sm group">
                     <td className="py-3 px-5 text-slate-500 text-xs">{i + 1}</td>
                     <td className="py-3 px-4 font-medium">
                       <a
@@ -542,9 +544,9 @@ const SongListPage: React.FC<{
 
   return (
     <div className="flex flex-col items-center min-h-[calc(100vh-80px)] bg-transparent p-4 sm:p-8">
-      <div className="w-full max-w-3xl flex flex-col mb-4 gap-4">
-        <form 
-          className="relative w-full"
+      <div className="w-full max-w-3xl flex flex-col mb-4 gap-6">
+        <form
+          className="relative w-full group"
           onSubmit={(e) => {
             e.preventDefault(); // エンターキーでのページリロードを防ぐ
             if (onSearchChange) {
@@ -557,10 +559,10 @@ const SongListPage: React.FC<{
             placeholder="楽曲名・アーティスト名で検索..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="w-full pl-10 pr-10 py-3 bg-slate-900/60 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 placeholder-slate-500 shadow-inner transition-all"
+            className="w-full pl-10 pr-10 py-3 bg-slate-900/40 backdrop-blur-md border border-cyan-500/30 rounded-lg text-slate-200 focus:outline-none focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 focus:shadow-[0_0_15px_rgba(34,211,238,0.6)] placeholder-slate-500 transition-all duration-300"
           />
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-          
+          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-cyan-400 transition-colors" />
+
           {/* クリアボタン (入力がある時のみ表示) */}
           {searchInput && (
             <button
@@ -572,7 +574,7 @@ const SongListPage: React.FC<{
                   onSearchChange('');
                 }
               }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-200 transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-cyan-400 hover:drop-shadow-[0_0_5px_rgba(34,211,238,0.8)] transition-all"
             >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -582,10 +584,10 @@ const SongListPage: React.FC<{
         </form>
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 drop-shadow-md">
-              {activeQuery ? '楽曲検索結果' : 'アーティスト一覧'}
+            <h1 className="text-3xl sm:text-4xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-400 mb-2 drop-shadow-[0_0_10px_rgba(34,211,238,0.3)] tracking-wider">
+              {activeQuery ? '楽曲検索結果' : 'ARTISTS'}
             </h1>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-400 font-bold tracking-wide">
               {activeQuery
                 ? `"${activeQuery}" の検索結果`
                 : (userRange ? "音域に合わせたキーおすすめを表示中" : "録音すると、キーおすすめが表示されます")
@@ -593,12 +595,12 @@ const SongListPage: React.FC<{
             </p>
           </div>
           {!activeQuery && (
-            <div className="flex flex-wrap gap-1 justify-end">
+            <div className="flex flex-wrap gap-2 justify-end">
               {INDEX_KANA.map(char => (
                 <button
                   key={char}
                   onClick={() => handleIndexJump(char)}
-                  className="w-8 h-8 flex items-center justify-center text-sm font-bold text-slate-400 bg-slate-800/60 border border-slate-700/50 rounded hover:bg-cyan-900/30 hover:text-cyan-400 hover:border-cyan-500/30 transition-colors shadow-sm"
+                  className="w-8 h-8 flex items-center justify-center text-sm font-bold text-slate-400 bg-slate-900/60 border border-cyan-900/50 rounded-sm hover:bg-cyan-900/40 hover:text-cyan-300 hover:border-cyan-400 hover:shadow-[0_0_10px_rgba(34,211,238,0.6)] transition-all duration-300"
                 >
                   {char}
                 </button>
@@ -634,7 +636,7 @@ const SongListPage: React.FC<{
                 </thead>
                 <tbody>
                   {searchSongs.map((song, i) => (
-                    <tr key={song.id} className="border-b border-white/5 hover:bg-white/5 transition-colors text-sm group">
+                    <tr key={song.id} className="border-b border-cyan-500/10 hover:bg-cyan-900/20 transition-all duration-300 text-sm group">
                       <td className="py-3 px-5 text-slate-500 text-xs">{searchPage * SONGS_PER_PAGE + i + 1}</td>
                       <td className="py-3 px-4 font-medium">
                         <a
@@ -715,30 +717,31 @@ const SongListPage: React.FC<{
         <>
           {loading && <p className="mt-6 text-slate-500">{'読み込み中...'}</p>}
 
-          <div className="w-full max-w-3xl bg-slate-900/60 backdrop-blur-md rounded-xl shadow-xl border border-white/10 overflow-hidden">
+          <div className="w-full max-w-3xl bg-slate-900/60 backdrop-blur-md rounded-xl shadow-[0_0_20px_rgba(0,0,0,0.5)] border border-cyan-500/20 overflow-hidden">
             {artists.map((artist) => (
-              <div key={artist.id} className="flex items-center w-full border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors">
+              <div key={artist.id} className="group relative flex items-center w-full border-b border-cyan-500/10 last:border-0 hover:bg-cyan-900/20 transition-all duration-300">
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyan-400 opacity-0 group-hover:opacity-100 shadow-[0_0_10px_rgba(34,211,238,1)] transition-opacity duration-300"></div>
                 <button
                   onClick={() => handleSelectArtist(artist)}
-                  className="flex-1 flex items-center justify-between p-4 text-left group"
+                  className="flex-1 flex items-center justify-between p-4 pl-6 text-left"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm ring-1 ring-white/10">
+                    <div className="relative w-10 h-10 bg-slate-900 rounded-full flex items-center justify-center text-cyan-400 font-bold text-sm border-2 border-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.5)] group-hover:shadow-[0_0_15px_rgba(34,211,238,0.8)] transition-all duration-300">
                       {artist.name.charAt(0)}
                     </div>
-                    <p className="font-bold text-slate-200 group-hover:text-cyan-400 transition-colors">{artist.name}</p>
+                    <p className="font-bold text-slate-200 group-hover:text-cyan-400 transition-colors drop-shadow-[0_0_5px_rgba(34,211,238,0)] group-hover:drop-shadow-[0_0_5px_rgba(34,211,238,0.5)]">{artist.name}</p>
                   </div>
-                  <span className="text-xs text-slate-500 bg-slate-800 px-2 py-1 rounded-full border border-slate-700">{artist.song_count}{'\u66f2'}</span>
+                  <span className="text-xs text-cyan-400 bg-slate-900/80 px-3 py-1 rounded-sm border border-cyan-500/30 shadow-[0_0_5px_rgba(34,211,238,0.2)]">{artist.song_count}{'\u66f2'}</span>
                 </button>
 
                 <button
                   onClick={(e) => toggleFavorite(e, artist.id, artist.name)}
-                  className="p-4 transition-transform hover:scale-125"
+                  className="p-4 pr-6 transition-transform hover:scale-125 z-10"
                 >
                   {favoriteIds.includes(artist.id) ? (
-                    <StarSolid className="w-6 h-6 text-amber-400" />
+                    <StarSolid className="w-6 h-6 text-amber-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.8)]" />
                   ) : (
-                    <StarOutline className="w-6 h-6 text-slate-600" />
+                    <StarOutline className="w-6 h-6 text-slate-500 hover:text-cyan-400 transition-colors" />
                   )}
                 </button>
               </div>
