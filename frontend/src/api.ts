@@ -1,7 +1,7 @@
 import axios from "axios";
 import { supabase } from "./supabaseClient";
 
-const TIMEOUT_MS = 300000; // 5分
+const TIMEOUT_MS = 900000; // 15分
 
 // 本番環境では /api を使用、開発環境では localhost:8000 を使用
 const API = axios.create({
