@@ -531,6 +531,9 @@ const SongListPage: React.FC<{
               onClick={() => {
                 setSearchInput('');
                 setActiveQuery('');
+                if (onSearchChange) {
+                  onSearchChange('');
+                }
               }}
               className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-200 transition-colors"
             >
