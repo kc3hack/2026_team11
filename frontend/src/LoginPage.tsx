@@ -8,7 +8,7 @@ const LoginPage: React.FC = () => {
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] bg-transparent p-8">
       <div className="w-full max-w-sm bg-slate-900/60 backdrop-blur-md rounded-2xl shadow-xl border border-white/10 p-8 text-center">
         <h1 className="text-2xl font-bold text-white mb-2">
-          ピッチスカウト
+          PitchScout
         </h1>
         <p className="text-slate-400 text-sm mb-8">
           ログインして声域分析の履歴やお気に入りを保存しよう
