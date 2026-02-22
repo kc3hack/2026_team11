@@ -36,7 +36,7 @@ const Header: React.FC<HeaderProps> = ({
         <header className="hidden md:flex items-center justify-between px-8 py-4 bg-slate-900/80 backdrop-blur-md border-b border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.15)] sticky top-0 z-50">
             <div className="flex items-center gap-4 cursor-pointer group" onClick={() => navigate("/")}>
                 <img src={logo} alt="App Logo" className="w-10 h-10 rounded-lg shadow-lg object-cover ring-2 ring-cyan-500/50 group-hover:ring-cyan-400 transition-all" />
-                <h1 className="text-2xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-yellow-400 drop-shadow-[0_0_8px_rgba(255,255,255,0.2)] group-hover:drop-shadow-[0_0_12px_rgba(255,255,255,0.5)] tracking-wider transition-all">PitchScout</h1>
+                <h1 className="text-2xl font-black italic text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.2)] group-hover:drop-shadow-[0_0_12px_rgba(255,255,255,0.5)] group-hover:text-cyan-400 tracking-wider transition-all">PitchScout</h1>
             </div>
 
             {/* Navigation */}
