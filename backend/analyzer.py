@@ -15,6 +15,8 @@ from config import (
     GRADUATED_CONF_FAR, GRADUATED_CONF_MID, GRADUATED_CONF_NEAR,
     UNREALISTIC_LOWER_OCT, UNREALISTIC_UPPER_OCT,
     MIN_SUSTAIN_FRAMES,
+    FALSETTO_MIN_CONSECUTIVE, FALSETTO_MIN_RATIO, FALSETTO_RMS_RATIO,
+    FALSETTO_RESCUE_SEMITONES,
 )
 
 
@@ -393,6 +395,126 @@ def _filter_frames(f0_np: np.ndarray, conf_np: np.ndarray) -> dict:
     }
 
 
+# ============================================================
+# filter_falsetto_noise
+# demucs残留楽器による偽裏声を3段階で除去
+# ============================================================
+def filter_falsetto_consecutive(falsetto_data, min_consecutive):
+    """
+    フィルタ1: 連続フレーム要件
+    時間的に連続しない孤立裏声フレームを除去。
+    残留楽器は散発的、本当の裏声は連続する。
+
+    Args:
+        falsetto_data: list of (array_index, freq, rms)
+        min_consecutive: 最小連続フレーム数
+    Returns:
+        フィルタ後のfalsetto_data
+    """
+    if len(falsetto_data) < min_consecutive:
+        return []
+
+    # array_indexでソートしてグループ化
+    sorted_data = sorted(falsetto_data, key=lambda x: x[0])
+    groups = []
+    current_group = [sorted_data[0]]
+
+    for item in sorted_data[1:]:
+        # 前のフレームとの間隔が2以下なら連続とみなす
+        # (途中にunknown判定が1つ挟まるケースを許容)
+        if item[0] - current_group[-1][0] <= 2:
+            current_group.append(item)
+        else:
+            groups.append(current_group)
+            current_group = [item]
+    groups.append(current_group)
+
+    # min_consecutive以上のグループのみ残す
+    result = []
+    removed = 0
+    for g in groups:
+        if len(g) >= min_consecutive:
+            result.extend(g)
+        else:
+            removed += len(g)
+
+    if removed > 0:
+        print(f"[FILTER] 連続フレームフィルタ: {removed}フレーム除外 "
+              f"(連続{min_consecutive}未満のグループ除去, 残{len(result)}フレーム)")
+    return result
+
+
+def filter_falsetto_rms(falsetto_data, chest_rms_values, rms_ratio):
+    """
+    フィルタ2: RMSパワーフィルタ
+    地声の中央RMSと比べて極端に小さい裏声フレームを除去。
+    残留楽器はボーカルより音量が小さい。
+
+    Args:
+        falsetto_data: list of (array_index, freq, rms)
+        chest_rms_values: list of float (地声フレームのRMS値)
+        rms_ratio: 閾値比率
+    Returns:
+        フィルタ後のfalsetto_data
+    """
+    if not falsetto_data or not chest_rms_values:
+        return falsetto_data
+
+    chest_rms_median = float(np.median(chest_rms_values))
+    rms_threshold = chest_rms_median * rms_ratio
+
+    result = [item for item in falsetto_data if item[2] >= rms_threshold]
+    removed = len(falsetto_data) - len(result)
+
+    if removed > 0:
+        print(f"[FILTER] RMSパワーフィルタ: {removed}フレーム除外 "
+              f"(地声RMS中央={chest_rms_median:.4f}, 閾値={rms_threshold:.4f}, 残{len(result)}フレーム)")
+    return result
+
+
+def filter_falsetto_min_ratio(falsetto_notes, chest_notes, min_ratio):
+    """
+    フィルタ3: 最小比率フィルタ
+    裏声が全体の一定割合未満なら、全て地声に再分類。
+    裏声を本当に使う曲なら一定割合を超えるはず。
+
+    Args:
+        falsetto_notes: list of float (周波数)
+        chest_notes: list of float (周波数)
+        min_ratio: 最小裏声比率 (0.0-1.0)
+    Returns:
+        (chest_notes, falsetto_notes) のタプル
+    """
+    total = len(chest_notes) + len(falsetto_notes)
+    if total == 0 or not falsetto_notes:
+        return chest_notes, falsetto_notes
+
+    actual_ratio = len(falsetto_notes) / total
+    if actual_ratio < min_ratio:
+        # 裏声が少なすぎる → ノイズの可能性が高い
+        # ただし地声の分布に近いフレームは高音の地声が誤判定された可能性がある
+        # → 地声P97から一定範囲内なら地声に戻し、遠いものだけ捨てる
+        if chest_notes:
+            chest_arr = np.array(chest_notes)
+            chest_p97 = float(np.percentile(chest_arr, 97))
+            # P97 + 4半音以内 → 地声に戻す（高音の地声が裏声誤判定されたケース）
+            # P97 + 4半音超え → ノイズとして除外（残留楽器）
+            rescue_threshold = chest_p97 * (2 ** (FALSETTO_RESCUE_SEMITONES / 12))
+            rescued = [f for f in falsetto_notes if f <= rescue_threshold]
+            discarded = [f for f in falsetto_notes if f > rescue_threshold]
+            chest_notes = chest_notes + rescued
+            print(f"[FILTER] 最小比率フィルタ: 裏声{len(falsetto_notes)}フレーム "
+                  f"({actual_ratio*100:.1f}% < {min_ratio*100:.0f}%) "
+                  f"→ {len(rescued)}フレーム地声に復帰 (P97={chest_p97:.1f}Hz, 上限={rescue_threshold:.1f}Hz), "
+                  f"{len(discarded)}フレームをノイズ除外")
+        else:
+            print(f"[FILTER] 最小比率フィルタ: 裏声{len(falsetto_notes)}フレーム "
+                  f"({actual_ratio*100:.1f}% < {min_ratio*100:.0f}%) → ノイズとして除外")
+        falsetto_notes = []
+
+    return chest_notes, falsetto_notes
+
+
 def _classify_frames(filtered: dict, y_16k: np.ndarray, sr_crepe: int,
                      hop_length: int, no_falsetto: bool,
                      already_separated: bool) -> tuple:
@@ -422,7 +544,8 @@ def _classify_frames(filtered: dict, y_16k: np.ndarray, sr_crepe: int,
 
     # === 通常モード: レジスター判定 ===
     chest_notes    = []
-    falsetto_notes = []
+    falsetto_data  = []   # (array_index, freq, rms) - フィルタ用に追加情報を保持
+    chest_rms      = []   # 地声フレームのRMS値（RMSフィルタ用）
     frame_len      = 2048
     total_frames   = len(f0_reg_fixed)
     progress_interval = max(1, total_frames // 10)
@@ -433,7 +556,8 @@ def _classify_frames(filtered: dict, y_16k: np.ndarray, sr_crepe: int,
     for i in range(total_frames):
         if i % progress_interval == 0 and i > 0:
             progress = (i / total_frames) * 100
-            print(f"[INFO] 進捗: {progress:.0f}% ({i}/{total_frames}) - 地声:{len(chest_notes)} 裏声:{len(falsetto_notes)}")
+            n_falsetto_so_far = len(falsetto_data)
+            print(f"[INFO] 進捗: {progress:.0f}% ({i}/{total_frames}) - 地声:{len(chest_notes)} 裏声:{n_falsetto_so_far}")
         freq = f0_reg_fixed[i]
         if not (VOICE_MIN_HZ <= freq <= VOICE_MAX_HZ):
             continue
@@ -457,6 +581,8 @@ def _classify_frames(filtered: dict, y_16k: np.ndarray, sr_crepe: int,
         frame     = y_16k[start:end]
         if len(frame) < 512:
             continue
+        # フレームのRMSを計算（RMSフィルタ用、計算コスト小）
+        frame_rms = float(np.sqrt(np.mean(frame ** 2)))
         try:
             reg = classify_register(
                 frame,
@@ -468,9 +594,10 @@ def _classify_frames(filtered: dict, y_16k: np.ndarray, sr_crepe: int,
                 stats=stats,
             )
             if reg == "falsetto":
-                falsetto_notes.append(freq)
+                falsetto_data.append((i, freq, frame_rms))
             elif reg == "chest":
                 chest_notes.append(freq)
+                chest_rms.append(frame_rms)
             # reg == "unknown" はスキップ（無声音・異常データ）
         except Exception:
             continue
@@ -479,6 +606,32 @@ def _classify_frames(filtered: dict, y_16k: np.ndarray, sr_crepe: int,
 
     if graduated_conf_filtered > 0:
         print(f"[DEBUG] 段階的信頼度フィルタ: {graduated_conf_filtered}フレーム除外")
+
+    # === 裏声ノイズフィルタ（demucs残留楽器対策） ===
+    # フィルタ前のカウントを記録
+    falsetto_before_filter = len(falsetto_data)
+    print(f"[DEBUG] 裏声ノイズフィルタ開始: 裏声={falsetto_before_filter}フレーム")
+
+    if falsetto_data:
+        # フィルタ1: 連続フレーム要件 - 孤立した裏声はノイズ
+        falsetto_data = filter_falsetto_consecutive(
+            falsetto_data, FALSETTO_MIN_CONSECUTIVE)
+
+        # フィルタ2: RMSパワー - 残留楽器はボーカルより音量が小さい
+        falsetto_data = filter_falsetto_rms(
+            falsetto_data, chest_rms, FALSETTO_RMS_RATIO)
+
+    # falsetto_data → falsetto_notes に変換（周波数リストに戻す）
+    falsetto_notes = [item[1] for item in falsetto_data]
+
+    # フィルタ3: 最小比率 - 裏声が少なすぎれば全て地声に再分類
+    chest_notes, falsetto_notes = filter_falsetto_min_ratio(
+        falsetto_notes, chest_notes, FALSETTO_MIN_RATIO)
+
+    falsetto_after_filter = len(falsetto_notes)
+    if falsetto_before_filter != falsetto_after_filter:
+        print(f"[DEBUG] 裏声ノイズフィルタ完了: {falsetto_before_filter} → {falsetto_after_filter}フレーム "
+              f"({falsetto_before_filter - falsetto_after_filter}フレーム除外)")
 
     # 裏声表示フィルタ: 330Hz未満の「裏声」は息混じり地声の可能性が高い
     falsetto_orig  = list(falsetto_notes)
