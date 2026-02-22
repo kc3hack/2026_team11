@@ -17,6 +17,14 @@ export const LogoSplash: React.FC<LogoSplashProps> = ({ onAnimationEnd }) => {
     setIsVisible(false);
   };
 
+  // フォールバック: onAnimationEndが発火しない場合に備え、5秒後に強制終了
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsVisible(false);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, []);
+
   useEffect(() => {
     if (!isVisible) {
       onAnimationEnd();
