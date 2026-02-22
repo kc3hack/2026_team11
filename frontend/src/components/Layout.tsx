@@ -1,5 +1,6 @@
-import React, { Suspense } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { ChevronUpIcon } from "@heroicons/react/24/solid";
 import Header from "./Header";
 import BottomNav from "./BottomNav";
 import { useAppContext } from "../contexts/AppContext";
@@ -16,6 +17,13 @@ const Layout: React.FC = () => {
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setShowScrollTop(window.scrollY > 300);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -45,6 +53,20 @@ const Layout: React.FC = () => {
         <Suspense fallback={<LoadingFallback />}>
           <Outlet />
         </Suspense>
+
+        {showScrollTop && (
+          <button
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            className="fixed bottom-20 right-4 md:bottom-8 z-50 w-10 h-10
+              bg-slate-900/80 backdrop-blur border border-cyan-500/40 rounded-full
+              flex items-center justify-center text-cyan-400
+              shadow-[0_0_12px_rgba(34,211,238,0.4)]
+              active:scale-90 transition-all"
+            aria-label="ページ先頭に戻る"
+          >
+            <ChevronUpIcon className="w-5 h-5" />
+          </button>
+        )}
 
         <BottomNav
           currentPath={location.pathname}
