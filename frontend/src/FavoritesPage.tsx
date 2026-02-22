@@ -56,8 +56,8 @@ const FavoritesPage: React.FC<FavoritesPageProps> = ({ onLoginClick }) => {
         return (
             <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] bg-transparent p-8">
                 <div className="w-full max-w-sm bg-slate-900/60 backdrop-blur-md rounded-2xl shadow-xl border border-white/10 p-8 text-center">
-                    <HeartIconSolid className="w-12 h-12 text-rose-500/50 mx-auto mb-4" />
-                    <h2 className="text-xl font-bold text-white mb-2">お気に入り</h2>
+                    <HeartIconSolid className="w-12 h-12 text-pink-500/50 mx-auto mb-4 drop-shadow-[0_0_8px_rgba(236,72,153,0.5)]" />
+                    <h2 className="text-xl font-bold text-white mb-2 tracking-widest drop-shadow-md">お気に入り</h2>
                     <p className="text-slate-400 text-sm mb-6">
                         ログインするとお気に入りの楽曲を保存できます
                     </p>
@@ -86,8 +86,8 @@ const FavoritesPage: React.FC<FavoritesPageProps> = ({ onLoginClick }) => {
         return (
             <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] bg-transparent p-8">
                 <div className="text-center">
-                    <HeartIconSolid className="w-12 h-12 text-slate-700 mx-auto mb-4" />
-                    <h2 className="text-xl font-bold text-white mb-2">お気に入りはまだありません</h2>
+                    <HeartIconSolid className="w-12 h-12 text-pink-500/30 mx-auto mb-4 drop-shadow-[0_0_8px_rgba(236,72,153,0.3)]" />
+                    <h2 className="text-xl font-bold text-white mb-2 tracking-widest drop-shadow-md">お気に入りはまだありません</h2>
                     <p className="text-slate-400 text-sm">
                         楽曲一覧でハートをタップして追加しましょう
                     </p>
@@ -99,16 +99,20 @@ const FavoritesPage: React.FC<FavoritesPageProps> = ({ onLoginClick }) => {
     // お気に入り一覧
     return (
         <div className="flex flex-col items-center min-h-[calc(100vh-80px)] bg-transparent p-4 sm:p-8">
-            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 drop-shadow-md">お気に入り</h1>
-            <p className="text-sm text-slate-400 mb-6">{favorites.length}曲</p>
+            <div className="w-full max-w-5xl mb-6">
+                <h1 className="text-3xl sm:text-4xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-yellow-400 drop-shadow-[0_0_15px_rgba(255,255,255,0.3)] tracking-wider">
+                    FAVORITES
+                </h1>
+                <p className="text-sm text-cyan-400 mt-1 font-bold tracking-widest drop-shadow-sm">{favorites.length} 曲</p>
+            </div>
 
-            <div className="w-full max-w-5xl bg-slate-900/60 backdrop-blur-md shadow-xl rounded-xl overflow-hidden border border-white/10">
-                <table className="w-full text-left">
+            <div className="w-full max-w-5xl bg-slate-900/40 backdrop-blur-xl shadow-[0_0_20px_rgba(236,72,153,0.1)] rounded-xl overflow-hidden border border-pink-500/20">
+                <table className="w-full text-left relative">
                     <thead>
                         <tr className="bg-slate-800/50 text-xs text-slate-400 uppercase border-b border-white/5">
                             <th className="py-3 px-5 font-medium">#</th>
-                            <th className="py-3 px-4 font-medium">Title</th>
-                            <th className="py-3 px-4 font-medium">Artist</th>
+                            <th className="py-3 px-4 font-medium">楽曲</th>
+                            <th className="py-3 px-4 font-medium">アーティスト</th>
                             <th className="py-3 px-4 font-medium hidden sm:table-cell">Lowest</th>
                             <th className="py-3 px-4 font-medium hidden sm:table-cell">Highest</th>
                             <th className="py-3 px-4 font-medium hidden sm:table-cell">Falsetto</th>
@@ -128,9 +132,9 @@ const FavoritesPage: React.FC<FavoritesPageProps> = ({ onLoginClick }) => {
                                     <button
                                         onClick={() => handleRemove(fav.song_id)}
                                         disabled={removingIds.has(fav.song_id)}
-                                        className="p-1 rounded-full hover:bg-white/10 transition-colors disabled:opacity-50"
+                                        className="p-2 rounded-full hover:bg-pink-500/10 transition-all duration-300 disabled:opacity-50 group/btn"
                                     >
-                                        <HeartIconSolid className="w-5 h-5 text-rose-500" />
+                                        <HeartIconSolid className="w-5 h-5 text-pink-500 drop-shadow-[0_0_10px_rgba(236,72,153,0.8)] group-hover/btn:drop-shadow-[0_0_18px_rgba(236,72,153,1)] group-hover/btn:scale-110 transition-all duration-300" />
                                     </button>
                                 </td>
                             </tr>
