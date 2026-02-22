@@ -1,23 +1,6 @@
 """
 register_classifier.py  —  地声 / 裏声 判定
 
-【判定方式】
-  1. MLモデルが存在する場合 → モデルで推論（6特徴量）
-  2. MLモデルがない場合     → ルールベース判定（従来方式）
-
-  MLモデルの学習方法:
-    python labeler.py add chest chest_voice.wav
-    python labeler.py add falsetto falsetto_voice.wav
-    python train_classifier.py
-    → models/register_model.joblib が生成される
-
-【ルールベース使用する指標】
-  1. H1-H2差（地声即決 + スコア）
-  2. hcount（有効倍音本数）
-  3. 倍音減衰スロープ
-  4. HNR（調波対雑音比）
-  5. スペクトル重心/f0
-  6. 音域補正（補助のみ）
 """
 
 import os
@@ -62,7 +45,6 @@ def _load_model_if_needed():
 
     if not os.path.exists(_MODEL_PATH):
         if _ML_MODEL is not None:
-            print(f"[INFO] MLモデルが削除されました（ルールベースに切替）")
             _ML_MODEL = None
             _MODEL_MTIME = 0.0
         return
@@ -75,9 +57,9 @@ def _load_model_if_needed():
         import joblib
         _ML_MODEL = joblib.load(_MODEL_PATH)
         _MODEL_MTIME = current_mtime
-        print(f"[INFO] MLモデルをロード: {_MODEL_PATH}")
+        print(_MODEL_PATH)
     except Exception as e:
-        print(f"[WARN] MLモデルのロードに失敗（ルールベースで動作）: {e}")
+        print( e)
         _ML_MODEL = None
 
 
@@ -119,7 +101,6 @@ def _classify_ml(y: np.ndarray, sr: int, f0: float,
         label = "chest" if pred == 0 else "falsetto"
         confidence = float(proba[pred])
 
-        # 信頼度が低い場合はルールベースにフォールバック
         # 遷移帯域（<500Hz）では地声/裏声の音響特徴が類似するため高い信頼度を要求
         if f0 < 500:
             threshold = ML_CONF_THRESHOLD_LOW_F0
@@ -138,7 +119,7 @@ def _classify_ml(y: np.ndarray, sr: int, f0: float,
         if confidence < threshold:
             stats.ml_fallback += 1
             if REGISTER_LOG_LEVEL >= 3 or (REGISTER_LOG_LEVEL == 2 and stats.log_counter % REGISTER_LOG_INTERVAL == 0):
-                print(f"[REGISTER/ML→RULE] f0={f0:.0f}Hz ML={label}({confidence:.3f}) < thresh={threshold:.2f} → ルールベースへ")
+                print(f"[REGISTER/ML→RULE] f0={f0:.0f}Hz ML={label}({confidence:.3f}) < thresh={threshold:.2f} ")
             return None
 
         stats.ml_success += 1
@@ -154,13 +135,9 @@ def _classify_ml(y: np.ndarray, sr: int, f0: float,
         return None
 
 
-# ============================================================
-# ルールベース判定（フォールバック）
-# ============================================================
 def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float,
                     stats: RegisterStats,
                     crepe_conf: float = 1.0) -> str:
-    """従来のルールベース判定"""
     # FFT
     n_fft    = 8192
     win      = np.hanning(len(y))
@@ -283,7 +260,6 @@ def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float,
         return "chest"
 
     falsetto_ratio = falsetto_score / total
-    print(f"[DEBUG] ルールベース: chest_score={chest_score:.1f} falsetto_score={falsetto_score:.1f} falsetto_ratio={falsetto_ratio:.2f}")
     # 高音域では裏声判定の閾値を下げる
     # demucs分離後はhcount(倍音数)やslope(減衰)が常に地声寄りになるため、
     # 音響特徴だけでは裏声を検出しづらい。f0が高いこと自体が裏声の強い証拠。
@@ -326,8 +302,6 @@ def classify_register(y: np.ndarray, sr: int, f0: float, median_freq: float = 0,
 
     1. crepe_conf < CREPE_NOISE_GATE → unknown（ノイズゲート）
     2. f0 < FALSETTO_HARD_MIN_HZ → 地声確定
-    3. MLモデルがあればMLで判定
-    4. MLがないか低信頼度ならルールベースにフォールバック
     """
     global _ML_STATUS_LOGGED
 
@@ -335,13 +309,11 @@ def classify_register(y: np.ndarray, sr: int, f0: float, median_freq: float = 0,
     if not _ML_STATUS_LOGGED:
         _load_model_if_needed()
         if _ML_MODEL is not None and extract_features is not None:
-            print(f"[INFO] 🎯 MLモデル使用中 (from {_MODEL_PATH})")
+            print(_MODEL_PATH)
         else:
             if not os.path.exists(_MODEL_PATH):
-                print(f"[INFO] MLモデル: ファイルなし ({_MODEL_PATH})")
-            else:
-                print(f"[INFO] MLモデル: ロード失敗または特徴抽出器なし")
-            print(f"[INFO] ルールベース判定を使用します")
+                print(_MODEL_PATH)
+                
         _ML_STATUS_LOGGED = True
 
     if f0 <= 0 or len(y) < 512:
@@ -361,7 +333,7 @@ def classify_register(y: np.ndarray, sr: int, f0: float, median_freq: float = 0,
         local_stats.log_counter += 1
         return ml_result
 
-    # フォールバック: ルールベース（crepe_confを伝搬）
+
     local_stats.log_counter += 1
     return _classify_rules(y, sr, f0, median_freq, local_stats, crepe_conf=crepe_conf)
 
