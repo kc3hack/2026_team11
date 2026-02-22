@@ -39,7 +39,7 @@ GRADUATED_CONF_NEAR = 0.35   # その他
 # === レジスター判定 (register_classifier.py) ===
 FALSETTO_HARD_MIN_HZ = 270.0       # これ以下は地声確定
 ML_CONF_THRESHOLD_LOW_F0 = 0.75    # f0 < 500Hz (遷移帯域)
-ML_CONF_THRESHOLD_HIGH = 0.70      # f0 >= 500Hz
+ML_CONF_THRESHOLD_HIGH = 0.75      # f0 >= 500Hz
 ML_CONF_THRESHOLD_NOISY = 0.80     # CREPE信頼度低 + 高f0
 ML_CONF_CHEST_HIGH_F0 = 0.85       # 地声 + f0 >= 400Hz
 CREPE_NOISE_GATE = 0.35            # ピッチ推定ノイズゲート
@@ -55,6 +55,16 @@ MIN_SUSTAIN_FRAMES = 3          # 最高音として認定する最小フレー�
 FALSETTO_RATIO_HIGH = 0.42    # f0 > 500Hz
 FALSETTO_RATIO_MID = 0.48     # f0 > 400Hz
 FALSETTO_RATIO_DEFAULT = 0.58 # その他
+
+# === 裏声ノイズフィルタ（demucs残留楽器対策） ===
+# フィルタ1: 連続フレーム要件 - 孤立した裏声フレームはノイズ
+FALSETTO_MIN_CONSECUTIVE = 5     # 連続5フレーム未満の裏声群は除外
+# フィルタ2: 最小比率 - 裏声が少なすぎる場合は全て地声に再分類
+FALSETTO_MIN_RATIO = 0.05        # 裏声が全体の5%未満なら全て地声扱い
+# フィルタ3: RMSパワー - 残留楽器はボーカルより音量が小さい
+FALSETTO_RMS_RATIO = 0.15        # 地声RMS中央値の15%未満の裏声フレームは除外
+# フィルタ3-b: 最小比率フィルタで除外する際、地声P97から何半音以内なら地声に戻すか
+FALSETTO_RESCUE_SEMITONES = 4    # P97+4半音以内は高音地声として救済
 
 # === ログ制御 ===
 import os
