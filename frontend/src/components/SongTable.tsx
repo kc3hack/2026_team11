@@ -46,7 +46,7 @@ const SongTable: React.FC<SongTableProps> = ({
         <thead>
           <tr className="bg-slate-800/50 text-xs text-slate-400 uppercase border-b border-white/5">
             <th className="py-3 px-5 font-medium">#</th>
-            <th className="py-3 px-4 font-medium">{showArtistColumn ? '楽曲' : 'Title'}</th>
+            <th className="py-3 px-4 font-medium">楽曲</th>
             {showArtistColumn && <th className="py-3 px-4 font-medium">アーティスト</th>}
             <th className="py-3 px-4 font-medium">Lowest</th>
             <th className="py-3 px-4 font-medium">Highest</th>
