@@ -238,10 +238,8 @@ const SongListPage: React.FC<{
       onLoginClick?.();
       return;
     }
-
-    let wasFavorite = false;
+    const wasFavorite = favoriteSongIds.has(songId);
     setFavoriteSongIds(prev => {
-      wasFavorite = prev.has(songId);
       const next = new Set(prev);
       wasFavorite ? next.delete(songId) : next.add(songId);
       return next;
@@ -268,7 +266,7 @@ const SongListPage: React.FC<{
         return next;
       });
     }
-  }, [isAuthenticated, onLoginClick]);
+  }, [isAuthenticated, onLoginClick, favoriteSongIds]);
 
   const totalSearchPages = Math.ceil(totalSearchSongs / SONGS_PER_PAGE);
 
