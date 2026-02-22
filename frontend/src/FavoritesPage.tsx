@@ -109,25 +109,26 @@ const FavoritesPage: React.FC<FavoritesPageProps> = ({ onLoginClick }) => {
             <div className="w-full max-w-5xl bg-slate-900/40 backdrop-blur-xl shadow-[0_0_20px_rgba(236,72,153,0.1)] rounded-xl overflow-hidden border border-pink-500/20">
                 <table className="w-full text-left relative">
                     <thead>
-                        <tr className="bg-slate-800/50 text-xs text-slate-400 uppercase tracking-widest relative">
-                            {/* シアンのグラデーションライン */}
-                            <th className="absolute bottom-0 left-0 w-full h-[1px] bg-gradient-to-r from-cyan-400 via-cyan-400/50 to-transparent shadow-[0_0_5px_rgba(34,211,238,0.8)]"></th>
-                            <th className="py-4 px-5 font-bold">#</th>
-                            <th className="py-4 px-4 font-bold">楽曲</th>
-                            <th className="py-4 px-4 font-bold">アーティスト</th>
-                            <th className="py-4 px-2 font-bold w-12 text-center"></th>
+                        <tr className="bg-slate-800/50 text-xs text-slate-400 uppercase border-b border-white/5">
+                            <th className="py-3 px-5 font-medium">#</th>
+                            <th className="py-3 px-4 font-medium">楽曲</th>
+                            <th className="py-3 px-4 font-medium">アーティスト</th>
+                            <th className="py-3 px-4 font-medium hidden sm:table-cell">Lowest</th>
+                            <th className="py-3 px-4 font-medium hidden sm:table-cell">Highest</th>
+                            <th className="py-3 px-4 font-medium hidden sm:table-cell">Falsetto</th>
+                            <th className="py-3 px-2 font-medium w-10"></th>
                         </tr>
                     </thead>
                     <tbody>
                         {favorites.map((fav, i) => (
-                            <tr key={fav.favorite_id} className="relative group transition-all duration-300 hover:bg-cyan-900/20 border-b border-white/5 last:border-0 hover:border-transparent text-sm">
-                                {/* ホバー時のシアンのネオンライン */}
-                                <td className="absolute left-0 top-0 bottom-0 w-1 bg-cyan-400 opacity-0 group-hover:opacity-100 shadow-[0_0_10px_rgba(34,211,238,1)] transition-opacity duration-300"></td>
-
-                                <td className="py-4 px-5 text-slate-500 text-xs group-hover:text-cyan-300 transition-colors font-mono">{i + 1}</td>
-                                <td className="py-4 px-4 text-slate-200 font-bold group-hover:text-white transition-colors tracking-wide drop-shadow-sm">{fav.title}</td>
-                                <td className="py-4 px-4 text-slate-400 group-hover:text-slate-300 transition-colors">{fav.artist || '-'}</td>
-                                <td className="py-4 px-2 text-center">
+                            <tr key={fav.favorite_id} className="border-b border-white/5 hover:bg-white/5 transition-colors text-sm group">
+                                <td className="py-3 px-5 text-slate-500 text-xs">{i + 1}</td>
+                                <td className="py-3 px-4 text-slate-200 font-medium group-hover:text-white transition-colors">{fav.title}</td>
+                                <td className="py-3 px-4 text-slate-400">{fav.artist || '-'}</td>
+                                <td className="py-3 px-4 text-slate-400 whitespace-nowrap hidden sm:table-cell">{fav.lowest_note || '-'}</td>
+                                <td className="py-3 px-4 text-slate-400 whitespace-nowrap hidden sm:table-cell">{fav.highest_note || '-'}</td>
+                                <td className="py-3 px-4 text-slate-400 whitespace-nowrap hidden sm:table-cell">{fav.falsetto_note || '-'}</td>
+                                <td className="py-3 px-2 text-center">
                                     <button
                                         onClick={() => handleRemove(fav.song_id)}
                                         disabled={removingIds.has(fav.song_id)}
