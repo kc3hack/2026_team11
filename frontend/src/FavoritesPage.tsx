@@ -109,8 +109,8 @@ const FavoritesPage: React.FC<FavoritesPageProps> = ({ onLoginClick }) => {
                             <th className="py-3 px-5 font-medium">#</th>
                             <th className="py-3 px-4 font-medium">Title</th>
                             <th className="py-3 px-4 font-medium">Artist</th>
-                            <th className="py-3 px-4 font-medium">Lowest</th>
-                            <th className="py-3 px-4 font-medium">Highest</th>
+                            <th className="py-3 px-4 font-medium hidden sm:table-cell">Lowest</th>
+                            <th className="py-3 px-4 font-medium hidden sm:table-cell">Highest</th>
                             <th className="py-3 px-4 font-medium hidden sm:table-cell">Falsetto</th>
                             <th className="py-3 px-2 font-medium w-10"></th>
                         </tr>
@@ -121,8 +121,8 @@ const FavoritesPage: React.FC<FavoritesPageProps> = ({ onLoginClick }) => {
                                 <td className="py-3 px-5 text-slate-500 text-xs">{i + 1}</td>
                                 <td className="py-3 px-4 text-slate-200 font-medium group-hover:text-white transition-colors">{fav.title}</td>
                                 <td className="py-3 px-4 text-slate-400">{fav.artist || '-'}</td>
-                                <td className="py-3 px-4 text-slate-400 whitespace-nowrap">{fav.lowest_note || '-'}</td>
-                                <td className="py-3 px-4 text-slate-400 whitespace-nowrap">{fav.highest_note || '-'}</td>
+                                <td className="py-3 px-4 text-slate-400 whitespace-nowrap hidden sm:table-cell">{fav.lowest_note || '-'}</td>
+                                <td className="py-3 px-4 text-slate-400 whitespace-nowrap hidden sm:table-cell">{fav.highest_note || '-'}</td>
                                 <td className="py-3 px-4 text-slate-400 whitespace-nowrap hidden sm:table-cell">{fav.falsetto_note || '-'}</td>
                                 <td className="py-3 px-2 text-center">
                                     <button
