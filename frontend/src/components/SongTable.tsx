@@ -46,10 +46,10 @@ const SongTable: React.FC<SongTableProps> = ({
         <thead>
           <tr className="bg-slate-800/50 text-xs text-slate-400 uppercase border-b border-white/5">
             <th className="py-3 px-5 font-medium">#</th>
-            <th className="py-3 px-4 font-medium">{showArtistColumn ? '楽曲' : 'Title'}</th>
+            <th className="py-3 px-4 font-medium">楽曲</th>
             {showArtistColumn && <th className="py-3 px-4 font-medium">アーティスト</th>}
-            <th className="py-3 px-4 font-medium">Lowest</th>
-            <th className="py-3 px-4 font-medium">Highest</th>
+            <th className="py-3 px-4 font-medium hidden sm:table-cell">Lowest</th>
+            <th className="py-3 px-4 font-medium hidden sm:table-cell">Highest</th>
             <th className="py-3 px-4 font-medium hidden sm:table-cell">Falsetto</th>
             {userRange && <th className="py-3 px-4 font-medium text-center">Key</th>}
             <th className="py-3 px-2 font-medium w-10"></th>
@@ -78,8 +78,8 @@ const SongTable: React.FC<SongTableProps> = ({
                 {showArtistColumn && (
                   <td className="py-3 px-4 text-slate-400 whitespace-nowrap">{song.artist}</td>
                 )}
-                <td className="py-3 px-4 text-slate-400 whitespace-nowrap">{song.lowest_note || '-'}</td>
-                <td className="py-3 px-4 text-slate-400 whitespace-nowrap">{song.highest_note || '-'}</td>
+                <td className="py-3 px-4 text-slate-400 whitespace-nowrap hidden sm:table-cell">{song.lowest_note || '-'}</td>
+                <td className="py-3 px-4 text-slate-400 whitespace-nowrap hidden sm:table-cell">{song.highest_note || '-'}</td>
                 <td className="py-3 px-4 text-slate-400 whitespace-nowrap hidden sm:table-cell">{song.falsetto_note || '-'}</td>
                 {userRange && (
                   <td className="py-3 px-4 text-center">
