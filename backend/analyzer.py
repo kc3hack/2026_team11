@@ -3,7 +3,7 @@ import soundfile as sf
 import torch
 import torchcrepe
 import librosa
-from register_classifier import classify_register, reset_register_stats, print_register_summary
+from register_classifier import classify_register, new_register_stats, print_register_summary
 from note_converter import hz_to_label_and_hz
 from config import (
     VOICE_MIN_HZ, VOICE_MAX_HZ, CREPE_SR, CREPE_HOP_LENGTH,
@@ -427,7 +427,7 @@ def _classify_frames(filtered: dict, y_16k: np.ndarray, sr_crepe: int,
     total_frames   = len(f0_reg_fixed)
     progress_interval = max(1, total_frames // 10)
 
-    reset_register_stats()  # 統計情報をリセット
+    stats = new_register_stats()
     graduated_conf_filtered = 0
     print(f"[INFO] {total_frames}フレームを処理中...")
     for i in range(total_frames):
@@ -458,8 +458,15 @@ def _classify_frames(filtered: dict, y_16k: np.ndarray, sr_crepe: int,
         if len(frame) < 512:
             continue
         try:
-            reg = classify_register(frame, sr_crepe, freq, median_freq, already_separated,
-                                    crepe_conf=float(conf_reg[i]))
+            reg = classify_register(
+                frame,
+                sr_crepe,
+                freq,
+                median_freq,
+                already_separated,
+                crepe_conf=float(conf_reg[i]),
+                stats=stats,
+            )
             if reg == "falsetto":
                 falsetto_notes.append(freq)
             elif reg == "chest":
@@ -468,7 +475,7 @@ def _classify_frames(filtered: dict, y_16k: np.ndarray, sr_crepe: int,
         except Exception:
             continue
 
-    print_register_summary()  # レジスター判定のサマリーを出力
+    print_register_summary(stats)  # レジスター判定のサマリーを出力
 
     if graduated_conf_filtered > 0:
         print(f"[DEBUG] 段階的信頼度フィルタ: {graduated_conf_filtered}フレーム除外")
@@ -482,8 +489,10 @@ def _classify_frames(filtered: dict, y_16k: np.ndarray, sr_crepe: int,
         print(f"[DEBUG] {len(low_falsetto)}フレームを裏声→地声に再分類")
 
     if not chest_notes and not falsetto_notes:
-        print(f"[WARN] レジスター判定結果なし。全フレームを地声として処理")
+        print(f"[WARN] ⚠️ レジスター判定結果なし。全フレームを地声として処理")
         chest_notes = f0_reg_fixed.tolist()
+    else:
+        print(f"[DEBUG] レジスター判定直後: 地声={len(chest_notes)}フレーム, 裏声={len(falsetto_notes)}フレーム")
 
     # デバッグ: 最高音付近（上位10Hz）の判定状況を確認
     if chest_notes or falsetto_notes:
@@ -498,6 +507,10 @@ def _classify_frames(filtered: dict, y_16k: np.ndarray, sr_crepe: int,
                 print(f"[DEBUG] → 地声最高: {max(high_chest):.1f}Hz, 裏声最高: {max(high_falsetto):.1f}Hz")
 
     # === 統計的外れ値除去（パーセンタイルベースの安全ネット） ===
+    print(f"[DEBUG] フィルタリング前: 地声={len(chest_notes)}, 裏声={len(falsetto_notes)}")
+    chest_notes_before = len(chest_notes)
+    falsetto_notes_before = len(falsetto_notes)
+    
     chest_notes = remove_statistical_outliers(
         chest_notes,
         percentile=CHEST_OUTLIER_PERCENTILE,
@@ -508,12 +521,18 @@ def _classify_frames(filtered: dict, y_16k: np.ndarray, sr_crepe: int,
         percentile=FALSETTO_OUTLIER_PERCENTILE,
         max_semitones_gap=FALSETTO_OUTLIER_GAP_ST,
     )
+    print(f"[DEBUG] 統計外れ値除去後: 地声={len(chest_notes)} ({chest_notes_before}→{len(chest_notes)}), 裏声={len(falsetto_notes)} ({falsetto_notes_before}→{len(falsetto_notes)})")
 
     # === 孤立した極端値を除去（ノイズ最終防衛線） ===
+    chest_notes_before = len(chest_notes)
+    falsetto_notes_before = len(falsetto_notes)
+    
     chest_notes = remove_isolated_extremes(chest_notes)
     falsetto_notes = remove_isolated_extremes(falsetto_notes)
+    print(f"[DEBUG] 孤立フレーム除去後: 地声={len(chest_notes)} ({chest_notes_before}→{len(chest_notes)}), 裏声={len(falsetto_notes)} ({falsetto_notes_before}→{len(falsetto_notes)})")
 
     # === 最高音付近の混在判定を解消 ===
+    print(f"[DEBUG] 最高音付近の混在判定前: 地声={len(chest_notes)}, 裏声={len(falsetto_notes)}")
     if chest_notes and falsetto_notes:
         all_freqs = chest_notes + falsetto_notes
         max_freq = max(all_freqs)
@@ -538,6 +557,8 @@ def _classify_frames(filtered: dict, y_16k: np.ndarray, sr_crepe: int,
                                if hz_to_label_and_hz(f)[0] != f_label]
                 removed = before_count - len(chest_notes)
                 print(f"[INFO] ラベル一致'{c_label}'の地声{removed}フレームを除外")
+    
+    print(f"[DEBUG] 最高音付近の混在判定後: 地声={len(chest_notes)}, 裏声={len(falsetto_notes)}")
 
     return chest_notes, falsetto_notes
 
@@ -593,6 +614,12 @@ def _build_result(chest_notes: list, falsetto_notes: list,
     result["chest_ratio"]    = round(len(chest_notes)    / total * 100, 1) if total else 100.0
     result["falsetto_ratio"] = round(len(falsetto_notes) / total * 100, 1) if total else 0.0
     result["chest_avg_hz"]   = round(chest_avg_hz, 1)
+    
+    # === デバッグ出力 ===
+    print(f"[DEBUG] 声区バランス計算:")
+    print(f"  地声: {len(chest_notes)}フレーム ({result['chest_ratio']}%)")
+    print(f"  裏声: {len(falsetto_notes)}フレーム ({result['falsetto_ratio']}%)")
+    print(f"  合計: {total}フレーム")
 
     # === 歌唱力分析 ===
     try:

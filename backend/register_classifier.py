@@ -21,6 +21,7 @@ register_classifier.py  —  地声 / 裏声 判定
 """
 
 import os
+from dataclasses import dataclass
 import numpy as np
 import librosa
 
@@ -41,9 +42,18 @@ _MODEL_PATH = os.path.join(os.path.dirname(__file__), "ml", "models", "register_
 _MODEL_MTIME = 0.0  # モデルファイルの更新日時を記録
 _ML_STATUS_LOGGED = False  # MLモデルの初回状態ログ出力済みフラグ
 
-# ログカウンター（グローバル）
-_log_counter = 0
-_stats = {"ml_success": 0, "ml_fallback": 0, "rule_only": 0, "chest": 0, "falsetto": 0}
+@dataclass
+class RegisterStats:
+    log_counter: int = 0
+    ml_success: int = 0
+    ml_fallback: int = 0
+    rule_only: int = 0
+    chest: int = 0
+    falsetto: int = 0
+
+
+def new_register_stats() -> "RegisterStats":
+    return RegisterStats()
 
 
 def _load_model_if_needed():
@@ -90,9 +100,9 @@ except ImportError:
 # ML推論
 # ============================================================
 def _classify_ml(y: np.ndarray, sr: int, f0: float,
+                  stats: RegisterStats,
                   crepe_conf: float = 1.0) -> str | None:
     """MLモデルで判定。モデルがないか特徴抽出に失敗したら None を返す"""
-    global _log_counter, _stats
     _load_model_if_needed()  # モデル更新チェック（mtime比較のみ、軽量）
 
     if _ML_MODEL is None or extract_features is None:
@@ -126,14 +136,17 @@ def _classify_ml(y: np.ndarray, sr: int, f0: float,
             threshold = max(threshold, ML_CONF_CHEST_HIGH_F0)
 
         if confidence < threshold:
-            _stats["ml_fallback"] += 1
-            if REGISTER_LOG_LEVEL >= 3 or (REGISTER_LOG_LEVEL == 2 and _log_counter % REGISTER_LOG_INTERVAL == 0):
+            stats.ml_fallback += 1
+            if REGISTER_LOG_LEVEL >= 3 or (REGISTER_LOG_LEVEL == 2 and stats.log_counter % REGISTER_LOG_INTERVAL == 0):
                 print(f"[REGISTER/ML→RULE] f0={f0:.0f}Hz ML={label}({confidence:.3f}) < thresh={threshold:.2f} → ルールベースへ")
             return None
 
-        _stats["ml_success"] += 1
-        _stats[label] += 1
-        if REGISTER_LOG_LEVEL >= 3 or (REGISTER_LOG_LEVEL == 2 and _log_counter % REGISTER_LOG_INTERVAL == 0):
+        stats.ml_success += 1
+        if label == "chest":
+            stats.chest += 1
+        else:
+            stats.falsetto += 1
+        if REGISTER_LOG_LEVEL >= 3 or (REGISTER_LOG_LEVEL == 2 and stats.log_counter % REGISTER_LOG_INTERVAL == 0):
             print(f"[REGISTER/ML] f0={f0:.0f}Hz label={label} conf={confidence:.3f} thresh={threshold:.2f} crepe={crepe_conf:.2f}")
         return label
     except Exception as e:
@@ -145,9 +158,9 @@ def _classify_ml(y: np.ndarray, sr: int, f0: float,
 # ルールベース判定（フォールバック）
 # ============================================================
 def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float,
+                    stats: RegisterStats,
                     crepe_conf: float = 1.0) -> str:
     """従来のルールベース判定"""
-    global _log_counter, _stats
     # FFT
     n_fft    = 8192
     win      = np.hanning(len(y))
@@ -170,9 +183,9 @@ def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float,
 
     # 地声即決（低音域のみ: f0>400ではdemucsによるH1-H2変質があるためスコア判定へ回す）
     if h1_h2 < -2.0 and f0 <= 400:
-        _stats["rule_only"] += 1
-        _stats["chest"] += 1
-        if REGISTER_LOG_LEVEL >= 3 or (REGISTER_LOG_LEVEL == 2 and _log_counter % REGISTER_LOG_INTERVAL == 0):
+        stats.rule_only += 1
+        stats.chest += 1
+        if REGISTER_LOG_LEVEL >= 3 or (REGISTER_LOG_LEVEL == 2 and stats.log_counter % REGISTER_LOG_INTERVAL == 0):
             print(f"[REGISTER/RULE] f0={f0:.0f}Hz H1-H2={h1_h2:.1f}dB → 地声確定(即決)")
         return "chest"
 
@@ -270,6 +283,7 @@ def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float,
         return "chest"
 
     falsetto_ratio = falsetto_score / total
+    print(f"[DEBUG] ルールベース: chest_score={chest_score:.1f} falsetto_score={falsetto_score:.1f} falsetto_ratio={falsetto_ratio:.2f}")
     # 高音域では裏声判定の閾値を下げる
     # demucs分離後はhcount(倍音数)やslope(減衰)が常に地声寄りになるため、
     # 音響特徴だけでは裏声を検出しづらい。f0が高いこと自体が裏声の強い証拠。
@@ -283,9 +297,12 @@ def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float,
 
     # [FIX] f-string内で条件式をフォーマット指定子に使うとValueError → 事前に文字列変換
     slope_str = f"{slope:.1f}" if slope is not None else "N/A"
-    _stats["rule_only"] += 1
-    _stats[result] += 1
-    if REGISTER_LOG_LEVEL >= 3 or (REGISTER_LOG_LEVEL == 2 and _log_counter % REGISTER_LOG_INTERVAL == 0):
+    stats.rule_only += 1
+    if result == "chest":
+        stats.chest += 1
+    else:
+        stats.falsetto += 1
+    if REGISTER_LOG_LEVEL >= 3 or (REGISTER_LOG_LEVEL == 2 and stats.log_counter % REGISTER_LOG_INTERVAL == 0):
         print(
             f"[REGISTER/RULE] f0={f0:.0f}Hz "
             f"H1-H2={h1_h2:.1f} hcount={hcount} "
@@ -302,7 +319,8 @@ def _classify_rules(y: np.ndarray, sr: int, f0: float, median_freq: float,
 # ============================================================
 def classify_register(y: np.ndarray, sr: int, f0: float, median_freq: float = 0,
                       already_separated: bool = False,
-                      crepe_conf: float = 1.0) -> str:
+                      crepe_conf: float = 1.0,
+                      stats: RegisterStats | None = None) -> str:
     """
     地声/裏声を判定する。
 
@@ -337,41 +355,35 @@ def classify_register(y: np.ndarray, sr: int, f0: float, median_freq: float = 0,
         return "chest"
 
     # ML判定を試行（crepe_confを伝搬）
-    ml_result = _classify_ml(y, sr, f0, crepe_conf=crepe_conf)
+    local_stats = stats or RegisterStats()
+    ml_result = _classify_ml(y, sr, f0, local_stats, crepe_conf=crepe_conf)
     if ml_result is not None:
-        _log_counter += 1
+        local_stats.log_counter += 1
         return ml_result
 
     # フォールバック: ルールベース（crepe_confを伝搬）
-    _log_counter += 1
-    return _classify_rules(y, sr, f0, median_freq, crepe_conf=crepe_conf)
+    local_stats.log_counter += 1
+    return _classify_rules(y, sr, f0, median_freq, local_stats, crepe_conf=crepe_conf)
 
 
 # ============================================================
 # ログ制御とサマリー
 # ============================================================
-def reset_register_stats():
-    """統計情報をリセット（分析開始時に呼ぶ）"""
-    global _log_counter, _stats
-    _log_counter = 0
-    _stats = {"ml_success": 0, "ml_fallback": 0, "rule_only": 0, "chest": 0, "falsetto": 0}
-
-
-def print_register_summary():
+def print_register_summary(stats: RegisterStats):
     """レジスター判定のサマリーを出力"""
     if REGISTER_LOG_LEVEL == 0:
         return
-    
-    total = _stats["chest"] + _stats["falsetto"]
+
+    total = stats.chest + stats.falsetto
     if total == 0:
         return
-    
+
     print(f"\n[REGISTER SUMMARY] 合計判定数: {total}フレーム")
-    print(f"  ├─ 地声: {_stats['chest']}フレーム ({_stats['chest']/total*100:.1f}%)")
-    print(f"  └─ 裏声: {_stats['falsetto']}フレーム ({_stats['falsetto']/total*100:.1f}%)")
-    
+    print(f"  ├─ 地声: {stats.chest}フレーム ({stats.chest/total*100:.1f}%)")
+    print(f"  └─ 裏声: {stats.falsetto}フレーム ({stats.falsetto/total*100:.1f}%)")
+
     if _ML_MODEL is not None:
         print(f"  判定方式:")
-        print(f"    ├─ ML判定成功: {_stats['ml_success']}フレーム")
-        print(f"    ├─ ML→ルール: {_stats['ml_fallback']}フレーム")
-        print(f"    └─ ルールのみ: {_stats['rule_only']}フレーム")
+        print(f"    ├─ ML判定成功: {stats.ml_success}フレーム")
+        print(f"    ├─ ML→ルール: {stats.ml_fallback}フレーム")
+        print(f"    └─ ルールのみ: {stats.rule_only}フレーム")
